@@ -554,58 +554,30 @@ function renderScatterBar(missionCount) {
    we keep them in memory so the click handler can look them up when
    a "Close all" button is pressed.
 
-   openTabMissions is repopulated every time renderDashboard() runs.
+   openTabMissions is repopulated every time renderAIDashboard() runs.
+   domainGroups is populated by renderStaticDashboard().
    ---------------------------------------------------------------- */
 let openTabMissions = [];
-let duplicateTabs = [];
+let duplicateTabs   = [];
+let domainGroups    = []; // domain-grouped tabs for the static view
+
+// Tracks whether we're currently showing the AI view or the static view
+let isAIView = false;
 
 
 /* ----------------------------------------------------------------
-   MAIN DASHBOARD RENDERER
-
-   New architecture:
-   1. Fetch open tabs from extension
-   2. POST those tabs to /api/cluster-tabs → "Right now" section
-   3. Fetch /api/history-missions (excluding open tab URLs) → "Pick back up"
-   4. Render both sections
-   5. Keep cleanup banner, scatter bar, footer stats
+   HELPER: filter out browser-internal pages
+   We call this in multiple places, so it lives in one spot.
    ---------------------------------------------------------------- */
 
 /**
- * renderDashboard()
+ * getRealTabs()
  *
- * Orchestrates everything:
- * 1. Paint greeting + date in the header
- * 2. Fetch open tabs from the Chrome extension
- * 3. Cluster those open tabs via /api/cluster-tabs → Section 1 "Right now"
- * 4. Fetch history missions that don't overlap with open tabs → Section 2 "Pick back up"
- * 5. Compute scatter level (based on number of open-tab missions)
- * 6. Show/hide cleanup banner and nudge banner
- * 7. Update footer stats
+ * Returns all open tabs that are real web pages — no chrome://, extension
+ * pages, about:blank, etc. We only want to show and manage actual websites.
  */
-async function renderDashboard() {
-  // --- Header: greeting + date ---
-  const greetingEl = document.getElementById('greeting');
-  const dateEl     = document.getElementById('dateDisplay');
-  if (greetingEl) greetingEl.textContent = getGreeting();
-  if (dateEl)     dateEl.textContent     = getDateDisplay();
-
-  // ── Step 1: Fetch open tabs from the Chrome extension ────────────────────
-  // fetchOpenTabs() populates the global `openTabs` array and sets
-  // `extensionAvailable`. If not in the extension, openTabs stays [].
-  await fetchOpenTabs();
-
-  // ── Step 2: Cluster open tabs into missions ("Right now") ────────────────
-  // We send all real tabs to the server, which calls DeepSeek to group them.
-  // This is ephemeral — not stored, recalculated every load.
-  openTabMissions = []; // reset in-memory store
-
-  const openTabsSection     = document.getElementById('openTabsSection');
-  const openTabsMissionsEl  = document.getElementById('openTabsMissions');
-  const openTabsSectionCount = document.getElementById('openTabsSectionCount');
-
-  // Filter out chrome:// / extension pages before sending to server
-  const realTabs = openTabs.filter(t => {
+function getRealTabs() {
+  return openTabs.filter(t => {
     const url = t.url || '';
     return (
       !url.startsWith('chrome://') &&
@@ -615,8 +587,273 @@ async function renderDashboard() {
       !url.startsWith('brave://')
     );
   });
+}
 
-  if (extensionAvailable && realTabs.length > 0) {
+
+/* ----------------------------------------------------------------
+   DOMAIN CARD RENDERER (for static default view)
+
+   When we haven't asked AI to organize tabs yet, we group them
+   by domain (e.g. all github.com tabs together) and show a card
+   per domain. No AI required — pure JS.
+   ---------------------------------------------------------------- */
+
+/**
+ * renderDomainCard(group, groupIndex)
+ *
+ * Builds the HTML for one domain group card in the static view.
+ * "group" is: { domain, tabs: [{ url, title, tabId }] }
+ *
+ * Visually similar to renderOpenTabsMissionCard() but with a neutral
+ * gray status bar (not green) and no AI-generated summary.
+ */
+function renderDomainCard(group, groupIndex) {
+  const tabs      = group.tabs || [];
+  const tabCount  = tabs.length;
+  const stableId  = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-');
+
+  // Tab count badge
+  const tabBadge = `<span class="open-tabs-badge">
+    ${ICONS.tabs}
+    ${tabCount} tab${tabCount !== 1 ? 's' : ''} open
+  </span>`;
+
+  // Page chips — show up to 5, summarize the rest
+  const visibleTabs = tabs.slice(0, 5);
+  const extraCount  = tabs.length - visibleTabs.length;
+  const pageChips = visibleTabs.map(tab => {
+    const label   = tab.title || tab.url || '';
+    const display = label.length > 45 ? label.slice(0, 45) + '…' : label;
+    return `<span class="page-chip clickable" data-action="focus-tab" data-tab-url="${(tab.url || '').replace(/"/g, '&quot;')}" title="${label.replace(/"/g, '&quot;')}">${display}</span>`;
+  }).join('') + (extraCount > 0 ? `<span class="page-chip">+${extraCount} more</span>` : '');
+
+  return `
+    <div class="mission-card domain-card" data-domain-id="${stableId}">
+      <div class="status-bar neutral"></div>
+      <div class="mission-content">
+        <div class="mission-top">
+          <span class="mission-name">${group.domain}</span>
+          <span class="mission-tag neutral">Domain</span>
+          ${tabBadge}
+        </div>
+        <div class="mission-pages">${pageChips}</div>
+        <div class="actions">
+          <button class="action-btn close-tabs" data-action="close-domain-tabs" data-domain-id="${stableId}">
+            ${ICONS.close}
+            Close all ${tabCount} tab${tabCount !== 1 ? 's' : ''}
+          </button>
+        </div>
+      </div>
+      <div class="mission-meta">
+        <div class="mission-page-count">${tabCount}</div>
+        <div class="mission-page-label">tabs</div>
+      </div>
+    </div>`;
+}
+
+
+/* ----------------------------------------------------------------
+   MAIN DASHBOARD RENDERERS
+
+   Two modes:
+   1. renderStaticDashboard() — instant, no AI call. Groups tabs by domain.
+      Shows "Most visited" sites from history. Offers "Organize with AI".
+   2. renderAIDashboard()     — calls DeepSeek to cluster tabs into missions.
+      Replaces the domain view with AI-curated mission cards.
+   ---------------------------------------------------------------- */
+
+/**
+ * renderStaticDashboard()
+ *
+ * The default view. Loads instantly with no AI call:
+ * 1. Paint greeting + date
+ * 2. Fetch open tabs from the extension
+ * 3. Check if there's a cache hit (tabs already organized) → skip to AI view
+ * 4. Group tabs by domain (pure JS, no API)
+ * 5. Fetch top sites from /api/stats
+ * 6. Render domain cards + "Most visited" + "Organize with AI" button
+ * 7. Update scatter bar + footer stats
+ */
+async function renderStaticDashboard() {
+  isAIView = false;
+
+  // --- Header: greeting + date ---
+  const greetingEl = document.getElementById('greeting');
+  const dateEl     = document.getElementById('dateDisplay');
+  if (greetingEl) greetingEl.textContent = getGreeting();
+  if (dateEl)     dateEl.textContent     = getDateDisplay();
+
+  // ── Step 1: Fetch open tabs ───────────────────────────────────────────────
+  await fetchOpenTabs();
+  const realTabs = getRealTabs();
+
+  // ── Step 2: Cache check — did we already organize these exact tabs? ───────
+  // Build the same URL key the server uses: sorted tab URLs joined by |
+  if (realTabs.length > 0) {
+    const urlKey = realTabs.map(t => t.url).sort().join('|');
+    try {
+      const cacheRes = await fetch(`/api/cluster-tabs/cached?urlKey=${encodeURIComponent(urlKey)}`);
+      if (cacheRes.ok) {
+        const cacheData = await cacheRes.json();
+        if (cacheData.cached && cacheData.missions && cacheData.missions.length > 0) {
+          // We already have AI results for these exact tabs — go straight to AI view
+          console.log('[TMC] Cache hit on load — showing AI view immediately');
+          await renderAIDashboard({ cachedMissions: cacheData.missions });
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[TMC] Cache check failed:', err);
+    }
+  }
+
+  // ── Step 3: Group open tabs by domain ────────────────────────────────────
+  // This is pure JavaScript — no AI, no API calls. We extract the hostname
+  // from each tab URL and group them together.
+  domainGroups = [];
+  const groupMap = {};
+  for (const tab of realTabs) {
+    try {
+      const hostname = new URL(tab.url).hostname;
+      if (!groupMap[hostname]) {
+        groupMap[hostname] = { domain: hostname, tabs: [] };
+      }
+      groupMap[hostname].tabs.push(tab);
+    } catch {
+      // Skip malformed URLs
+    }
+  }
+  // Sort groups by tab count (most tabs first)
+  domainGroups = Object.values(groupMap).sort((a, b) => b.tabs.length - a.tabs.length);
+
+  // ── Step 4: Render domain cards ───────────────────────────────────────────
+  const openTabsSection      = document.getElementById('openTabsSection');
+  const openTabsMissionsEl   = document.getElementById('openTabsMissions');
+  const openTabsSectionCount = document.getElementById('openTabsSectionCount');
+  const openTabsSectionTitle = document.getElementById('openTabsSectionTitle');
+
+  if (domainGroups.length > 0 && openTabsSection) {
+    if (openTabsSectionTitle) openTabsSectionTitle.textContent = 'Open tabs';
+    openTabsSectionCount.textContent = `${domainGroups.length} domain${domainGroups.length !== 1 ? 's' : ''}`;
+    openTabsMissionsEl.innerHTML = domainGroups
+      .map((g, idx) => renderDomainCard(g, idx))
+      .join('');
+    openTabsSection.style.display = 'block';
+  } else if (openTabsSection) {
+    openTabsSection.style.display = 'none';
+  }
+
+  // ── Step 5: Show "Organize with AI" button ────────────────────────────────
+  // Only show if there are actually tabs to organize
+  const aiBar = document.getElementById('aiOrganizeBar');
+  if (aiBar) {
+    aiBar.style.display = realTabs.length > 0 ? 'block' : 'none';
+  }
+
+  // ── Step 6: Fetch + render top sites ─────────────────────────────────────
+  try {
+    const statsRes = await fetch('/api/stats');
+    if (statsRes.ok) {
+      const stats = await statsRes.json();
+
+      // Render top sites section
+      const topSitesSection = document.getElementById('topSitesSection');
+      const topSitesGrid    = document.getElementById('topSitesGrid');
+      const lastRefreshEl   = document.getElementById('lastRefreshTime');
+
+      if (stats.topSites && stats.topSites.length > 0 && topSitesSection) {
+        topSitesGrid.innerHTML = stats.topSites.map(site => `
+          <a class="top-site-tile" href="${site.domain.startsWith('http') ? site.domain : 'https://' + site.domain}" target="_blank" rel="noopener">
+            <div class="top-site-icon">
+              <img src="https://www.google.com/s2/favicons?domain=${site.domain}&sz=32" alt="" loading="lazy" onerror="this.style.display='none'">
+            </div>
+            <div class="top-site-name">${site.domain.replace(/^www\./, '')}</div>
+            <div class="top-site-visits">${site.visitCount.toLocaleString()} visits</div>
+          </a>
+        `).join('');
+        topSitesSection.style.display = 'block';
+      } else if (topSitesSection) {
+        topSitesSection.style.display = 'none';
+      }
+
+      if (lastRefreshEl) {
+        lastRefreshEl.textContent = stats.lastAnalysis
+          ? `History last analyzed ${timeAgo(stats.lastAnalysis)}`
+          : 'History not yet analyzed';
+      }
+    }
+  } catch (err) {
+    console.warn('[TMC] Could not fetch stats:', err);
+  }
+
+  // ── Step 7: Scatter bar (based on domain group count) ────────────────────
+  renderScatterBar(domainGroups.length);
+
+  // ── Step 8: Footer stats ─────────────────────────────────────────────────
+  const statMissions = document.getElementById('statMissions');
+  const statTabs     = document.getElementById('statTabs');
+  const statStale    = document.getElementById('statStale');
+  if (statMissions) statMissions.textContent = domainGroups.length;
+  if (statTabs)     statTabs.textContent     = openTabs.length;
+  if (statStale)    statStale.textContent    = '—';
+
+  // Hide cleanup banner in static view (we don't have AI missions to compare against)
+  const cleanupBanner = document.getElementById('cleanupBanner');
+  if (cleanupBanner) cleanupBanner.style.display = 'none';
+
+  // Hide nudge banner
+  const nudgeBanner = document.getElementById('nudgeBanner');
+  if (nudgeBanner) nudgeBanner.style.display = 'none';
+}
+
+
+/**
+ * renderAIDashboard(options)
+ *
+ * The AI-powered view. Called when the user clicks "Organize with AI"
+ * (or instantly on load if the cache already has results for these tabs).
+ *
+ * options.cachedMissions — if provided, use these missions instead of calling the API.
+ *                          This is how we use the cache hit path.
+ *
+ * What it does:
+ * 1. Show loading state on the button
+ * 2. Call POST /api/cluster-tabs (or use cached missions)
+ * 3. Replace domain cards with AI mission cards
+ * 4. Hide "Most visited" and "Organize with AI" button
+ * 5. Update scatter bar + footer stats
+ */
+async function renderAIDashboard(options = {}) {
+  isAIView = true;
+
+  // Ensure we have fresh open tabs
+  if (openTabs.length === 0) {
+    await fetchOpenTabs();
+  }
+  const realTabs = getRealTabs();
+
+  // ── Show loading state on the AI button ───────────────────────────────────
+  const aiBar          = document.getElementById('aiOrganizeBar');
+  const aiBtnTextEl    = document.getElementById('aiOrganizeBtnText');
+  if (aiBtnTextEl) aiBtnTextEl.textContent = 'Organizing…';
+  const aiBtn = document.getElementById('aiOrganizeBtn');
+  if (aiBtn) {
+    aiBtn.disabled = true;
+    aiBtn.classList.add('loading');
+  }
+
+  openTabMissions = []; // reset in-memory store
+  duplicateTabs   = [];
+
+  // ── Fetch or reuse missions ───────────────────────────────────────────────
+  if (options.cachedMissions) {
+    // Cache hit path — no API call needed
+    openTabMissions = options.cachedMissions.map((m, i) => ({
+      ...m,
+      _stableId: m.name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 40) || `mission-${i}`,
+    }));
+  } else if (extensionAvailable && realTabs.length > 0) {
+    // Call DeepSeek via our server
     try {
       const clusterRes = await fetch('/api/cluster-tabs', {
         method: 'POST',
@@ -630,7 +867,6 @@ async function renderDashboard() {
           ...m,
           _stableId: m.name.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 40) || `mission-${i}`,
         }));
-        // Store duplicates for rendering
         duplicateTabs = clusterData.duplicates || [];
       }
     } catch (err) {
@@ -638,8 +874,19 @@ async function renderDashboard() {
     }
   }
 
-  // Render the "Right now" section
+  // Build dupe URL map for the card renderer
+  const dupeUrlMap = {};
+  duplicateTabs.forEach(d => { dupeUrlMap[d.url] = d.count; });
+  window._dupeUrlMap = dupeUrlMap;
+
+  // ── Render the AI mission cards ───────────────────────────────────────────
+  const openTabsSection      = document.getElementById('openTabsSection');
+  const openTabsMissionsEl   = document.getElementById('openTabsMissions');
+  const openTabsSectionCount = document.getElementById('openTabsSectionCount');
+  const openTabsSectionTitle = document.getElementById('openTabsSectionTitle');
+
   if (openTabMissions.length > 0 && openTabsSection) {
+    if (openTabsSectionTitle) openTabsSectionTitle.textContent = 'Right now';
     openTabsSectionCount.textContent = `${openTabMissions.length} mission${openTabMissions.length !== 1 ? 's' : ''}`;
     openTabsMissionsEl.innerHTML = openTabMissions
       .map((m, idx) => renderOpenTabsMissionCard(m, idx))
@@ -649,61 +896,20 @@ async function renderDashboard() {
     openTabsSection.style.display = 'none';
   }
 
-  // Build a set of duplicate URLs for the card renderer to use
-  const dupeUrlSet = new Set(duplicateTabs.map(d => d.url));
-  const dupeUrlMap = {};
-  duplicateTabs.forEach(d => { dupeUrlMap[d.url] = d.count; });
+  // ── Hide static-only UI elements ─────────────────────────────────────────
+  if (aiBar) aiBar.style.display = 'none';
+  const topSitesSection = document.getElementById('topSitesSection');
+  if (topSitesSection) topSitesSection.style.display = 'none';
 
-  // Store on window so renderOpenTabsMissionCard can access it
-  window._dupeUrlMap = dupeUrlMap;
-
-  // ── Step 3: Fetch history missions ("Pick back up") ──────────────────────
-  // Pass all currently open URLs as a filter so the server can exclude
-  // missions that are already represented in the "Right now" section.
-  const openUrlsParam = realTabs
-    .map(t => encodeURIComponent(t.url))
-    .join(',');
-
-  let historyMissions = [];
-  try {
-    const historyRes = await fetch(`/api/history-missions?openUrls=${openUrlsParam}`);
-    if (historyRes.ok) {
-      historyMissions = await historyRes.json();
-    }
-  } catch (err) {
-    console.warn('[TMC] Could not fetch history missions:', err);
-  }
-
-  // Render the "Pick back up" section
-  const historySection      = document.getElementById('historySection');
-  const historyMissionsEl   = document.getElementById('historyMissions');
-  const historySectionCount = document.getElementById('historySectionCount');
-
-  if (historyMissions.length > 0 && historySection) {
-    historySectionCount.textContent = `${historyMissions.length} mission${historyMissions.length !== 1 ? 's' : ''}`;
-    historyMissionsEl.innerHTML = historyMissions
-      .map(m => renderHistoryMissionCard(m))
-      .join('');
-    historySection.style.display = 'block';
-  } else if (historySection) {
-    historySection.style.display = 'none';
-  }
-
-  // ── Step 4: Scatter bar ───────────────────────────────────────────────────
-  // Scatter = how many parallel open-tab missions exist right now
+  // ── Scatter bar (based on AI mission count) ───────────────────────────────
   renderScatterBar(openTabMissions.length);
 
-  // ── Step 5: Stale tabs — tabs open but whose missions aren't "Right now" ──
-  // With the new architecture ALL open tabs should be in a mission,
-  // so stale tabs from the cleanup banner perspective are now tabs from the
-  // history section (old missions) that are still open in the browser.
-  // For simplicity: stale = open tabs that weren't in any cluster-tabs mission.
+  // ── Stale tabs ─────────────────────────────────────────────────────────────
   const clusteredTabUrls = new Set(
     openTabMissions.flatMap(m => (m.tabs || []).map(t => t.url))
   );
   const staleTabs = realTabs.filter(t => !clusteredTabUrls.has(t.url));
 
-  // Cleanup banner
   const cleanupBanner = document.getElementById('cleanupBanner');
   if (staleTabs.length > 0 && cleanupBanner) {
     document.getElementById('staleTabCount').textContent =
@@ -713,20 +919,19 @@ async function renderDashboard() {
     cleanupBanner.style.display = 'none';
   }
 
-  // Hide nudge banner — no longer used
+  // Hide nudge banner
   const nudgeBanner = document.getElementById('nudgeBanner');
   if (nudgeBanner) nudgeBanner.style.display = 'none';
 
-  // ── Step 6: Footer stats ──────────────────────────────────────────────────
+  // ── Footer stats ───────────────────────────────────────────────────────────
   const statMissions = document.getElementById('statMissions');
   const statTabs     = document.getElementById('statTabs');
   const statStale    = document.getElementById('statStale');
-  // "Missions" in the footer = open-tab missions (the primary view)
   if (statMissions) statMissions.textContent = openTabMissions.length;
   if (statTabs)     statTabs.textContent     = openTabs.length;
   if (statStale)    statStale.textContent    = staleTabs.length;
 
-  // Last refresh time (from the history analysis, not the tab clustering)
+  // Last refresh time
   const lastRefreshEl = document.getElementById('lastRefreshTime');
   if (lastRefreshEl) {
     try {
@@ -746,6 +951,17 @@ async function renderDashboard() {
 }
 
 
+/**
+ * renderDashboard()
+ *
+ * Legacy entry point — now just calls renderStaticDashboard().
+ * Keeping this name so any existing references (e.g. handleRefresh) still work.
+ */
+async function renderDashboard() {
+  await renderStaticDashboard();
+}
+
+
 /* ----------------------------------------------------------------
    EVENT HANDLERS (using event delegation)
 
@@ -761,6 +977,13 @@ document.addEventListener('click', async (e) => {
   // Walk up the DOM from the clicked element to find the nearest
   // element with a data-action attribute
   const actionEl = e.target.closest('[data-action]');
+
+  // --- "Organize with AI" button ---
+  if (e.target.closest('#aiOrganizeBtn')) {
+    e.preventDefault();
+    await renderAIDashboard();
+    return;
+  }
 
   // --- Close all stale tabs button (in the cleanup banner) ---
   if (e.target.closest('#closeAllStaleBtn')) {
@@ -790,6 +1013,37 @@ document.addEventListener('click', async (e) => {
     if (tabUrl) {
       await sendToExtension('focusTab', { url: tabUrl });
     }
+    return;
+  }
+
+  // ---- close-domain-tabs: close all tabs in a static domain group ----
+  if (action === 'close-domain-tabs') {
+    const domainId = actionEl.dataset.domainId;
+    // Find the group by its stable ID
+    const group = domainGroups.find(g => {
+      const id = 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-');
+      return id === domainId;
+    });
+    if (!group) return;
+
+    const urls = group.tabs.map(t => t.url);
+    await closeTabsByUrls(urls);
+
+    // Animate the card out
+    if (card) {
+      playCloseSound();
+      animateCardOut(card);
+    }
+
+    // Remove from in-memory domain groups
+    const idx = domainGroups.indexOf(group);
+    if (idx !== -1) domainGroups.splice(idx, 1);
+
+    showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${group.domain}`);
+
+    // Update footer tab count
+    const statTabs = document.getElementById('statTabs');
+    if (statTabs) statTabs.textContent = openTabs.length;
     return;
   }
 
@@ -971,22 +1225,13 @@ document.addEventListener('click', async (e) => {
  * through the AI clustering (shouldn't happen, but could with edge cases).
  */
 async function handleCloseAllStale() {
-  // Stale tabs = open real tabs not in any clustered mission
+  const realTabs = getRealTabs();
+
+  // Stale tabs = open real tabs not in any clustered mission (AI view only).
+  // In static view there's no AI grouping, so we fall back to no-op.
   const clusteredTabUrls = new Set(
     openTabMissions.flatMap(m => (m.tabs || []).map(t => t.url))
   );
-
-  // Filter to real browser tabs only (not chrome:// etc.)
-  const realTabs = openTabs.filter(t => {
-    const url = t.url || '';
-    return (
-      !url.startsWith('chrome://') &&
-      !url.startsWith('chrome-extension://') &&
-      !url.startsWith('about:') &&
-      !url.startsWith('edge://') &&
-      !url.startsWith('brave://')
-    );
-  });
 
   const staleUrls = realTabs
     .filter(t => !clusteredTabUrls.has(t.url))
@@ -1073,21 +1318,12 @@ async function fetchMissionById(missionId) {
 async function updateStaleCount() {
   await fetchOpenTabs(); // refresh our live tab list first
 
+  const realTabs = getRealTabs();
+
   // Recalculate which tabs are "stale" (not in any open-tab mission)
   const clusteredTabUrls = new Set(
     openTabMissions.flatMap(m => (m.tabs || []).map(t => t.url))
   );
-
-  const realTabs = openTabs.filter(t => {
-    const url = t.url || '';
-    return (
-      !url.startsWith('chrome://') &&
-      !url.startsWith('chrome-extension://') &&
-      !url.startsWith('about:') &&
-      !url.startsWith('edge://') &&
-      !url.startsWith('brave://')
-    );
-  });
 
   const staleTabs = realTabs.filter(t => !clusteredTabUrls.has(t.url));
 

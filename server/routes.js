@@ -34,6 +34,9 @@ const {
 // clusterOpenTabs()        — clusters currently open tabs ephemerally (no DB)
 const { analyzeBrowsingHistory, clusterOpenTabs } = require('./clustering');
 
+// Pull in the history reader — we reuse its DB-reading pattern to query top sites
+const { readRecentHistory } = require('./history-reader');
+
 // An Express Router is like a mini-app: it holds a group of related routes.
 // We export it and mount it on the main Express app in index.js.
 const router = express.Router();
@@ -265,11 +268,85 @@ router.get('/stats', (req, res) => {
     const metaRow = getMeta.get({ key: 'last_analysis' });
     const lastAnalysis = metaRow ? metaRow.value : null;
 
+    // ── Top sites: 8 most-visited domains from Chrome history ─────────────────
+    // We reuse the same "copy to temp, read readonly" pattern from history-reader.
+    // This gives us a real-time snapshot of the user's most visited domains
+    // without requiring any stored data in our own database.
+    let topSites = [];
+    try {
+      const fs       = require('fs');
+      const path     = require('path');
+      const os       = require('os');
+      const Database = require('better-sqlite3');
+
+      const CHROME_HISTORY_PATH = path.join(
+        os.homedir(),
+        'Library', 'Application Support', 'Google', 'Chrome', 'Default', 'History'
+      );
+      const TEMP_COPY_PATH = path.join(os.tmpdir(), 'mission-control-topsites-copy.db');
+
+      if (fs.existsSync(CHROME_HISTORY_PATH)) {
+        // Copy to temp to avoid Chrome's file lock
+        fs.copyFileSync(CHROME_HISTORY_PATH, TEMP_COPY_PATH);
+
+        let histDb = null;
+        try {
+          histDb = new Database(TEMP_COPY_PATH, { readonly: true, fileMustExist: true });
+
+          // Pull every URL with its visit count, then aggregate by domain in JS.
+          // We pull a reasonable cap (2000 rows) so the query stays fast.
+          const rows = histDb.prepare(`
+            SELECT url, title, visit_count
+            FROM urls
+            WHERE visit_count > 0
+            ORDER BY visit_count DESC
+            LIMIT 2000
+          `).all();
+
+          // Aggregate visit counts by hostname (domain)
+          const domainMap = {};
+          for (const row of rows) {
+            try {
+              const hostname = new URL(row.url).hostname;
+              // Skip empty, chrome-internal, or extension pages
+              if (!hostname || hostname.startsWith('chrome') || hostname === 'localhost') continue;
+
+              if (!domainMap[hostname]) {
+                domainMap[hostname] = { domain: hostname, visitCount: 0, title: '' };
+              }
+              domainMap[hostname].visitCount += row.visit_count;
+              // Use the title from the highest-visit-count entry for this domain
+              if (!domainMap[hostname].title && row.title) {
+                domainMap[hostname].title = row.title;
+              }
+            } catch {
+              // Skip malformed URLs
+            }
+          }
+
+          // Sort by visit count descending, take top 8
+          topSites = Object.values(domainMap)
+            .sort((a, b) => b.visitCount - a.visitCount)
+            .slice(0, 8);
+
+        } finally {
+          if (histDb) {
+            try { histDb.close(); } catch { /* ignore */ }
+          }
+          try { fs.unlinkSync(TEMP_COPY_PATH); } catch { /* ignore */ }
+        }
+      }
+    } catch (topSitesErr) {
+      // Top sites is best-effort — don't fail the whole stats endpoint
+      console.warn('[routes] GET /stats: could not read top sites:', topSitesErr.message);
+    }
+
     res.json({
       totalMissions,
       totalUrls,
       abandonedMissions,
       lastAnalysis,
+      topSites,
     });
   } catch (err) {
     console.error('[routes] GET /stats failed:', err.message);
@@ -292,6 +369,35 @@ router.get('/stats', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Cache for tab clustering — avoids calling DeepSeek if tabs haven't changed
 let clusterCache = { urlKey: '', result: null };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/cluster-tabs/cached
+//
+// Returns the cached clustering result WITHOUT triggering a new AI call.
+// The dashboard sends the computed urlKey (sorted URLs joined by |) as a
+// query parameter. If our cache matches, we return the result immediately.
+// If there's no cache or the key doesn't match, we return { cached: false }.
+//
+// This lets the dashboard check "did we already organize these tabs?" on load
+// without spending API credits.
+//
+// Query param: ?urlKey=<sorted-urls-joined-by-pipe>
+// Response:    { cached: true, missions: [...], duplicates: [...] }
+//           or { cached: false }
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/cluster-tabs/cached', (req, res) => {
+  const { urlKey } = req.query;
+
+  // If we have a cached result AND it matches the current tab set, return it
+  if (urlKey && clusterCache.urlKey === urlKey && clusterCache.result) {
+    console.log('[routes] GET /cluster-tabs/cached — cache hit');
+    return res.json({ cached: true, missions: clusterCache.result });
+  }
+
+  // No match — tell the dashboard it needs to call POST /cluster-tabs
+  console.log('[routes] GET /cluster-tabs/cached — cache miss');
+  res.json({ cached: false });
+});
 
 router.post('/cluster-tabs', async (req, res) => {
   const { tabs } = req.body;
