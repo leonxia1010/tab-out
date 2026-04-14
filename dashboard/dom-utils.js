@@ -15,11 +15,22 @@
     'disabled', 'checked', 'value', 'type', 'src', 'alt',
   ]);
 
+  // Allow http(s), mailto, tel, relative (/foo, ?q, #hash), and empty. Anything
+  // else (javascript:, data:, vbscript:, file:) collapses to '#' — defense
+  // against stored XSS via user-controlled `url` fields in the deferred_tabs
+  // table.
+  const SAFE_HREF_RE = /^(https?:|mailto:|tel:|[\/?#])/i;
+  function sanitizeHref(raw) {
+    const val = String(raw == null ? '' : raw).trim();
+    if (val === '' || SAFE_HREF_RE.test(val)) return val;
+    return '#';
+  }
+
   function el(tag, attrs, children) {
     const node = document.createElement(tag);
     if (attrs) {
       for (const key of Object.keys(attrs)) {
-        const val = attrs[key];
+        let val = attrs[key];
         if (val === undefined || val === null) continue;
 
         if (key.startsWith('on')) {
@@ -32,6 +43,9 @@
             node.dataset[dk] = String(dv);
           }
           continue;
+        }
+        if (key === 'href') {
+          val = sanitizeHref(val);
         }
         if (PROPERTY_KEYS.has(key)) {
           node[key] = val;

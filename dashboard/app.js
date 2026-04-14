@@ -333,7 +333,8 @@ function checkAndShowEmptyState() {
   const remaining = missionsEl.querySelectorAll('.mission-card:not(.closing)').length;
   if (remaining > 0) return;
 
-  // All missions are gone — show the empty state
+  // All missions are gone — show the empty state.
+  // Developer-authored static SVG literal, no user data. innerHTML is safe here.
   missionsEl.innerHTML = `
     <div class="missions-empty-state">
       <div class="empty-checkmark">
@@ -1775,6 +1776,7 @@ async function checkForUpdates() {
     if (!footer) return;
     const notice = document.createElement('div');
     notice.style.cssText = 'text-align:center; padding:8px; font-size:12px; color:var(--muted);';
+    // Developer-authored static string, no user data. innerHTML is safe here.
     notice.innerHTML = 'A new version of Tab Out is available. Run <code style="background:var(--warm-gray);padding:2px 6px;border-radius:3px;font-size:11px;user-select:all;cursor:pointer;" title="Click to select">git pull https://github.com/leonxia1010/tab-out</code> to update.';
     footer.after(notice);
   } catch {}

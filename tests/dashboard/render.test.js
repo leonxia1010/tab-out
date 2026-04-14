@@ -247,8 +247,59 @@ describe('renderDomainCard — chip XSS hardening', () => {
 
     expect(container.querySelectorAll('img[onerror]').length).toBe(0);
     expect(container.querySelectorAll('script').length).toBe(0);
-    // javascript: URLs are a known gap documented as follow-up — we do NOT
-    // assert they're stripped here. The chip may still carry href="javascript:..",
-    // but no script executes at render time.
+    // javascript: URLs get sanitized by dom-utils.el() and become href="#".
+    // No anchor in the subtree may carry a javascript: scheme.
+    const unsafeHrefs = Array.from(container.querySelectorAll('a[href], [href]'))
+      .map((a) => a.getAttribute('href'))
+      .filter((h) => /^javascript:/i.test(h));
+    expect(unsafeHrefs).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// URL scheme sanitization — javascript:/data:/vbscript: downgrade to '#'
+// ─────────────────────────────────────────────────────────────────────────────
+describe('href scheme sanitization', () => {
+  it('downgrades javascript: URL in renderDeferredItem to "#"', () => {
+    const container = makeContainer();
+    const item = {
+      id: 55,
+      url: 'javascript:alert(document.domain)',
+      title: 'evil',
+      deferred_at: NOW,
+    };
+    mountResult(container, renderDeferredItem(item));
+
+    const link = container.querySelector('.deferred-title');
+    expect(link).not.toBeNull();
+    expect(link.getAttribute('href')).toBe('#');
+  });
+
+  it('downgrades data: URL in renderArchiveItem to "#"', () => {
+    const container = makeContainer();
+    const item = {
+      url: 'data:text/html,<script>alert(1)</script>',
+      title: 'evil',
+      archived_at: NOW - 3600,
+    };
+    mountResult(container, renderArchiveItem(item));
+
+    const link = container.querySelector('.archive-item-title');
+    expect(link).not.toBeNull();
+    expect(link.getAttribute('href')).toBe('#');
+  });
+
+  it('preserves https: URL unchanged', () => {
+    const container = makeContainer();
+    const item = {
+      id: 56,
+      url: 'https://example.com/path?q=1#hash',
+      title: 'safe',
+      deferred_at: NOW,
+    };
+    mountResult(container, renderDeferredItem(item));
+
+    const link = container.querySelector('.deferred-title');
+    expect(link.getAttribute('href')).toBe('https://example.com/path?q=1#hash');
   });
 });
