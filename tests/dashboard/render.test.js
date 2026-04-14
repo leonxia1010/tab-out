@@ -1,115 +1,29 @@
+// @vitest-environment jsdom
 // tests/dashboard/render.test.js
 // ─────────────────────────────────────────────────────────────────────────────
-// XSS hardening tests for dashboard/app.js render functions.
+// XSS hardening tests for dashboard/src/renderers.ts.
 //
-// Approach: spin up a JSDOM window with runScripts:'dangerously', inject
-// dom-utils.js and app.js as <script> tags, then read render functions off
-// the resulting window. Designed to fail against the current string-based
-// innerHTML implementation and pass after the DOM-API migration.
-//
-// The mountResult() helper accepts either strings (current API) or Nodes
-// (post-refactor API), so the same tests apply before and after.
+// Phase 2 PR G: rewritten to ESM import the source modules directly under
+// vitest's jsdom environment. Earlier PRs injected hand-written legacy IIFE
+// mirrors into a self-spawned JSDOM window — those mirrors and the dual-load
+// dance are gone.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { JSDOM } from 'jsdom';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { describe, it, expect, beforeEach } from 'vitest';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DOM_UTILS_PATH = path.resolve(__dirname, '../../dashboard/dom-utils.js');
-const UTILS_PATH = path.resolve(__dirname, '../../dashboard/utils.js');
-const STATE_PATH = path.resolve(__dirname, '../../dashboard/state.js');
-const BRIDGE_PATH = path.resolve(__dirname, '../../dashboard/extension-bridge.js');
-const ANIMATIONS_PATH = path.resolve(__dirname, '../../dashboard/animations.js');
-const RENDERERS_PATH = path.resolve(__dirname, '../../dashboard/renderers.js');
-const APP_PATH = path.resolve(__dirname, '../../dashboard/app.js');
+import {
+  renderDeferredItem,
+  renderArchiveItem,
+  renderDomainCard,
+} from '../../dashboard/src/renderers.ts';
 
-let win;
-let renderDeferredItem;
-let renderArchiveItem;
-let renderDomainCard;
-let buildOverflowChips;
-let renderPageChip;
-
-beforeAll(() => {
-  const dom = new JSDOM(
-    `<!DOCTYPE html><html><head></head><body><footer></footer></body></html>`,
-    { runScripts: 'dangerously', url: 'http://localhost:3456/' }
-  );
-  win = dom.window;
-
-  // Neutralize anything app.js's top-level calls would reach out to.
-  // renderDashboard() and checkForUpdates() run on load; mock fetch so they
-  // silently fail in the catch block instead of crashing the sandbox.
-  win.fetch = () => Promise.reject(new Error('fetch disabled in tests'));
-
-  const DOM_UTILS_SRC = fs.readFileSync(DOM_UTILS_PATH, 'utf8');
-  const UTILS_SRC = fs.readFileSync(UTILS_PATH, 'utf8');
-  const STATE_SRC = fs.readFileSync(STATE_PATH, 'utf8');
-  const BRIDGE_SRC = fs.readFileSync(BRIDGE_PATH, 'utf8');
-  const ANIMATIONS_SRC = fs.readFileSync(ANIMATIONS_PATH, 'utf8');
-  const RENDERERS_SRC = fs.readFileSync(RENDERERS_PATH, 'utf8');
-  const APP_SRC = fs.readFileSync(APP_PATH, 'utf8');
-
-  const s1 = win.document.createElement('script');
-  s1.textContent = DOM_UTILS_SRC;
-  win.document.head.appendChild(s1);
-
-  const sUtils = win.document.createElement('script');
-  sUtils.textContent = UTILS_SRC;
-  win.document.head.appendChild(sUtils);
-
-  const sState = win.document.createElement('script');
-  sState.textContent = STATE_SRC;
-  win.document.head.appendChild(sState);
-
-  const sBridge = win.document.createElement('script');
-  sBridge.textContent = BRIDGE_SRC;
-  win.document.head.appendChild(sBridge);
-
-  const sAnim = win.document.createElement('script');
-  sAnim.textContent = ANIMATIONS_SRC;
-  win.document.head.appendChild(sAnim);
-
-  const sRend = win.document.createElement('script');
-  sRend.textContent = RENDERERS_SRC;
-  win.document.head.appendChild(sRend);
-
-  const s2 = win.document.createElement('script');
-  s2.textContent = APP_SRC + `
-    window.__tests = {
-      renderDeferredItem: window.renderers && window.renderers.renderDeferredItem || null,
-      renderArchiveItem:  window.renderers && window.renderers.renderArchiveItem  || null,
-      renderDomainCard:   window.renderers && window.renderers.renderDomainCard   || null,
-      buildOverflowChips: window.renderers && window.renderers.buildOverflowChips || null,
-      renderPageChip:     window.renderers && window.renderers.renderPageChip     || null,
-    };
-  `;
-  win.document.head.appendChild(s2);
-
-  ({
-    renderDeferredItem,
-    renderArchiveItem,
-    renderDomainCard,
-    buildOverflowChips,
-    renderPageChip,
-  } = win.__tests);
-});
-
-// Accept either string (pre-refactor), HTMLElement (post-refactor), or array.
 function mountResult(container, out) {
   if (out == null) return;
-  if (typeof out === 'string') {
-    container.innerHTML = out;
-    return;
-  }
   if (Array.isArray(out)) {
-    container.replaceChildren(...out.filter((n) => n instanceof win.Node));
+    container.replaceChildren(...out.filter((n) => n instanceof Node));
     return;
   }
-  if (out instanceof win.Node) {
+  if (out instanceof Node) {
     container.replaceChildren(out);
     return;
   }
@@ -117,10 +31,10 @@ function mountResult(container, out) {
 }
 
 function makeContainer() {
-  return win.document.createElement('div');
+  return document.createElement('div');
 }
 
-const NOW = Math.floor(Date.now() / 1000);
+const NOW_SECONDS = Math.floor(Date.now() / 1000);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // renderDeferredItem
@@ -134,14 +48,11 @@ describe('renderDeferredItem — XSS hardening', () => {
       id: 42,
       url: 'https://example.com',
       title: '<img src=x onerror="alert(1)">',
-      deferred_at: NOW - 60,
+      deferred_at: NOW_SECONDS - 60,
     };
     mountResult(container, renderDeferredItem(item));
 
-    // The bug: current code does `${item.title || item.url}` into innerHTML,
-    // which parses the <img> tag and produces a real element with onerror.
     expect(container.querySelector('img[onerror]')).toBeNull();
-    // The literal text must still be visible to the user
     expect(container.textContent).toContain('<img src=x');
   });
 
@@ -150,13 +61,11 @@ describe('renderDeferredItem — XSS hardening', () => {
       id: 7,
       url: 'https://example.org',
       title: `a&b<c>d"e'f`,
-      deferred_at: NOW - 120,
+      deferred_at: NOW_SECONDS - 120,
     };
     mountResult(container, renderDeferredItem(item));
 
-    // textContent should include all five special chars literally
     expect(container.textContent).toContain(`a&b<c>d"e'f`);
-    // No HTML elements derived from the angle brackets should exist
     expect(container.querySelector('c')).toBeNull();
   });
 
@@ -165,7 +74,7 @@ describe('renderDeferredItem — XSS hardening', () => {
       id: 1,
       url: 'https://example.com/path',
       title: '',
-      deferred_at: NOW,
+      deferred_at: NOW_SECONDS,
     };
     expect(() => {
       mountResult(container, renderDeferredItem(item));
@@ -178,7 +87,7 @@ describe('renderDeferredItem — XSS hardening', () => {
       id: 2,
       url: 'not a url',
       title: 'Some title',
-      deferred_at: NOW,
+      deferred_at: NOW_SECONDS,
     };
     expect(() => {
       mountResult(container, renderDeferredItem(item));
@@ -191,7 +100,7 @@ describe('renderDeferredItem — XSS hardening', () => {
       id: 99,
       url: 'https://example.com',
       title: 'safe',
-      deferred_at: NOW,
+      deferred_at: NOW_SECONDS,
     };
     mountResult(container, renderDeferredItem(item));
 
@@ -210,7 +119,7 @@ describe('renderArchiveItem — XSS hardening', () => {
     const item = {
       url: 'https://example.com',
       title: '<script>alert(1)</script>hello',
-      archived_at: NOW - 3600,
+      archived_at: NOW_SECONDS - 3600,
     };
     mountResult(container, renderArchiveItem(item));
 
@@ -220,9 +129,7 @@ describe('renderArchiveItem — XSS hardening', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// renderDomainCard / page chips (covers buildOverflowChips chip rendering
-// via the inline copy in renderDomainCard; also exercises renderPageChip
-// once extracted in commit 4).
+// renderDomainCard / page chips
 // ─────────────────────────────────────────────────────────────────────────────
 describe('renderDomainCard — chip XSS hardening', () => {
   it('strips <script> from a tab title (case 5, subset)', () => {
@@ -236,11 +143,7 @@ describe('renderDomainCard — chip XSS hardening', () => {
     };
     mountResult(container, renderDomainCard(group, 0));
 
-    // No executable <script> element anywhere in the subtree.
     expect(container.querySelector('script')).toBeNull();
-    // The literal "<script>" characters must appear as text (chip label is
-    // cleanTitle/smartTitle-cleaned, so "alert(1)" may be truncated; the
-    // key XSS assertion is that the tag does not materialize as a real node).
     expect(container.textContent).toContain('<script>');
   });
 
@@ -254,11 +157,7 @@ describe('renderDomainCard — chip XSS hardening', () => {
     };
     mountResult(container, renderDomainCard(group, 0));
 
-    // XSS assertion: the double-quote must not close any attribute and
-    // smuggle in an onload handler.
     expect(container.querySelector('[onload]')).toBeNull();
-    // The literal quote + injection prefix is preserved as text somewhere
-    // (suffixes like "(1)" may be trimmed by the chip-label cleaners).
     expect(container.textContent).toContain('quote"injection');
   });
 
@@ -277,8 +176,6 @@ describe('renderDomainCard — chip XSS hardening', () => {
 
     expect(container.querySelectorAll('img[onerror]').length).toBe(0);
     expect(container.querySelectorAll('script').length).toBe(0);
-    // javascript: URLs get sanitized by dom-utils.el() and become href="#".
-    // No anchor in the subtree may carry a javascript: scheme.
     const unsafeHrefs = Array.from(container.querySelectorAll('a[href], [href]'))
       .map((a) => a.getAttribute('href'))
       .filter((h) => /^javascript:/i.test(h));
@@ -296,7 +193,7 @@ describe('href scheme sanitization', () => {
       id: 55,
       url: 'javascript:alert(document.domain)',
       title: 'evil',
-      deferred_at: NOW,
+      deferred_at: NOW_SECONDS,
     };
     mountResult(container, renderDeferredItem(item));
 
@@ -310,7 +207,7 @@ describe('href scheme sanitization', () => {
     const item = {
       url: 'data:text/html,<script>alert(1)</script>',
       title: 'evil',
-      archived_at: NOW - 3600,
+      archived_at: NOW_SECONDS - 3600,
     };
     mountResult(container, renderArchiveItem(item));
 
@@ -325,7 +222,7 @@ describe('href scheme sanitization', () => {
       id: 56,
       url: 'https://example.com/path?q=1#hash',
       title: 'safe',
-      deferred_at: NOW,
+      deferred_at: NOW_SECONDS,
     };
     mountResult(container, renderDeferredItem(item));
 

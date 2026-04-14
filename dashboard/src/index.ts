@@ -1,40 +1,42 @@
-// Dashboard entry point (Phase 2 PR A + B + C + D + E + F).
+// Dashboard entry point (Phase 2 PR G — final).
 //
-// Bridges ESM modules to the legacy window.* globals that app.js reads while
-// we drain the god file. Also wires the document-level event listeners via
-// handlers.attachListeners() — app.js no longer registers its own listeners
-// after PR F. PR G removes app.js and the window.* bridge entirely.
+// Single ESM module the browser loads via `<script type="module">`. Owns:
+//   - module wiring (each src/*.ts file is imported here)
+//   - bootstrap: renderDashboard() + checkForUpdates() on load
+//   - event listener attach (handlers.attachListeners is idempotent)
+//
+// The window.* bridge that PR A-F maintained for the legacy app.js is gone.
+// All consumers are pure ESM modules now.
 
-import { el, mount, svg } from './dom-utils.js';
-import * as utils from './utils.js';
-import * as state from './state.js';
-import * as extensionBridge from './extension-bridge.js';
-import * as animations from './animations.js';
-import * as renderers from './renderers.js';
 import * as handlers from './handlers.js';
+import { renderDashboard } from './renderers.js';
 
-declare global {
-  interface Window {
-    domUtils: {
-      el: typeof el;
-      svg: typeof svg;
-      mount: typeof mount;
-    };
-    utils: typeof utils;
-    state: typeof state;
-    extensionBridge: typeof extensionBridge;
-    animations: typeof animations;
-    renderers: typeof renderers;
-    handlers: typeof handlers;
+interface UpdateStatusResponse {
+  updateAvailable?: boolean;
+}
+
+async function checkForUpdates(): Promise<void> {
+  try {
+    const res = await fetch('/api/update-status');
+    if (!res.ok) return;
+    const body = (await res.json()) as UpdateStatusResponse;
+    if (!body.updateAvailable) return;
+
+    const footer = document.querySelector('footer');
+    if (!footer) return;
+    const notice = document.createElement('div');
+    notice.style.cssText = 'text-align:center; padding:8px; font-size:12px; color:var(--muted);';
+    // Developer-authored static string, no user data — innerHTML is safe.
+    notice.innerHTML =
+      'A new version of Tab Out is available. Run ' +
+      '<code style="background:var(--warm-gray);padding:2px 6px;border-radius:3px;font-size:11px;user-select:all;cursor:pointer;" title="Click to select">' +
+      'git pull https://github.com/leonxia1010/tab-out</code> to update.';
+    footer.after(notice);
+  } catch {
+    // Network failure or parse error — silently no-op (no notice shown).
   }
 }
 
-window.domUtils = { el, svg, mount };
-window.utils = utils;
-window.state = state;
-window.extensionBridge = extensionBridge;
-window.animations = animations;
-window.renderers = renderers;
-window.handlers = handlers;
-
 handlers.attachListeners();
+void renderDashboard();
+void checkForUpdates();
