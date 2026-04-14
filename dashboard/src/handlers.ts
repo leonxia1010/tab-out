@@ -24,6 +24,7 @@ import {
   focusTabsByUrls,
   sendToExtension,
 } from './extension-bridge.js';
+import type { Mission } from './extension-bridge.js';
 import {
   animateCardOut as animateCardOutRaw,
   playCloseSound,
@@ -159,7 +160,7 @@ async function handleCheckDeferred(actionEl: HTMLElement): Promise<void> {
       item.classList.add('removing');
       setTimeout(() => {
         item.remove();
-        renderDeferredColumn();
+        void renderDeferredColumn();
       }, 300);
     }, 800);
   }
@@ -183,7 +184,7 @@ async function handleDismissDeferred(actionEl: HTMLElement): Promise<void> {
     item.classList.add('removing');
     setTimeout(() => {
       item.remove();
-      renderDeferredColumn();
+      void renderDeferredColumn();
     }, 300);
   }
 }
@@ -268,13 +269,13 @@ async function handleCloseAllOpenTabs(): Promise<void> {
 
 interface MissionUrlEntry { url?: string }
 
-function missionUrls(mission: Record<string, unknown>): string[] {
+function missionUrls(mission: Mission): string[] {
   const raw = mission.urls;
   const arr = Array.isArray(raw) ? raw as MissionUrlEntry[] : [];
   return arr.map(u => u?.url || '').filter(Boolean);
 }
 
-function missionName(mission: Record<string, unknown>): string {
+function missionName(mission: Mission): string {
   return typeof mission.name === 'string' ? mission.name : '';
 }
 
@@ -283,7 +284,7 @@ async function handleArchiveMission(missionId: string | undefined, card: HTMLEle
   const mission = await fetchMissionById(missionId);
   if (!mission) return;
 
-  const urls = missionUrls(mission as Record<string, unknown>);
+  const urls = missionUrls(mission);
   await closeTabsByUrls(urls);
 
   try {
@@ -297,7 +298,7 @@ async function handleArchiveMission(missionId: string | undefined, card: HTMLEle
     animateCardOut(card);
   }
 
-  showToast(`Archived "${missionName(mission as Record<string, unknown>)}"`);
+  showToast(`Archived "${missionName(mission)}"`);
 }
 
 async function handleDismissMission(missionId: string | undefined, card: HTMLElement | null): Promise<void> {
@@ -310,7 +311,7 @@ async function handleDismissMission(missionId: string | undefined, card: HTMLEle
     : '0';
 
   if (parseInt(tabCountStr, 10) > 0) {
-    await closeTabsByUrls(missionUrls(mission as Record<string, unknown>));
+    await closeTabsByUrls(missionUrls(mission));
   }
 
   try {
@@ -324,15 +325,15 @@ async function handleDismissMission(missionId: string | undefined, card: HTMLEle
     animateCardOut(card);
   }
 
-  showToast(`Let go of "${missionName(mission as Record<string, unknown>)}"`);
+  showToast(`Let go of "${missionName(mission)}"`);
 }
 
 async function handleFocusMission(missionId: string | undefined): Promise<void> {
   if (!missionId) return;
   const mission = await fetchMissionById(missionId);
   if (!mission) return;
-  await focusTabsByUrls(missionUrls(mission as Record<string, unknown>));
-  showToast(`Focused on "${missionName(mission as Record<string, unknown>)}"`);
+  await focusTabsByUrls(missionUrls(mission));
+  showToast(`Focused on "${missionName(mission)}"`);
 }
 
 async function handleCloseUncat(actionEl: HTMLElement, card: HTMLElement | null): Promise<void> {
@@ -444,22 +445,3 @@ export function attachListeners(): void {
   document.addEventListener('input', dispatchArchiveSearch);
 }
 
-export {
-  handleCloseTabOutDupes,
-  handleExpandChips,
-  handleFocusTab,
-  handleCloseSingleTab,
-  handleDeferSingleTab,
-  handleCheckDeferred,
-  handleDismissDeferred,
-  handleCloseDomainTabs,
-  handleDedupKeepOne,
-  handleCloseAllOpenTabs,
-  handleArchiveMission,
-  handleDismissMission,
-  handleFocusMission,
-  handleCloseUncat,
-  dispatchClick,
-  dispatchArchiveToggle,
-  dispatchArchiveSearch,
-};
