@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Keep tabs on your tabs -- new tab page that groups your open tabs by domain and lets you close them with style",
   "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -21,6 +24,7 @@
     "@vitest/coverage-v8": "^2.1.9",
     "jsdom": "^25.0.1",
     "supertest": "^7.2.2",
+    "typescript": "5.4",
     "vitest": "^2.1.9"
   }
 }

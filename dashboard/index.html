@@ -125,8 +125,13 @@
   <span id="toastText"></span>
 </div>
 
-<!-- Main dashboard logic — loads last so the DOM is ready -->
+<!-- Main dashboard logic — loads last so the DOM is ready.
+     Phase 2 PR A: dist/index.js (ES module) re-exports dom-utils via
+     window.domUtils, mirroring the legacy IIFE below. Both are loaded
+     during the migration; PR G removes dom-utils.js and inlines app.js
+     into the ESM entry. -->
 <script src="dom-utils.js"></script>
+<script type="module" src="dist/index.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
