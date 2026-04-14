@@ -10,6 +10,10 @@
 
 'use strict';
 
+// Safe DOM construction helpers — see dashboard/dom-utils.js.
+// Loaded via a <script> tag before this file, exposed as window.domUtils.
+const { el, svg, mount } = window.domUtils;
+
 
 /* ----------------------------------------------------------------
    EXTENSION BRIDGE
@@ -46,6 +50,11 @@ function sendToExtension(action, data = {}) {
       return;
     }
 
+    // Restrict postMessage to the parent extension's origin when known.
+    // `ancestorOrigins` is Chromium-only; it falls back to '*' when loaded in
+    // a plain browser tab (dev mode) or when the property is unavailable.
+    const extOrigin = window.location.ancestorOrigins?.[0] || '*';
+
     // Generate a random ID so we can match the response to this specific request
     const messageId = 'tmc-' + Math.random().toString(36).slice(2);
 
@@ -57,6 +66,8 @@ function sendToExtension(action, data = {}) {
 
     // Listen for the matching response from the extension
     function handler(event) {
+      // Drop messages from unexpected origins when we have a known parent origin.
+      if (extOrigin !== '*' && event.origin !== extOrigin) return;
       if (event.data && event.data.messageId === messageId) {
         clearTimeout(timer);
         window.removeEventListener('message', handler);
@@ -67,7 +78,7 @@ function sendToExtension(action, data = {}) {
     window.addEventListener('message', handler);
 
     // Send the message to the parent frame (extension)
-    window.parent.postMessage({ action, messageId, ...data }, '*');
+    window.parent.postMessage({ action, messageId, ...data }, extOrigin);
   });
 }
 
@@ -322,7 +333,8 @@ function checkAndShowEmptyState() {
   const remaining = missionsEl.querySelectorAll('.mission-card:not(.closing)').length;
   if (remaining > 0) return;
 
-  // All missions are gone — show the empty state
+  // All missions are gone — show the empty state.
+  // Developer-authored static SVG literal, no user data. innerHTML is safe here.
   missionsEl.innerHTML = `
     <div class="missions-empty-state">
       <div class="empty-checkmark">
@@ -794,43 +806,85 @@ function checkTabOutDupes() {
    and renders a card per domain.
    ---------------------------------------------------------------- */
 
+// Reusable SVG literals for chip actions — developer-authored, not user data.
+const CHIP_SAVE_SVG  = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>';
+const CHIP_CLOSE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>';
+
+/**
+ * renderPageChip(tab, label, urlCounts)
+ *
+ * Builds one clickable page chip used by both renderDomainCard (visible tabs)
+ * and buildOverflowChips (hidden tabs). Returns an HTMLDivElement.
+ */
+function renderPageChip(tab, label, urlCounts = {}) {
+  const count = urlCounts[tab.url] || 1;
+  const tabUrl = tab.url || '';
+
+  let domain = '';
+  try { domain = new URL(tab.url).hostname; } catch {}
+  const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+
+  const children = [];
+
+  if (faviconUrl) {
+    const favicon = el('img', { className: 'chip-favicon', src: faviconUrl, alt: '' });
+    favicon.addEventListener('error', () => { favicon.style.display = 'none'; });
+    children.push(favicon);
+  }
+
+  children.push(el('span', { className: 'chip-text', textContent: label }));
+
+  if (count > 1) {
+    children.push(el('span', { className: 'chip-dupe-badge', textContent: ` (${count}x)` }));
+  }
+
+  const saveBtn = el('button', {
+    className: 'chip-action chip-save',
+    title: 'Save for later',
+    dataset: { action: 'defer-single-tab', tabUrl, tabTitle: label },
+  }, [svg(CHIP_SAVE_SVG)]);
+
+  const closeBtn = el('button', {
+    className: 'chip-action chip-close',
+    title: 'Close this tab',
+    dataset: { action: 'close-single-tab', tabUrl },
+  }, [svg(CHIP_CLOSE_SVG)]);
+
+  children.push(el('div', { className: 'chip-actions' }, [saveBtn, closeBtn]));
+
+  const chipClass = count > 1
+    ? 'page-chip clickable chip-has-dupes'
+    : 'page-chip clickable';
+
+  return el('div', {
+    className: chipClass,
+    title: label,
+    dataset: { action: 'focus-tab', tabUrl },
+  }, children);
+}
+
 /**
  * buildOverflowChips(hiddenTabs, urlCounts)
  *
- * Builds the expandable "+N more" section for tab lists that exceed 8 items.
- * Returns HTML string with hidden chips and a clickable expand button.
- * Used by domain cards when there are more than 8 tabs.
+ * Returns an array [overflowEl, triggerEl]:
+ *   - overflowEl: hidden container of chips revealed when the user clicks trigger
+ *   - triggerEl:  "+N more" chip that expands the overflow
  */
 function buildOverflowChips(hiddenTabs, urlCounts = {}) {
-  const hiddenChips = hiddenTabs.map(tab => {
-    const label   = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
-    const count   = urlCounts[tab.url] || 1;
-    const dupeTag = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
-    const chipClass = count > 1 ? ' chip-has-dupes' : '';
-    const safeUrl = (tab.url || '').replace(/"/g, '&quot;');
-    const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
-    return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
-      <span class="chip-text">${label}</span>${dupeTag}
-      <div class="chip-actions">
-        <button class="chip-action chip-save" data-action="defer-single-tab" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" title="Save for later">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
-        </button>
-        <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="Close this tab">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-        </button>
-      </div>
-    </div>`;
-  }).join('');
+  const overflow = el('div', {
+    className: 'page-chips-overflow',
+    style: 'display:none',
+  }, hiddenTabs.map(tab => {
+    const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
+    return renderPageChip(tab, label, urlCounts);
+  }));
 
-  return `
-    <div class="page-chips-overflow" style="display:none">${hiddenChips}</div>
-    <div class="page-chip page-chip-overflow clickable" data-action="expand-chips">
-      <span class="chip-text">+${hiddenTabs.length} more</span>
-    </div>`;
+  const trigger = el('div', {
+    className: 'page-chip page-chip-overflow clickable',
+    dataset: { action: 'expand-chips' },
+  }, [el('span', { className: 'chip-text', textContent: `+${hiddenTabs.length} more` })]);
+
+  return [overflow, trigger];
 }
 
 /**
@@ -839,8 +893,7 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}) {
  * Builds the HTML for one domain group card in the static view.
  * "group" is: { domain, tabs: [{ url, title, tabId }] }
  *
- * Visually similar to renderOpenTabsMissionCard() but with a neutral
- * gray status bar (amber if duplicates exist).
+ * Returns an HTMLDivElement. Status bar goes amber when duplicates exist.
  */
 function renderDomainCard(group, groupIndex) {
   const tabs      = group.tabs || [];
@@ -857,18 +910,18 @@ function renderDomainCard(group, groupIndex) {
   const hasDupes = dupeUrls.length > 0;
   const totalExtras = dupeUrls.reduce((s, [, c]) => s + c - 1, 0);
 
-  // Tab count badge
-  const tabBadge = `<span class="open-tabs-badge">
-    ${ICONS.tabs}
-    ${tabCount} tab${tabCount !== 1 ? 's' : ''} open
-  </span>`;
+  const tabBadge = el('span', { className: 'open-tabs-badge' }, [
+    svg(ICONS.tabs),
+    ` ${tabCount} tab${tabCount !== 1 ? 's' : ''} open`,
+  ]);
 
-  // Duplicate warning badge
   const dupeBadge = hasDupes
-    ? `<span class="open-tabs-badge" style="color: var(--accent-amber); background: rgba(200, 113, 58, 0.08);">
-        ${totalExtras} duplicate${totalExtras !== 1 ? 's' : ''}
-      </span>`
-    : '';
+    ? el('span', {
+        className: 'open-tabs-badge',
+        style: 'color: var(--accent-amber); background: rgba(200, 113, 58, 0.08);',
+        textContent: `${totalExtras} duplicate${totalExtras !== 1 ? 's' : ''}`,
+      })
+    : null;
 
   // Deduplicate for display: show each URL once with (Nx) badge if duplicated
   const seen = new Set();
@@ -881,7 +934,8 @@ function renderDomainCard(group, groupIndex) {
   }
   const visibleTabs = uniqueTabs.slice(0, 8);
   const extraCount  = uniqueTabs.length - visibleTabs.length;
-  const pageChips = visibleTabs.map(tab => {
+
+  const chipNodes = visibleTabs.map(tab => {
     let label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), group.domain);
     // For localhost tabs, prepend the port number so you can tell projects apart
     try {
@@ -890,66 +944,58 @@ function renderDomainCard(group, groupIndex) {
         label = `${parsed.port} ${label}`;
       }
     } catch {}
-    const count   = urlCounts[tab.url];
-    const dupeTag = count > 1
-      ? ` <span class="chip-dupe-badge">(${count}x)</span>`
-      : '';
-    const chipClass = count > 1 ? ' chip-has-dupes' : '';
-    const safeUrl = (tab.url || '').replace(/"/g, '&quot;');
-    const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
-    return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
-      <span class="chip-text">${label}</span>${dupeTag}
-      <div class="chip-actions">
-        <button class="chip-action chip-save" data-action="defer-single-tab" data-tab-url="${safeUrl}" data-tab-title="${safeTitle}" title="Save for later">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
-        </button>
-        <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="Close this tab">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-        </button>
-      </div>
-    </div>`;
-  }).join('') + (extraCount > 0 ? buildOverflowChips(uniqueTabs.slice(8), urlCounts) : '');
+    return renderPageChip(tab, label, urlCounts);
+  });
 
-  // Use amber status bar if there are duplicates
-  const statusBarClass = hasDupes ? 'active' : 'neutral';
-  const statusBarStyle = hasDupes ? ' style="background: var(--accent-amber);"' : '';
+  if (extraCount > 0) {
+    chipNodes.push(...buildOverflowChips(uniqueTabs.slice(8), urlCounts));
+  }
 
-  // Actions: always show save all + close all, add "Close duplicates" if dupes exist
-  let actionsHtml = `
-    <button class="action-btn close-tabs" data-action="close-domain-tabs" data-domain-id="${stableId}">
-      ${ICONS.close}
-      Close all ${tabCount} tab${tabCount !== 1 ? 's' : ''}
-    </button>`;
+  const actionsChildren = [
+    el('button', {
+      className: 'action-btn close-tabs',
+      dataset: { action: 'close-domain-tabs', domainId: stableId },
+    }, [svg(ICONS.close), ` Close all ${tabCount} tab${tabCount !== 1 ? 's' : ''}`]),
+  ];
 
   if (hasDupes) {
     const dupeUrlsEncoded = dupeUrls.map(([url]) => encodeURIComponent(url)).join(',');
-    actionsHtml += `
-      <button class="action-btn" data-action="dedup-keep-one" data-dupe-urls="${dupeUrlsEncoded}">
-        Close ${totalExtras} duplicate${totalExtras !== 1 ? 's' : ''}
-      </button>`;
+    actionsChildren.push(el('button', {
+      className: 'action-btn',
+      dataset: { action: 'dedup-keep-one', dupeUrls: dupeUrlsEncoded },
+      textContent: `Close ${totalExtras} duplicate${totalExtras !== 1 ? 's' : ''}`,
+    }));
   }
 
-  return `
-    <div class="mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}" data-domain-id="${stableId}">
-      <div class="status-bar"${statusBarStyle}></div>
-      <div class="mission-content">
-        <div class="mission-top">
-          <span class="mission-name">${isLanding ? 'Homepages' : friendlyDomain(group.domain)}</span>
-          ${tabBadge}
-          ${dupeBadge}
-        </div>
-        <div class="mission-pages">${pageChips}</div>
-        <div class="actions">${actionsHtml}</div>
-      </div>
-      <div class="mission-meta">
-        <div class="mission-page-count">${tabCount}</div>
-        <div class="mission-page-label">tabs</div>
-      </div>
-    </div>`;
+  const statusBar = el('div', {
+    className: 'status-bar',
+    style: hasDupes ? 'background: var(--accent-amber);' : undefined,
+  });
+
+  const missionTopChildren = [
+    el('span', {
+      className: 'mission-name',
+      textContent: isLanding ? 'Homepages' : friendlyDomain(group.domain),
+    }),
+    tabBadge,
+  ];
+  if (dupeBadge) missionTopChildren.push(dupeBadge);
+
+  const missionContent = el('div', { className: 'mission-content' }, [
+    el('div', { className: 'mission-top' }, missionTopChildren),
+    el('div', { className: 'mission-pages' }, chipNodes),
+    el('div', { className: 'actions' }, actionsChildren),
+  ]);
+
+  const missionMeta = el('div', { className: 'mission-meta' }, [
+    el('div', { className: 'mission-page-count', textContent: String(tabCount) }),
+    el('div', { className: 'mission-page-label', textContent: 'tabs' }),
+  ]);
+
+  return el('div', {
+    className: `mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}`,
+    dataset: { domainId: stableId },
+  }, [statusBar, missionContent, missionMeta]);
 }
 
 
@@ -998,7 +1044,7 @@ async function renderDeferredColumn() {
     // Render active checklist items
     if (active.length > 0) {
       countEl.textContent = `${active.length} item${active.length !== 1 ? 's' : ''}`;
-      list.innerHTML = active.map(item => renderDeferredItem(item)).join('');
+      mount(list, active.map(renderDeferredItem));
       list.style.display = 'block';
       empty.style.display = 'none';
     } else {
@@ -1010,7 +1056,7 @@ async function renderDeferredColumn() {
     // Render archive section
     if (archived.length > 0) {
       archiveCountEl.textContent = `(${archived.length})`;
-      archiveList.innerHTML = archived.map(item => renderArchiveItem(item)).join('');
+      mount(archiveList, archived.map(renderArchiveItem));
       archiveEl.style.display = 'block';
     } else {
       archiveEl.style.display = 'none';
@@ -1033,23 +1079,44 @@ function renderDeferredItem(item) {
   try { domain = new URL(item.url).hostname.replace(/^www\./, ''); } catch {}
   const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=16`;
   const ago = timeAgo(item.deferred_at);
+  const titleText = item.title || item.url;
 
-  return `
-    <div class="deferred-item" data-deferred-id="${item.id}">
-      <input type="checkbox" class="deferred-checkbox" data-action="check-deferred" data-deferred-id="${item.id}">
-      <div class="deferred-info">
-        <a href="${item.url}" target="_blank" rel="noopener" class="deferred-title" title="${(item.title || '').replace(/"/g, '&quot;')}">
-          <img src="${faviconUrl}" alt="" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px" onerror="this.style.display='none'">${item.title || item.url}
-        </a>
-        <div class="deferred-meta">
-          <span>${domain}</span>
-          <span>${ago}</span>
-        </div>
-      </div>
-      <button class="deferred-dismiss" data-action="dismiss-deferred" data-deferred-id="${item.id}" title="Dismiss">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-      </button>
-    </div>`;
+  const checkbox = el('input', {
+    type: 'checkbox',
+    className: 'deferred-checkbox',
+    dataset: { action: 'check-deferred', deferredId: item.id },
+  });
+
+  const favicon = el('img', {
+    src: faviconUrl,
+    alt: '',
+    style: 'width:14px;height:14px;vertical-align:-2px;margin-right:4px',
+  });
+  favicon.addEventListener('error', () => { favicon.style.display = 'none'; });
+
+  const link = el('a', {
+    href: item.url,
+    target: '_blank',
+    rel: 'noopener',
+    className: 'deferred-title',
+    title: item.title || '',
+  }, [favicon, titleText]);
+
+  const meta = el('div', { className: 'deferred-meta' }, [
+    el('span', { textContent: domain }),
+    el('span', { textContent: ago }),
+  ]);
+
+  const dismiss = el('button', {
+    className: 'deferred-dismiss',
+    title: 'Dismiss',
+    dataset: { action: 'dismiss-deferred', deferredId: item.id },
+  }, [svg('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>')]);
+
+  return el('div', {
+    className: 'deferred-item',
+    dataset: { deferredId: item.id },
+  }, [checkbox, el('div', { className: 'deferred-info' }, [link, meta]), dismiss]);
 }
 
 /**
@@ -1059,17 +1126,22 @@ function renderDeferredItem(item) {
  * Simpler than active items — just title link + date.
  */
 function renderArchiveItem(item) {
-  let domain = '';
-  try { domain = new URL(item.url).hostname.replace(/^www\./, ''); } catch {}
   const ago = item.archived_at ? timeAgo(item.archived_at) : '';
+  const titleText = item.title || item.url;
 
-  return `
-    <div class="archive-item">
-      <a href="${item.url}" target="_blank" rel="noopener" class="archive-item-title" title="${(item.title || '').replace(/"/g, '&quot;')}">
-        ${item.title || item.url}
-      </a>
-      <span class="archive-item-date">${ago}</span>
-    </div>`;
+  const link = el('a', {
+    href: item.url,
+    target: '_blank',
+    rel: 'noopener',
+    className: 'archive-item-title',
+    title: item.title || '',
+    textContent: titleText,
+  });
+
+  return el('div', { className: 'archive-item' }, [
+    link,
+    el('span', { className: 'archive-item-date', textContent: ago }),
+  ]);
 }
 
 
@@ -1193,10 +1265,16 @@ async function renderStaticDashboard() {
 
   if (domainGroups.length > 0 && openTabsSection) {
     if (openTabsSectionTitle) openTabsSectionTitle.textContent = 'Open tabs';
-    openTabsSectionCount.innerHTML = `${domainGroups.length} domain${domainGroups.length !== 1 ? 's' : ''} &nbsp;&middot;&nbsp; <button class="action-btn close-tabs" data-action="close-all-open-tabs" style="font-size:11px;padding:3px 10px;">${ICONS.close} Close all ${realTabs.length} tabs</button>`;
-    openTabsMissionsEl.innerHTML = domainGroups
-      .map((g, idx) => renderDomainCard(g, idx))
-      .join('');
+    const closeAllBtn = el('button', {
+      className: 'action-btn close-tabs',
+      style: 'font-size:11px;padding:3px 10px;',
+      dataset: { action: 'close-all-open-tabs' },
+    }, [svg(ICONS.close), ` Close all ${realTabs.length} tabs`]);
+    mount(openTabsSectionCount, [
+      `${domainGroups.length} domain${domainGroups.length !== 1 ? 's' : ''}\u00a0\u00b7\u00a0`,
+      closeAllBtn,
+    ]);
+    mount(openTabsMissionsEl, domainGroups.map((g, idx) => renderDomainCard(g, idx)));
     openTabsSection.style.display = 'block';
   } else if (openTabsSection) {
     openTabsSection.style.display = 'none';
@@ -1637,7 +1715,7 @@ document.addEventListener('input', async (e) => {
       const res = await fetch('/api/deferred');
       if (res.ok) {
         const data = await res.json();
-        archiveList.innerHTML = (data.archived || []).map(item => renderArchiveItem(item)).join('');
+        mount(archiveList, (data.archived || []).map(renderArchiveItem));
       }
     } catch {}
     return;
@@ -1647,8 +1725,15 @@ document.addEventListener('input', async (e) => {
     const res = await fetch(`/api/deferred/search?q=${encodeURIComponent(q)}`);
     if (!res.ok) return;
     const data = await res.json();
-    archiveList.innerHTML = (data.results || []).map(item => renderArchiveItem(item)).join('')
-      || '<div style="font-size:12px;color:var(--muted);padding:8px 0">No results</div>';
+    const results = data.results || [];
+    if (results.length === 0) {
+      mount(archiveList, el('div', {
+        style: 'font-size:12px;color:var(--muted);padding:8px 0',
+        textContent: 'No results',
+      }));
+    } else {
+      mount(archiveList, results.map(renderArchiveItem));
+    }
   } catch (err) {
     console.warn('[tab-out] Archive search failed:', err);
   }
@@ -1691,6 +1776,7 @@ async function checkForUpdates() {
     if (!footer) return;
     const notice = document.createElement('div');
     notice.style.cssText = 'text-align:center; padding:8px; font-size:12px; color:var(--muted);';
+    // Developer-authored static string, no user data. innerHTML is safe here.
     notice.innerHTML = 'A new version of Tab Out is available. Run <code style="background:var(--warm-gray);padding:2px 6px;border-radius:3px;font-size:11px;user-select:all;cursor:pointer;" title="Click to select">git pull https://github.com/leonxia1010/tab-out</code> to update.';
     footer.after(notice);
   } catch {}
