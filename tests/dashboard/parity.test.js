@@ -27,6 +27,7 @@ import * as state from '../../dashboard/src/state.ts';
 import * as extensionBridge from '../../dashboard/src/extension-bridge.ts';
 import * as animations from '../../dashboard/src/animations.ts';
 import * as renderers from '../../dashboard/src/renderers.ts';
+import * as handlers from '../../dashboard/src/handlers.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const legacyPath = (name) => path.resolve(__dirname, `../../dashboard/${name}.js`);
@@ -38,6 +39,7 @@ const MIRRORS = [
   { name: 'extension-bridge', windowKey: 'extensionBridge', tsModule: extensionBridge, tsOnly: [], deps: ['state'] },
   { name: 'animations',       windowKey: 'animations',      tsModule: animations,      tsOnly: [], deps: [] },
   { name: 'renderers',        windowKey: 'renderers',       tsModule: renderers,       tsOnly: [], deps: ['dom-utils', 'utils', 'state', 'extension-bridge'] },
+  { name: 'handlers',         windowKey: 'handlers',        tsModule: handlers,        tsOnly: [], deps: ['dom-utils', 'utils', 'state', 'extension-bridge', 'animations', 'renderers'] },
 ];
 
 function injectLegacy(win, src) {
