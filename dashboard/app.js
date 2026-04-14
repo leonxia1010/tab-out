@@ -31,114 +31,25 @@ const {
   countOpenTabsForMission,
 } = window.utils;
 
+// Shared module-level state extracted to dashboard/src/state.ts (Phase 2 PR C).
+const {
+  getOpenTabs,
+  setOpenTabs,
+  getExtensionAvailable,
+  setExtensionAvailable,
+  getDomainGroups,
+  setDomainGroups,
+} = window.state;
 
-/* ----------------------------------------------------------------
-   EXTENSION BRIDGE
-
-   The dashboard runs in an iframe inside the Chrome extension's
-   new-tab page. To communicate with the extension's background
-   script, we use window.postMessage — the extension's content
-   script listens and relays messages.
-
-   When running in a regular browser tab (dev mode), we gracefully
-   fall back without crashing.
-   ---------------------------------------------------------------- */
-
-// Track whether the extension is actually available (set after first successful call)
-let extensionAvailable = false;
-
-// Track all open tabs fetched from the extension (array of tab objects)
-let openTabs = [];
-
-/**
- * sendToExtension(action, data)
- *
- * Sends a message to the parent frame (the Chrome extension) and
- * waits up to 3 seconds for a response.
- *
- * Think of it like sending a text message and waiting for a reply —
- * if no reply comes in 3 seconds, we give up gracefully.
- */
-function sendToExtension(action, data = {}) {
-  return new Promise((resolve) => {
-    // If we're not inside an iframe, there's no extension to talk to
-    if (window.parent === window) {
-      resolve({ success: false, reason: 'not-in-extension' });
-      return;
-    }
-
-    // Restrict postMessage to the parent extension's origin when known.
-    // `ancestorOrigins` is Chromium-only; it falls back to '*' when loaded in
-    // a plain browser tab (dev mode) or when the property is unavailable.
-    const extOrigin = window.location.ancestorOrigins?.[0] || '*';
-
-    // Generate a random ID so we can match the response to this specific request
-    const messageId = 'tmc-' + Math.random().toString(36).slice(2);
-
-    // Set a 3-second timeout in case the extension doesn't respond
-    const timer = setTimeout(() => {
-      window.removeEventListener('message', handler);
-      resolve({ success: false, reason: 'timeout' });
-    }, 3000);
-
-    // Listen for the matching response from the extension
-    function handler(event) {
-      // Drop messages from unexpected origins when we have a known parent origin.
-      if (extOrigin !== '*' && event.origin !== extOrigin) return;
-      if (event.data && event.data.messageId === messageId) {
-        clearTimeout(timer);
-        window.removeEventListener('message', handler);
-        resolve(event.data);
-      }
-    }
-
-    window.addEventListener('message', handler);
-
-    // Send the message to the parent frame (extension)
-    window.parent.postMessage({ action, messageId, ...data }, extOrigin);
-  });
-}
-
-/**
- * fetchOpenTabs()
- *
- * Asks the extension for the list of currently open browser tabs.
- * Sets extensionAvailable = true if it works, false otherwise.
- */
-async function fetchOpenTabs() {
-  const result = await sendToExtension('getTabs');
-  if (result && result.success && Array.isArray(result.tabs)) {
-    openTabs = result.tabs;
-    extensionAvailable = true;
-  } else {
-    openTabs = [];
-    extensionAvailable = false;
-  }
-}
-
-/**
- * closeTabsByUrls(urls)
- *
- * Tells the extension to close all tabs matching the given URLs.
- * After closing, we re-fetch the tab list so our state stays accurate.
- */
-async function closeTabsByUrls(urls) {
-  if (!extensionAvailable || !urls || urls.length === 0) return;
-  await sendToExtension('closeTabs', { urls });
-  // Refresh our local tab list to reflect what was closed
-  await fetchOpenTabs();
-}
-
-/**
- * focusTabsByUrls(urls)
- *
- * Tells the extension to bring the first matching tab into focus
- * (switch to that tab in Chrome). Used by the "Focus on this" button.
- */
-async function focusTabsByUrls(urls) {
-  if (!extensionAvailable || !urls || urls.length === 0) return;
-  await sendToExtension('focusTabs', { urls });
-}
+// Chrome extension postMessage bridge — dashboard/src/extension-bridge.ts (Phase 2 PR C).
+const {
+  sendToExtension,
+  fetchOpenTabs,
+  closeTabsByUrls,
+  focusTabsByUrls,
+  checkTabOutDupes,
+  fetchMissionById,
+} = window.extensionBridge;
 
 
 /* ----------------------------------------------------------------
@@ -386,39 +297,6 @@ const ICONS = {
 
 /* ----------------------------------------------------------------
    ---------------------------------------------------------------- */
-
-/* ----------------------------------------------------------------
-   IN-MEMORY STORE FOR OPEN-TAB GROUPS
-
-   domainGroups is populated by renderStaticDashboard().
-   ---------------------------------------------------------------- */
-let domainGroups    = [];
-let duplicateTabs   = [];
-
-
-/**
- * checkTabOutDupes()
- *
- * Counts how many Tab Out new-tab pages are open (they show up as
- * chrome-extension://XXXXX/newtab.html in the tab list). If more than 1,
- * shows a banner offering to close the extras.
- */
-function checkTabOutDupes() {
-  // Each tab has an isTabOut flag set by the extension's handleGetTabs()
-  const tabOutTabs = openTabs.filter(t => t.isTabOut);
-
-  const banner  = document.getElementById('tabOutDupeBanner');
-  const countEl = document.getElementById('tabOutDupeCount');
-  if (!banner) return;
-
-  if (tabOutTabs.length > 1) {
-    if (countEl) countEl.textContent = tabOutTabs.length;
-    banner.style.display = 'flex';
-  } else {
-    banner.style.display = 'none';
-  }
-}
-
 
 /* ----------------------------------------------------------------
    DOMAIN CARD RENDERER (for static default view)
@@ -791,7 +669,7 @@ async function renderStaticDashboard() {
 
   // ── Step 1: Fetch open tabs ───────────────────────────────────────────────
   await fetchOpenTabs();
-  const realTabs = getRealTabs(openTabs);
+  const realTabs = getRealTabs(getOpenTabs());
 
   // ── Step 3: Group open tabs by domain ────────────────────────────────────
   // This is pure JavaScript — no AI, no API calls. We extract the hostname
@@ -828,7 +706,6 @@ async function renderStaticDashboard() {
     } catch { return false; }
   }
 
-  domainGroups = [];
   const groupMap = {};
   const landingTabs = [];
 
@@ -866,7 +743,7 @@ async function renderStaticDashboard() {
   // (e.g. x.com, mail.google.com) so they're easy to close, then the rest
   // sorted by tab count.
   const landingHostnames = new Set(LANDING_PAGE_PATTERNS.map(p => p.hostname));
-  domainGroups = Object.values(groupMap).sort((a, b) => {
+  const sortedGroups = Object.values(groupMap).sort((a, b) => {
     const aIsLanding = a.domain === '__landing-pages__';
     const bIsLanding = b.domain === '__landing-pages__';
     if (aIsLanding !== bIsLanding) return aIsLanding ? -1 : 1;
@@ -877,6 +754,7 @@ async function renderStaticDashboard() {
 
     return b.tabs.length - a.tabs.length;
   });
+  setDomainGroups(sortedGroups);
 
   // ── Step 4: Render domain cards ───────────────────────────────────────────
   const openTabsSection      = document.getElementById('openTabsSection');
@@ -884,7 +762,7 @@ async function renderStaticDashboard() {
   const openTabsSectionCount = document.getElementById('openTabsSectionCount');
   const openTabsSectionTitle = document.getElementById('openTabsSectionTitle');
 
-  if (domainGroups.length > 0 && openTabsSection) {
+  if (sortedGroups.length > 0 && openTabsSection) {
     if (openTabsSectionTitle) openTabsSectionTitle.textContent = 'Open tabs';
     const closeAllBtn = el('button', {
       className: 'action-btn close-tabs',
@@ -892,10 +770,10 @@ async function renderStaticDashboard() {
       dataset: { action: 'close-all-open-tabs' },
     }, [svg(ICONS.close), ` Close all ${realTabs.length} tabs`]);
     mount(openTabsSectionCount, [
-      `${domainGroups.length} domain${domainGroups.length !== 1 ? 's' : ''}\u00a0\u00b7\u00a0`,
+      `${sortedGroups.length} domain${sortedGroups.length !== 1 ? 's' : ''}\u00a0\u00b7\u00a0`,
       closeAllBtn,
     ]);
-    mount(openTabsMissionsEl, domainGroups.map((g, idx) => renderDomainCard(g, idx)));
+    mount(openTabsMissionsEl, sortedGroups.map((g, idx) => renderDomainCard(g, idx)));
     openTabsSection.style.display = 'block';
   } else if (openTabsSection) {
     openTabsSection.style.display = 'none';
@@ -903,7 +781,7 @@ async function renderStaticDashboard() {
 
   // ── Footer stats ──────────────────────────────────────────────────────────
   const statTabs = document.getElementById('statTabs');
-  if (statTabs) statTabs.textContent = openTabs.length;
+  if (statTabs) statTabs.textContent = getOpenTabs().length;
 
   // ── Check for duplicate Tab Out tabs ────────────────────────────────────
   checkTabOutDupes();
@@ -1122,7 +1000,8 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-domain-tabs') {
     const domainId = actionEl.dataset.domainId;
     // Find the group by its stable ID
-    const group = domainGroups.find(g => {
+    const groups = getDomainGroups();
+    const group = groups.find(g => {
       const id = 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-');
       return id === domainId;
     });
@@ -1141,15 +1020,14 @@ document.addEventListener('click', async (e) => {
     }
 
     // Remove from in-memory domain groups
-    const idx = domainGroups.indexOf(group);
-    if (idx !== -1) domainGroups.splice(idx, 1);
+    setDomainGroups(groups.filter(g => g !== group));
 
     const groupLabel = group.domain === '__landing-pages__' ? 'Homepages' : friendlyDomain(group.domain);
     showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${groupLabel}`);
 
     // Update footer tab count
     const statTabs = document.getElementById('statTabs');
-    if (statTabs) statTabs.textContent = openTabs.length;
+    if (statTabs) statTabs.textContent = getOpenTabs().length;
     return;
   }
 
@@ -1201,7 +1079,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-all-open-tabs') {
     // Use the actual openTabs list from the extension — works regardless of
     // close all domain-grouped tabs
-    const allUrls = openTabs
+    const allUrls = getOpenTabs()
       .filter(t => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
       .map(t => t.url);
     await closeTabsByUrls(allUrls);
@@ -1293,7 +1171,7 @@ document.addEventListener('click', async (e) => {
     if (!domain) return;
 
     // Find all open tabs matching this domain and close them
-    const tabsToClose = openTabs.filter(t => {
+    const tabsToClose = getOpenTabs().filter(t => {
       try { return new URL(t.url).hostname === domain; }
       catch { return false; }
     });
@@ -1360,27 +1238,6 @@ document.addEventListener('input', async (e) => {
   }
 });
 
-
-/* ----------------------------------------------------------------
-   ACTION HELPERS
-   ---------------------------------------------------------------- */
-
-/**
- * fetchMissionById(missionId)
- *
- * Fetches a single mission object by ID from the server.
- * Returns null if the fetch fails.
- */
-async function fetchMissionById(missionId) {
-  try {
-    const res = await fetch('/api/missions');
-    if (!res.ok) return null;
-    const missions = await res.json();
-    return missions.find(m => String(m.id) === String(missionId)) || null;
-  } catch {
-    return null;
-  }
-}
 
 /* ----------------------------------------------------------------
    UPDATE NOTIFICATION (read-only, no code execution)
