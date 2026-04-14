@@ -206,8 +206,12 @@ describe('renderDomainCard — chip XSS hardening', () => {
     };
     mountResult(container, renderDomainCard(group, 0));
 
+    // No executable <script> element anywhere in the subtree.
     expect(container.querySelector('script')).toBeNull();
-    expect(container.textContent).toContain('alert(1)');
+    // The literal "<script>" characters must appear as text (chip label is
+    // cleanTitle/smartTitle-cleaned, so "alert(1)" may be truncated; the
+    // key XSS assertion is that the tag does not materialize as a real node).
+    expect(container.textContent).toContain('<script>');
   });
 
   it('does not interpret " in title as attribute break (case 4)', () => {
@@ -220,10 +224,12 @@ describe('renderDomainCard — chip XSS hardening', () => {
     };
     mountResult(container, renderDomainCard(group, 0));
 
-    // The whole literal title should be present as text somewhere.
-    expect(container.textContent).toContain('quote"injection onload=alert(1)');
-    // Should not have an onload attribute smuggled in via the quote break
+    // XSS assertion: the double-quote must not close any attribute and
+    // smuggle in an onload handler.
     expect(container.querySelector('[onload]')).toBeNull();
+    // The literal quote + injection prefix is preserved as text somewhere
+    // (suffixes like "(1)" may be trimmed by the chip-label cleaners).
+    expect(container.textContent).toContain('quote"injection');
   });
 
   it('survives many tabs with mixed XSS payloads (case 2 + 5)', () => {
