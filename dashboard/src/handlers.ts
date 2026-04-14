@@ -15,7 +15,6 @@ import { friendlyDomain } from './utils.js';
 import {
   getDomainGroups,
   getOpenTabs,
-  setDomainGroups,
 } from './state.js';
 import {
   closeTabsByUrls,
@@ -33,6 +32,7 @@ import {
 } from './animations.js';
 import {
   checkAndShowEmptyState,
+  refreshOpenTabsCounters,
   renderArchiveItem,
   renderDeferredColumn,
 } from './renderers.js';
@@ -55,6 +55,7 @@ async function handleCloseTabOutDupes(): Promise<void> {
     banner.style.opacity = '0';
     setTimeout(() => { banner.style.display = 'none'; banner.style.opacity = '1'; }, 400);
   }
+  refreshOpenTabsCounters();
   showToast('Closed extra Tab Out tabs');
 }
 
@@ -104,6 +105,7 @@ async function handleCloseSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
     }, 200);
   }
 
+  refreshOpenTabsCounters();
   showToast('Tab closed');
 }
 
@@ -136,6 +138,7 @@ async function handleDeferSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
     setTimeout(() => chip.remove(), 200);
   }
 
+  refreshOpenTabsCounters();
   showToast('Saved for later');
   await renderDeferredColumn();
 }
@@ -205,13 +208,10 @@ async function handleCloseDomainTabs(actionEl: HTMLElement, card: HTMLElement | 
     animateCardOut(card);
   }
 
-  setDomainGroups(groups.filter(g => g !== group));
+  refreshOpenTabsCounters();
 
   const groupLabel = group.domain === '__landing-pages__' ? 'Homepages' : friendlyDomain(group.domain);
   showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${groupLabel}`);
-
-  const statTabs = document.getElementById('statTabs');
-  if (statTabs) statTabs.textContent = String(getOpenTabs().length);
 }
 
 async function handleDedupKeepOne(actionEl: HTMLElement, card: HTMLElement | null): Promise<void> {
@@ -246,6 +246,7 @@ async function handleDedupKeepOne(actionEl: HTMLElement, card: HTMLElement | nul
     if (statusBar) statusBar.style.background = '';
   }
 
+  refreshOpenTabsCounters();
   showToast('Closed duplicates, kept one copy each');
 }
 
@@ -254,6 +255,7 @@ async function handleCloseAllOpenTabs(): Promise<void> {
     .filter(t => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
     .map(t => t.url || '');
   await closeTabsByUrls(allUrls);
+  await fetchOpenTabs();
   playCloseSound();
 
   document.querySelectorAll<HTMLElement>('#openTabsMissions .mission-card').forEach(c => {
@@ -264,6 +266,7 @@ async function handleCloseAllOpenTabs(): Promise<void> {
     animateCardOut(c);
   });
 
+  refreshOpenTabsCounters();
   showToast('All tabs closed. Fresh start.');
 }
 
