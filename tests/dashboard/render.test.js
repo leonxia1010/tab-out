@@ -20,6 +20,8 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DOM_UTILS_PATH = path.resolve(__dirname, '../../dashboard/dom-utils.js');
 const UTILS_PATH = path.resolve(__dirname, '../../dashboard/utils.js');
+const STATE_PATH = path.resolve(__dirname, '../../dashboard/state.js');
+const BRIDGE_PATH = path.resolve(__dirname, '../../dashboard/extension-bridge.js');
 const APP_PATH = path.resolve(__dirname, '../../dashboard/app.js');
 
 let win;
@@ -43,6 +45,8 @@ beforeAll(() => {
 
   const DOM_UTILS_SRC = fs.readFileSync(DOM_UTILS_PATH, 'utf8');
   const UTILS_SRC = fs.readFileSync(UTILS_PATH, 'utf8');
+  const STATE_SRC = fs.readFileSync(STATE_PATH, 'utf8');
+  const BRIDGE_SRC = fs.readFileSync(BRIDGE_PATH, 'utf8');
   const APP_SRC = fs.readFileSync(APP_PATH, 'utf8');
 
   const s1 = win.document.createElement('script');
@@ -52,6 +56,14 @@ beforeAll(() => {
   const sUtils = win.document.createElement('script');
   sUtils.textContent = UTILS_SRC;
   win.document.head.appendChild(sUtils);
+
+  const sState = win.document.createElement('script');
+  sState.textContent = STATE_SRC;
+  win.document.head.appendChild(sState);
+
+  const sBridge = win.document.createElement('script');
+  sBridge.textContent = BRIDGE_SRC;
+  win.document.head.appendChild(sBridge);
 
   const s2 = win.document.createElement('script');
   s2.textContent = APP_SRC + `
