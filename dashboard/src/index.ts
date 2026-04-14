@@ -1,4 +1,4 @@
-// Dashboard entry point (Phase 2 PR A + B + C + D).
+// Dashboard entry point (Phase 2 PR A + B + C + D + E).
 //
 // Bridges ESM modules to the legacy window.* globals that app.js reads while
 // we drain the god file. PR G removes app.js and the window.* bridge entirely.
@@ -8,6 +8,7 @@ import * as utils from './utils.js';
 import * as state from './state.js';
 import * as extensionBridge from './extension-bridge.js';
 import * as animations from './animations.js';
+import * as renderers from './renderers.js';
 
 declare global {
   interface Window {
@@ -20,6 +21,7 @@ declare global {
     state: typeof state;
     extensionBridge: typeof extensionBridge;
     animations: typeof animations;
+    renderers: typeof renderers;
   }
 }
 
@@ -28,3 +30,4 @@ window.utils = utils;
 window.state = state;
 window.extensionBridge = extensionBridge;
 window.animations = animations;
+window.renderers = renderers;

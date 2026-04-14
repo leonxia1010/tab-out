@@ -26,23 +26,28 @@ import * as utils from '../../dashboard/src/utils.ts';
 import * as state from '../../dashboard/src/state.ts';
 import * as extensionBridge from '../../dashboard/src/extension-bridge.ts';
 import * as animations from '../../dashboard/src/animations.ts';
+import * as renderers from '../../dashboard/src/renderers.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const legacyPath = (name) => path.resolve(__dirname, `../../dashboard/${name}.js`);
 
 const MIRRORS = [
-  { name: 'dom-utils',       windowKey: 'domUtils',       tsModule: domUtils,        tsOnly: ['sanitizeHref'] },
-  { name: 'utils',           windowKey: 'utils',          tsModule: utils,           tsOnly: [] },
-  { name: 'state',           windowKey: 'state',          tsModule: state,           tsOnly: [] },
-  { name: 'extension-bridge',windowKey: 'extensionBridge',tsModule: extensionBridge, tsOnly: [] },
-  { name: 'animations',      windowKey: 'animations',     tsModule: animations,      tsOnly: [] },
+  { name: 'dom-utils',        windowKey: 'domUtils',        tsModule: domUtils,        tsOnly: ['sanitizeHref'], deps: [] },
+  { name: 'utils',            windowKey: 'utils',           tsModule: utils,           tsOnly: [], deps: [] },
+  { name: 'state',            windowKey: 'state',           tsModule: state,           tsOnly: [], deps: [] },
+  { name: 'extension-bridge', windowKey: 'extensionBridge', tsModule: extensionBridge, tsOnly: [], deps: ['state'] },
+  { name: 'animations',       windowKey: 'animations',      tsModule: animations,      tsOnly: [], deps: [] },
+  { name: 'renderers',        windowKey: 'renderers',       tsModule: renderers,       tsOnly: [], deps: ['dom-utils', 'utils', 'state', 'extension-bridge'] },
 ];
 
 function injectLegacy(win, src) {
-  win.fetch = () => Promise.reject(new Error('parity test'));
   const script = win.document.createElement('script');
   script.textContent = src;
   win.document.head.appendChild(script);
+}
+
+function injectByName(win, name) {
+  injectLegacy(win, fs.readFileSync(legacyPath(name), 'utf8'));
 }
 
 function functionKeys(obj) {
@@ -56,9 +61,13 @@ describe('legacy IIFE ↔ src/*.ts runtime parity', () => {
         runScripts: 'dangerously',
       });
       const win = dom.window;
+      win.fetch = () => Promise.reject(new Error('parity test'));
 
-      const legacySrc = fs.readFileSync(legacyPath(m.name), 'utf8');
-      injectLegacy(win, legacySrc);
+      // Inject the mirror's dependencies first so its IIFE can read window.X.
+      for (const dep of m.deps) {
+        injectByName(win, dep);
+      }
+      injectByName(win, m.name);
 
       const iifeObj = win[m.windowKey];
       expect(iifeObj, `window.${m.windowKey} must be set by legacy IIFE`).toBeTypeOf('object');
