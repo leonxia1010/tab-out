@@ -23,6 +23,7 @@ const UTILS_PATH = path.resolve(__dirname, '../../dashboard/utils.js');
 const STATE_PATH = path.resolve(__dirname, '../../dashboard/state.js');
 const BRIDGE_PATH = path.resolve(__dirname, '../../dashboard/extension-bridge.js');
 const ANIMATIONS_PATH = path.resolve(__dirname, '../../dashboard/animations.js');
+const RENDERERS_PATH = path.resolve(__dirname, '../../dashboard/renderers.js');
 const APP_PATH = path.resolve(__dirname, '../../dashboard/app.js');
 
 let win;
@@ -49,6 +50,7 @@ beforeAll(() => {
   const STATE_SRC = fs.readFileSync(STATE_PATH, 'utf8');
   const BRIDGE_SRC = fs.readFileSync(BRIDGE_PATH, 'utf8');
   const ANIMATIONS_SRC = fs.readFileSync(ANIMATIONS_PATH, 'utf8');
+  const RENDERERS_SRC = fs.readFileSync(RENDERERS_PATH, 'utf8');
   const APP_SRC = fs.readFileSync(APP_PATH, 'utf8');
 
   const s1 = win.document.createElement('script');
@@ -71,14 +73,18 @@ beforeAll(() => {
   sAnim.textContent = ANIMATIONS_SRC;
   win.document.head.appendChild(sAnim);
 
+  const sRend = win.document.createElement('script');
+  sRend.textContent = RENDERERS_SRC;
+  win.document.head.appendChild(sRend);
+
   const s2 = win.document.createElement('script');
   s2.textContent = APP_SRC + `
     window.__tests = {
-      renderDeferredItem: typeof renderDeferredItem === 'function' ? renderDeferredItem : null,
-      renderArchiveItem: typeof renderArchiveItem === 'function' ? renderArchiveItem : null,
-      renderDomainCard: typeof renderDomainCard === 'function' ? renderDomainCard : null,
-      buildOverflowChips: typeof buildOverflowChips === 'function' ? buildOverflowChips : null,
-      renderPageChip: typeof renderPageChip === 'function' ? renderPageChip : null,
+      renderDeferredItem: window.renderers && window.renderers.renderDeferredItem || null,
+      renderArchiveItem:  window.renderers && window.renderers.renderArchiveItem  || null,
+      renderDomainCard:   window.renderers && window.renderers.renderDomainCard   || null,
+      buildOverflowChips: window.renderers && window.renderers.buildOverflowChips || null,
+      renderPageChip:     window.renderers && window.renderers.renderPageChip     || null,
     };
   `;
   win.document.head.appendChild(s2);
