@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "Keep tabs on your tabs -- new tab page that groups your open tabs by domain and lets you close them with style",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "start": "node server/index.js",
     "install-service": "node scripts/install.js"
   },
@@ -14,5 +16,10 @@
   "dependencies": {
     "better-sqlite3": "12.8.0",
     "express": "5.2.1"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
+    "supertest": "^7.2.2",
+    "vitest": "^2.1.9"
   }
 }
