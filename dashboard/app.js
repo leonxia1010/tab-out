@@ -1691,7 +1691,7 @@ async function checkForUpdates() {
     if (!footer) return;
     const notice = document.createElement('div');
     notice.style.cssText = 'text-align:center; padding:8px; font-size:12px; color:var(--muted);';
-    notice.innerHTML = 'A new version of Tab Out is available. Run <code style="background:var(--warm-gray);padding:2px 6px;border-radius:3px;font-size:11px;user-select:all;cursor:pointer;" title="Click to select">git pull https://github.com/zarazhangrui/tab-out</code> to update.';
+    notice.innerHTML = 'A new version of Tab Out is available. Run <code style="background:var(--warm-gray);padding:2px 6px;border-radius:3px;font-size:11px;user-select:all;cursor:pointer;" title="Click to select">git pull https://github.com/leonxia1010/tab-out</code> to update.';
     footer.after(notice);
   } catch {}
 }

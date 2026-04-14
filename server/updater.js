@@ -7,8 +7,8 @@
 const { execSync } = require('child_process');
 const path = require('path');
 
-const REPO_URL = 'https://github.com/zarazhangrui/tab-out';
-const API_URL = 'https://api.github.com/repos/zarazhangrui/tab-out/commits/main';
+const REPO_URL = 'https://github.com/leonxia1010/tab-out';
+const API_URL = 'https://api.github.com/repos/leonxia1010/tab-out/commits/main';
 const CHECK_INTERVAL = 48 * 60 * 60 * 1000; // 48 hours
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
