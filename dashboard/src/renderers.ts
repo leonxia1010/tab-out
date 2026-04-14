@@ -429,25 +429,37 @@ export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
   });
 }
 
-export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount: number): void {
-  const openTabsSection      = document.getElementById('openTabsSection');
-  const openTabsMissionsEl   = document.getElementById('openTabsMissions');
-  const openTabsSectionCount = document.getElementById('openTabsSectionCount');
+// Header = section title + "X domains · Close all N tabs". Split out so
+// handlers can refresh the counters after a close action without wiping
+// the missions grid (and clobbering in-flight card animations).
+function renderOpenTabsHeader(sortedGroups: DomainGroup[], realTabsCount: number): void {
   const openTabsSectionTitle = document.getElementById('openTabsSectionTitle');
+  const openTabsSectionCount = document.getElementById('openTabsSectionCount');
+
+  if (openTabsSectionTitle) openTabsSectionTitle.textContent = 'Open tabs';
+
+  if (!openTabsSectionCount) return;
+  if (sortedGroups.length === 0) {
+    mount(openTabsSectionCount, []);
+    return;
+  }
+  const closeAllBtn = el('button', {
+    className: 'action-btn close-tabs',
+    style: 'font-size:11px;padding:3px 10px;',
+    dataset: { action: 'close-all-open-tabs' },
+  }, [svg(ICONS.close), ` Close all ${realTabsCount} tabs`]);
+  mount(openTabsSectionCount, [
+    document.createTextNode(`${sortedGroups.length} domain${sortedGroups.length !== 1 ? 's' : ''}\u00a0\u00b7\u00a0`),
+    closeAllBtn,
+  ]);
+}
+
+export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount: number): void {
+  const openTabsSection    = document.getElementById('openTabsSection');
+  const openTabsMissionsEl = document.getElementById('openTabsMissions');
 
   if (sortedGroups.length > 0 && openTabsSection) {
-    if (openTabsSectionTitle) openTabsSectionTitle.textContent = 'Open tabs';
-    const closeAllBtn = el('button', {
-      className: 'action-btn close-tabs',
-      style: 'font-size:11px;padding:3px 10px;',
-      dataset: { action: 'close-all-open-tabs' },
-    }, [svg(ICONS.close), ` Close all ${realTabsCount} tabs`]);
-    if (openTabsSectionCount) {
-      mount(openTabsSectionCount, [
-        document.createTextNode(`${sortedGroups.length} domain${sortedGroups.length !== 1 ? 's' : ''}\u00a0\u00b7\u00a0`),
-        closeAllBtn,
-      ]);
-    }
+    renderOpenTabsHeader(sortedGroups, realTabsCount);
     if (openTabsMissionsEl) {
       mount(openTabsMissionsEl, sortedGroups.map((g, idx) => renderDomainCard(g, idx)));
     }
@@ -455,6 +467,19 @@ export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount
   } else if (openTabsSection) {
     openTabsSection.style.display = 'none';
   }
+}
+
+// Re-derive header counters + footer stat from the current openTabs snapshot.
+// Called by close handlers after fetchOpenTabs() so the "X domains · Close all
+// N tabs" badge and the footer "Open tabs" stat reflect reality without
+// re-mounting the missions grid (which would yank cards mid-animation).
+export function refreshOpenTabsCounters(): void {
+  const realTabs = getRealTabs(getOpenTabs());
+  const sortedGroups = groupTabsByDomain(realTabs);
+  setDomainGroups(sortedGroups);
+  renderOpenTabsHeader(sortedGroups, realTabs.length);
+  const statTabs = document.getElementById('statTabs');
+  if (statTabs) statTabs.textContent = String(getOpenTabs().length);
 }
 
 export async function renderStaticDashboard(): Promise<void> {
