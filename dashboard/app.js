@@ -10,6 +10,10 @@
 
 'use strict';
 
+// Safe DOM construction helpers — see dashboard/dom-utils.js.
+// Loaded via a <script> tag before this file, exposed as window.domUtils.
+const { el, svg, mount } = window.domUtils;
+
 
 /* ----------------------------------------------------------------
    EXTENSION BRIDGE
@@ -998,7 +1002,7 @@ async function renderDeferredColumn() {
     // Render active checklist items
     if (active.length > 0) {
       countEl.textContent = `${active.length} item${active.length !== 1 ? 's' : ''}`;
-      list.innerHTML = active.map(item => renderDeferredItem(item)).join('');
+      mount(list, active.map(renderDeferredItem));
       list.style.display = 'block';
       empty.style.display = 'none';
     } else {
@@ -1010,7 +1014,7 @@ async function renderDeferredColumn() {
     // Render archive section
     if (archived.length > 0) {
       archiveCountEl.textContent = `(${archived.length})`;
-      archiveList.innerHTML = archived.map(item => renderArchiveItem(item)).join('');
+      mount(archiveList, archived.map(renderArchiveItem));
       archiveEl.style.display = 'block';
     } else {
       archiveEl.style.display = 'none';
@@ -1033,23 +1037,44 @@ function renderDeferredItem(item) {
   try { domain = new URL(item.url).hostname.replace(/^www\./, ''); } catch {}
   const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=16`;
   const ago = timeAgo(item.deferred_at);
+  const titleText = item.title || item.url;
 
-  return `
-    <div class="deferred-item" data-deferred-id="${item.id}">
-      <input type="checkbox" class="deferred-checkbox" data-action="check-deferred" data-deferred-id="${item.id}">
-      <div class="deferred-info">
-        <a href="${item.url}" target="_blank" rel="noopener" class="deferred-title" title="${(item.title || '').replace(/"/g, '&quot;')}">
-          <img src="${faviconUrl}" alt="" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px" onerror="this.style.display='none'">${item.title || item.url}
-        </a>
-        <div class="deferred-meta">
-          <span>${domain}</span>
-          <span>${ago}</span>
-        </div>
-      </div>
-      <button class="deferred-dismiss" data-action="dismiss-deferred" data-deferred-id="${item.id}" title="Dismiss">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-      </button>
-    </div>`;
+  const checkbox = el('input', {
+    type: 'checkbox',
+    className: 'deferred-checkbox',
+    dataset: { action: 'check-deferred', deferredId: item.id },
+  });
+
+  const favicon = el('img', {
+    src: faviconUrl,
+    alt: '',
+    style: 'width:14px;height:14px;vertical-align:-2px;margin-right:4px',
+  });
+  favicon.addEventListener('error', () => { favicon.style.display = 'none'; });
+
+  const link = el('a', {
+    href: item.url,
+    target: '_blank',
+    rel: 'noopener',
+    className: 'deferred-title',
+    title: item.title || '',
+  }, [favicon, titleText]);
+
+  const meta = el('div', { className: 'deferred-meta' }, [
+    el('span', { textContent: domain }),
+    el('span', { textContent: ago }),
+  ]);
+
+  const dismiss = el('button', {
+    className: 'deferred-dismiss',
+    title: 'Dismiss',
+    dataset: { action: 'dismiss-deferred', deferredId: item.id },
+  }, [svg('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>')]);
+
+  return el('div', {
+    className: 'deferred-item',
+    dataset: { deferredId: item.id },
+  }, [checkbox, el('div', { className: 'deferred-info' }, [link, meta]), dismiss]);
 }
 
 /**
@@ -1059,17 +1084,22 @@ function renderDeferredItem(item) {
  * Simpler than active items — just title link + date.
  */
 function renderArchiveItem(item) {
-  let domain = '';
-  try { domain = new URL(item.url).hostname.replace(/^www\./, ''); } catch {}
   const ago = item.archived_at ? timeAgo(item.archived_at) : '';
+  const titleText = item.title || item.url;
 
-  return `
-    <div class="archive-item">
-      <a href="${item.url}" target="_blank" rel="noopener" class="archive-item-title" title="${(item.title || '').replace(/"/g, '&quot;')}">
-        ${item.title || item.url}
-      </a>
-      <span class="archive-item-date">${ago}</span>
-    </div>`;
+  const link = el('a', {
+    href: item.url,
+    target: '_blank',
+    rel: 'noopener',
+    className: 'archive-item-title',
+    title: item.title || '',
+    textContent: titleText,
+  });
+
+  return el('div', { className: 'archive-item' }, [
+    link,
+    el('span', { className: 'archive-item-date', textContent: ago }),
+  ]);
 }
 
 
@@ -1637,7 +1667,7 @@ document.addEventListener('input', async (e) => {
       const res = await fetch('/api/deferred');
       if (res.ok) {
         const data = await res.json();
-        archiveList.innerHTML = (data.archived || []).map(item => renderArchiveItem(item)).join('');
+        mount(archiveList, (data.archived || []).map(renderArchiveItem));
       }
     } catch {}
     return;
@@ -1647,8 +1677,15 @@ document.addEventListener('input', async (e) => {
     const res = await fetch(`/api/deferred/search?q=${encodeURIComponent(q)}`);
     if (!res.ok) return;
     const data = await res.json();
-    archiveList.innerHTML = (data.results || []).map(item => renderArchiveItem(item)).join('')
-      || '<div style="font-size:12px;color:var(--muted);padding:8px 0">No results</div>';
+    const results = data.results || [];
+    if (results.length === 0) {
+      mount(archiveList, el('div', {
+        style: 'font-size:12px;color:var(--muted);padding:8px 0',
+        textContent: 'No results',
+      }));
+    } else {
+      mount(archiveList, results.map(renderArchiveItem));
+    }
   } catch (err) {
     console.warn('[tab-out] Archive search failed:', err);
   }
