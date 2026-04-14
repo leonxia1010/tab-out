@@ -5,9 +5,28 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const express = require('express');
+const fs      = require('fs');
 const path    = require('path');
+const { execSync } = require('child_process');
 const config  = require('./config');
 const { startUpdateChecker } = require('./updater');
+
+// Dashboard ships as TypeScript compiled to dashboard/dist/. `npm start`
+// runs the prestart build, but auto-start services (launchd/systemd) spawn
+// `node server/index.js` directly and skip npm hooks. If the entry is
+// missing at boot, run tsc inline — fail fast on build errors instead of
+// serving a 404 to the browser.
+const projectRoot = path.join(__dirname, '..');
+const distEntry   = path.join(projectRoot, 'dashboard', 'dist', 'index.js');
+if (!fs.existsSync(distEntry)) {
+  console.log('[server] dashboard/dist/ missing, running `npm run build`...');
+  try {
+    execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
+  } catch (err) {
+    console.error('[server] build failed; dashboard will not load. Run `npm run build` manually.');
+    process.exit(1);
+  }
+}
 
 const app = express();
 

@@ -9,7 +9,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "prestart": "npm run build",
     "start": "node server/index.js",
+    "preinstall-service": "npm run build",
     "install-service": "node scripts/install.js"
   },
   "keywords": [],
