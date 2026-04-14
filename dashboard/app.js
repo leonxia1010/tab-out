@@ -50,6 +50,11 @@ function sendToExtension(action, data = {}) {
       return;
     }
 
+    // Restrict postMessage to the parent extension's origin when known.
+    // `ancestorOrigins` is Chromium-only; it falls back to '*' when loaded in
+    // a plain browser tab (dev mode) or when the property is unavailable.
+    const extOrigin = window.location.ancestorOrigins?.[0] || '*';
+
     // Generate a random ID so we can match the response to this specific request
     const messageId = 'tmc-' + Math.random().toString(36).slice(2);
 
@@ -61,6 +66,8 @@ function sendToExtension(action, data = {}) {
 
     // Listen for the matching response from the extension
     function handler(event) {
+      // Drop messages from unexpected origins when we have a known parent origin.
+      if (extOrigin !== '*' && event.origin !== extOrigin) return;
       if (event.data && event.data.messageId === messageId) {
         clearTimeout(timer);
         window.removeEventListener('message', handler);
@@ -71,7 +78,7 @@ function sendToExtension(action, data = {}) {
     window.addEventListener('message', handler);
 
     // Send the message to the parent frame (extension)
-    window.parent.postMessage({ action, messageId, ...data }, '*');
+    window.parent.postMessage({ action, messageId, ...data }, extOrigin);
   });
 }
 
