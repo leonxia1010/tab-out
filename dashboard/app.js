@@ -10,9 +10,26 @@
 
 'use strict';
 
-// Safe DOM construction helpers — see dashboard/dom-utils.js.
-// Loaded via a <script> tag before this file, exposed as window.domUtils.
+// Safe DOM construction helpers — see dashboard/src/dom-utils.ts.
+// Exposed on window.domUtils by dist/index.js (ES module, loaded before app.js).
 const { el, svg, mount } = window.domUtils;
+
+// Pure helpers extracted to dashboard/src/utils.ts (Phase 2 PR B).
+// Exposed on window.utils by dist/index.js; app.js destructures at load time.
+// PR G removes this bridge when app.js itself is deleted.
+const {
+  timeAgo,
+  getGreeting,
+  getDateDisplay,
+  capitalize,
+  friendlyDomain,
+  stripTitleNoise,
+  cleanTitle,
+  smartTitle,
+  getRealTabs,
+  getOpenTabsForMission,
+  countOpenTabsForMission,
+} = window.utils;
 
 
 /* ----------------------------------------------------------------
@@ -352,378 +369,6 @@ function checkAndShowEmptyState() {
   if (countEl) countEl.textContent = '0 missions';
 }
 
-/**
- * timeAgo(dateStr)
- *
- * Converts an ISO date string into a human-friendly relative time.
- * e.g. "2026-04-04T10:00:00Z" → "2 hrs ago" or "yesterday"
- */
-function timeAgo(dateStr) {
-  if (!dateStr) return '';
-
-  const then = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now - then;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1)   return 'just now';
-  if (diffMins < 60)  return diffMins + ' min ago';
-  if (diffHours < 24) return diffHours + ' hr' + (diffHours !== 1 ? 's' : '') + ' ago';
-  if (diffDays === 1) return 'yesterday';
-  return diffDays + ' days ago';
-}
-
-/**
- * getGreeting()
- *
- * Returns an appropriate greeting based on the current hour.
- * Morning = before noon, Afternoon = noon–5pm, Evening = after 5pm.
- * No name — Tab Out is for everyone now.
- */
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
-/**
- * getDateDisplay()
- *
- * Returns a formatted date string like "Friday, April 4, 2026".
- */
-function getDateDisplay() {
-  return new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-}
-
-/**
- * countOpenTabsForMission(missionUrls)
- *
- * Counts how many of the user's currently open browser tabs
- * match any of the URLs associated with a mission.
- *
- * We match by domain (hostname) rather than exact URL, because
- * the exact URL often changes (e.g. page IDs, session tokens).
- */
-function countOpenTabsForMission(missionUrls) {
-  return getOpenTabsForMission(missionUrls).length;
-}
-
-/**
- * getOpenTabsForMission(missionUrls)
- *
- * Returns the actual tab objects from openTabs that match
- * any URL in the mission's URL list (matched by domain).
- */
-function getOpenTabsForMission(missionUrls) {
-  if (!missionUrls || missionUrls.length === 0 || openTabs.length === 0) return [];
-
-  // Extract the domains from the mission's saved URLs
-  // missionUrls can be either URL strings or objects with a .url property
-  const missionDomains = missionUrls.map(item => {
-    const urlStr = (typeof item === 'string') ? item : (item.url || '');
-    try {
-      return new URL(urlStr.startsWith('http') ? urlStr : 'https://' + urlStr).hostname;
-    } catch {
-      return urlStr;
-    }
-  });
-
-  // Find open tabs whose hostname matches any mission domain
-  return openTabs.filter(tab => {
-    try {
-      const tabDomain = new URL(tab.url).hostname;
-      return missionDomains.some(d => tabDomain.includes(d) || d.includes(tabDomain));
-    } catch {
-      return false;
-    }
-  });
-}
-
-
-/* ----------------------------------------------------------------
-   SVG ICON STRINGS
-
-   We store these as a constant so we can reuse them in buttons
-   without writing raw SVG every time. Each value is an HTML string
-   ready to be injected with innerHTML.
-   ---------------------------------------------------------------- */
-/* ----------------------------------------------------------------
-   DOMAIN & TITLE CLEANUP HELPERS
-
-   Make domain names and tab titles more readable.
-   - friendlyDomain() turns "github.com" into "GitHub"
-   - cleanTitle() strips redundant site names from the end of titles
-   ---------------------------------------------------------------- */
-
-// Map of known domains → friendly display names.
-// Covers the most common sites; everything else gets a smart fallback.
-const FRIENDLY_DOMAINS = {
-  'github.com':           'GitHub',
-  'www.github.com':       'GitHub',
-  'gist.github.com':      'GitHub Gist',
-  'youtube.com':          'YouTube',
-  'www.youtube.com':      'YouTube',
-  'music.youtube.com':    'YouTube Music',
-  'x.com':                'X',
-  'www.x.com':            'X',
-  'twitter.com':          'X',
-  'www.twitter.com':      'X',
-  'reddit.com':           'Reddit',
-  'www.reddit.com':       'Reddit',
-  'old.reddit.com':       'Reddit',
-  'substack.com':         'Substack',
-  'www.substack.com':     'Substack',
-  'medium.com':           'Medium',
-  'www.medium.com':       'Medium',
-  'linkedin.com':         'LinkedIn',
-  'www.linkedin.com':     'LinkedIn',
-  'stackoverflow.com':    'Stack Overflow',
-  'www.stackoverflow.com':'Stack Overflow',
-  'news.ycombinator.com': 'Hacker News',
-  'google.com':           'Google',
-  'www.google.com':       'Google',
-  'mail.google.com':      'Gmail',
-  'docs.google.com':      'Google Docs',
-  'drive.google.com':     'Google Drive',
-  'calendar.google.com':  'Google Calendar',
-  'meet.google.com':      'Google Meet',
-  'gemini.google.com':    'Gemini',
-  'chatgpt.com':          'ChatGPT',
-  'www.chatgpt.com':      'ChatGPT',
-  'chat.openai.com':      'ChatGPT',
-  'claude.ai':            'Claude',
-  'www.claude.ai':        'Claude',
-  'code.claude.com':      'Claude Code',
-  'notion.so':            'Notion',
-  'www.notion.so':        'Notion',
-  'figma.com':            'Figma',
-  'www.figma.com':        'Figma',
-  'slack.com':            'Slack',
-  'app.slack.com':        'Slack',
-  'discord.com':          'Discord',
-  'www.discord.com':      'Discord',
-  'wikipedia.org':        'Wikipedia',
-  'en.wikipedia.org':     'Wikipedia',
-  'amazon.com':           'Amazon',
-  'www.amazon.com':       'Amazon',
-  'netflix.com':          'Netflix',
-  'www.netflix.com':      'Netflix',
-  'spotify.com':          'Spotify',
-  'open.spotify.com':     'Spotify',
-  'vercel.com':           'Vercel',
-  'www.vercel.com':       'Vercel',
-  'npmjs.com':            'npm',
-  'www.npmjs.com':        'npm',
-  'developer.mozilla.org':'MDN',
-  'arxiv.org':            'arXiv',
-  'www.arxiv.org':        'arXiv',
-  'huggingface.co':       'Hugging Face',
-  'www.huggingface.co':   'Hugging Face',
-  'producthunt.com':      'Product Hunt',
-  'www.producthunt.com':  'Product Hunt',
-  'xiaohongshu.com':      'RedNote',
-  'www.xiaohongshu.com':  'RedNote',
-  'local-files':          'Local Files',
-};
-
-/**
- * friendlyDomain(hostname)
- *
- * Turns a raw hostname into a human-readable name.
- * 1. Check the lookup map for known domains
- * 2. For subdomains of known domains, check if the parent matches
- *    (e.g. "docs.github.com" → "GitHub Docs")
- * 3. Fallback: strip "www.", strip TLD, capitalize
- *    (e.g. "minttr.com" → "Minttr", "blog.example.co.uk" → "Blog Example")
- */
-function friendlyDomain(hostname) {
-  if (!hostname) return '';
-
-  // Direct lookup
-  if (FRIENDLY_DOMAINS[hostname]) return FRIENDLY_DOMAINS[hostname];
-
-  // Check for *.substack.com pattern (e.g. "lenny.substack.com" → "Lenny's Substack")
-  if (hostname.endsWith('.substack.com') && hostname !== 'substack.com') {
-    const sub = hostname.replace('.substack.com', '');
-    return capitalize(sub) + "'s Substack";
-  }
-
-  // Check for *.github.io pattern
-  if (hostname.endsWith('.github.io')) {
-    const sub = hostname.replace('.github.io', '');
-    return capitalize(sub) + ' (GitHub Pages)';
-  }
-
-  // Fallback: strip www, strip common TLDs, capitalize each word
-  let clean = hostname
-    .replace(/^www\./, '')
-    .replace(/\.(com|org|net|io|co|ai|dev|app|so|me|xyz|info|us|uk|co\.uk|co\.jp)$/, '');
-
-  // If it's a subdomain like "blog.example", keep it readable
-  return clean
-    .split('.')
-    .map(part => capitalize(part))
-    .join(' ');
-}
-
-/**
- * capitalize(str)
- * "github" → "GitHub" (okay, just "Github" — but close enough for fallback)
- */
-function capitalize(str) {
-  if (!str) return '';
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-/**
- * stripTitleNoise(title)
- *
- * Removes common noise from browser tab titles:
- * - Leading notification counts: "(2) Vibe coding ideas" → "Vibe coding ideas"
- * - Trailing email addresses: "Subject - user@gmail.com" → "Subject"
- * - X/Twitter cruft: "Name on X: \"quote\" / X" → "Name: \"quote\""
- * - Trailing "/ X" or "| LinkedIn" etc (handled by cleanTitle, but the
- *   "on X:" pattern needs special handling here)
- */
-function stripTitleNoise(title) {
-  if (!title) return '';
-
-  // 1. Strip leading notification count: "(2) Title" or "(99+) Title"
-  title = title.replace(/^\(\d+\+?\)\s*/, '');
-
-  // 1b. Strip inline counts like "Inbox (16,359)" or "Messages (42)"
-  title = title.replace(/\s*\([\d,]+\+?\)\s*/g, ' ');
-
-  // 2. Strip email addresses anywhere in the title (privacy + cleaner display)
-  //    Catches patterns like "Subject - user@example.com - Gmail"
-  //    First remove "- email@domain.com" segments (with separator)
-  title = title.replace(/\s*[\-\u2010\u2011\u2012\u2013\u2014\u2015]\s*[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, '');
-  //    Then catch any remaining bare email addresses
-  title = title.replace(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, '');
-
-  // 3. Clean up X/Twitter title format: "Name on X: \"quote text\"" → "Name: \"quote text\""
-  title = title.replace(/\s+on X:\s*/, ': ');
-
-  // 4. Strip trailing "/ X" (X/Twitter appends this)
-  title = title.replace(/\s*\/\s*X\s*$/, '');
-
-  return title.trim();
-}
-
-/**
- * cleanTitle(title, hostname)
- *
- * Strips redundant site name suffixes from tab titles.
- * Many sites append their name: "Article Title - Medium" or "Post | Reddit"
- * If the suffix matches the domain, we remove it for a cleaner look.
- */
-function cleanTitle(title, hostname) {
-  if (!title || !hostname) return title || '';
-
-  const friendly = friendlyDomain(hostname);
-  const domain = hostname.replace(/^www\./, '');
-
-  // Common separator patterns at the end of titles
-  // "Article Title - Site Name", "Article Title | Site Name", "Article Title — Site Name"
-  const separators = [' - ', ' | ', ' — ', ' · ', ' – '];
-
-  for (const sep of separators) {
-    const idx = title.lastIndexOf(sep);
-    if (idx === -1) continue;
-
-    const suffix = title.slice(idx + sep.length).trim();
-    const suffixLower = suffix.toLowerCase();
-
-    // Check if the suffix matches the domain name, friendly name, or common variations
-    if (
-      suffixLower === domain.toLowerCase() ||
-      suffixLower === friendly.toLowerCase() ||
-      suffixLower === domain.replace(/\.\w+$/, '').toLowerCase() || // "github" from "github.com"
-      domain.toLowerCase().includes(suffixLower) ||
-      friendly.toLowerCase().includes(suffixLower)
-    ) {
-      const cleaned = title.slice(0, idx).trim();
-      // Only strip if we're left with something meaningful (at least 5 chars)
-      if (cleaned.length >= 5) return cleaned;
-    }
-  }
-
-  return title;
-}
-
-/**
- * smartTitle(title, url)
- *
- * When the tab title is useless (just the URL, or a generic site name),
- * try to extract something meaningful from the URL itself.
- * Works for X/Twitter posts, GitHub repos, YouTube videos, Reddit threads, etc.
- */
-function smartTitle(title, url) {
-  if (!url) return title || '';
-
-  let pathname = '';
-  let hostname = '';
-  try {
-    const u = new URL(url);
-    pathname = u.pathname;
-    hostname = u.hostname;
-  } catch {
-    return title || '';
-  }
-
-  // Check if the title is basically just the URL (useless)
-  const titleIsUrl = !title || title === url || title.startsWith(hostname) || title.startsWith('http');
-
-  // X / Twitter — extract @username from /username/status/123456 URLs
-  if ((hostname === 'x.com' || hostname === 'twitter.com' || hostname === 'www.x.com') && pathname.includes('/status/')) {
-    const username = pathname.split('/')[1];
-    if (username) {
-      // If the title has actual content (not just URL), clean it and keep it
-      if (!titleIsUrl) return title;
-      return `Post by @${username}`;
-    }
-  }
-
-  // GitHub — extract owner/repo or owner/repo/path context
-  if (hostname === 'github.com' || hostname === 'www.github.com') {
-    const parts = pathname.split('/').filter(Boolean);
-    if (parts.length >= 2) {
-      const owner = parts[0];
-      const repo = parts[1];
-      if (parts[2] === 'issues' && parts[3]) return `${owner}/${repo} Issue #${parts[3]}`;
-      if (parts[2] === 'pull' && parts[3]) return `${owner}/${repo} PR #${parts[3]}`;
-      if (parts[2] === 'blob' || parts[2] === 'tree') return `${owner}/${repo} — ${parts.slice(4).join('/')}`;
-      if (titleIsUrl) return `${owner}/${repo}`;
-    }
-  }
-
-  // YouTube — if title is just a URL, at least say "YouTube Video"
-  if ((hostname === 'www.youtube.com' || hostname === 'youtube.com') && pathname === '/watch') {
-    if (titleIsUrl) return 'YouTube Video';
-  }
-
-  // Reddit — extract subreddit and post hint from URL
-  if ((hostname === 'www.reddit.com' || hostname === 'reddit.com' || hostname === 'old.reddit.com') && pathname.includes('/comments/')) {
-    const parts = pathname.split('/').filter(Boolean);
-    const subIdx = parts.indexOf('r');
-    if (subIdx !== -1 && parts[subIdx + 1]) {
-      const sub = parts[subIdx + 1];
-      if (titleIsUrl) return `r/${sub} post`;
-    }
-  }
-
-  return title || url;
-}
-
-
 const ICONS = {
   // Tab/browser icon — used in the "N tabs open" badge
   tabs: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V18a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18V8.25m-18 0V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v2.25m-18 0h18" /></svg>`,
@@ -750,30 +395,6 @@ const ICONS = {
 let domainGroups    = [];
 let duplicateTabs   = [];
 
-
-/* ----------------------------------------------------------------
-   HELPER: filter out browser-internal pages
-   We call this in multiple places, so it lives in one spot.
-   ---------------------------------------------------------------- */
-
-/**
- * getRealTabs()
- *
- * Returns all open tabs that are real web pages — no chrome://, extension
- * pages, about:blank, etc. We only want to show and manage actual websites.
- */
-function getRealTabs() {
-  return openTabs.filter(t => {
-    const url = t.url || '';
-    return (
-      !url.startsWith('chrome://') &&
-      !url.startsWith('chrome-extension://') &&
-      !url.startsWith('about:') &&
-      !url.startsWith('edge://') &&
-      !url.startsWith('brave://')
-    );
-  });
-}
 
 /**
  * checkTabOutDupes()
@@ -1170,7 +791,7 @@ async function renderStaticDashboard() {
 
   // ── Step 1: Fetch open tabs ───────────────────────────────────────────────
   await fetchOpenTabs();
-  const realTabs = getRealTabs();
+  const realTabs = getRealTabs(openTabs);
 
   // ── Step 3: Group open tabs by domain ────────────────────────────────────
   // This is pure JavaScript — no AI, no API calls. We extract the hostname
