@@ -1,11 +1,10 @@
-// Dashboard entry point (Phase 2 PR A).
+// Dashboard entry point (Phase 2 PR A + B).
 //
-// Right now this only bridges the ESM dom-utils module to the legacy
-// window.domUtils global that app.js reads. As PR B–G move functionality
-// into TS modules under dashboard/src/, this file will grow to replace
-// app.js entirely (then the legacy dashboard/dom-utils.js IIFE also dies).
+// Bridges ESM modules to the legacy window.* globals that app.js reads while
+// we drain the god file. PR G removes app.js and the window.* bridge entirely.
 
 import { el, mount, svg } from './dom-utils.js';
+import * as utils from './utils.js';
 
 declare global {
   interface Window {
@@ -14,7 +13,9 @@ declare global {
       svg: typeof svg;
       mount: typeof mount;
     };
+    utils: typeof utils;
   }
 }
 
 window.domUtils = { el, svg, mount };
+window.utils = utils;

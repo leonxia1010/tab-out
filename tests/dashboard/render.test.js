@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DOM_UTILS_PATH = path.resolve(__dirname, '../../dashboard/dom-utils.js');
+const UTILS_PATH = path.resolve(__dirname, '../../dashboard/utils.js');
 const APP_PATH = path.resolve(__dirname, '../../dashboard/app.js');
 
 let win;
@@ -41,11 +42,16 @@ beforeAll(() => {
   win.fetch = () => Promise.reject(new Error('fetch disabled in tests'));
 
   const DOM_UTILS_SRC = fs.readFileSync(DOM_UTILS_PATH, 'utf8');
+  const UTILS_SRC = fs.readFileSync(UTILS_PATH, 'utf8');
   const APP_SRC = fs.readFileSync(APP_PATH, 'utf8');
 
   const s1 = win.document.createElement('script');
   s1.textContent = DOM_UTILS_SRC;
   win.document.head.appendChild(s1);
+
+  const sUtils = win.document.createElement('script');
+  sUtils.textContent = UTILS_SRC;
+  win.document.head.appendChild(sUtils);
 
   const s2 = win.document.createElement('script');
   s2.textContent = APP_SRC + `
