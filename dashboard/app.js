@@ -51,198 +51,24 @@ const {
   fetchMissionById,
 } = window.extensionBridge;
 
+// Presentational side-effects — dashboard/src/animations.ts (Phase 2 PR D).
+// animateCardOut accepts an onComplete callback so this module stays free of
+// the renderer slice; callers pass checkAndShowEmptyState.
+const {
+  playCloseSound,
+  shootConfetti,
+  animateCardOut: animateCardOutRaw,
+  showToast,
+} = window.animations;
+
+function animateCardOut(card) {
+  animateCardOutRaw(card, checkAndShowEmptyState);
+}
+
 
 /* ----------------------------------------------------------------
    UI HELPERS
    ---------------------------------------------------------------- */
-
-/**
- * showToast(message)
- *
- * Shows a brief pop-up notification at the bottom of the screen.
- * Like the little notification that pops up when you send a message.
- */
-/**
- * playCloseSound()
- *
- * Plays a clean "swoosh" sound when tabs are closed.
- * Built entirely with the Web Audio API — no sound files needed.
- * A filtered noise sweep that descends in pitch, like air moving.
- */
-function playCloseSound() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const t = ctx.currentTime;
-
-    // Swoosh: shaped white noise through a sweeping bandpass filter
-    const duration = 0.25;
-    const buffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-
-    // Generate noise with a natural envelope (quick attack, smooth decay)
-    for (let i = 0; i < data.length; i++) {
-      const pos = i / data.length;
-      // Envelope: ramps up fast in first 10%, then fades out smoothly
-      const env = pos < 0.1 ? pos / 0.1 : Math.pow(1 - (pos - 0.1) / 0.9, 1.5);
-      data[i] = (Math.random() * 2 - 1) * env;
-    }
-
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-
-    // Bandpass filter sweeps from high to low — this creates the "swoosh" character
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.Q.value = 2.0;
-    filter.frequency.setValueAtTime(4000, t);
-    filter.frequency.exponentialRampToValueAtTime(400, t + duration);
-
-    // Volume
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.15, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
-
-    source.connect(filter).connect(gain).connect(ctx.destination);
-    source.start(t);
-
-    setTimeout(() => ctx.close(), 500);
-  } catch {
-    // Audio not supported — fail silently
-  }
-}
-
-/**
- * shootConfetti(x, y)
- *
- * Shoots a burst of colorful confetti particles from the given screen
- * coordinates (typically the center of a card being closed).
- *
- * Each particle:
- * - Is either a circle or a square (randomly chosen)
- * - Uses the dashboard's color palette: amber, sage, slate, with some light variants
- * - Flies outward in a random direction with a gravity arc
- * - Fades out over ~800ms, then is removed from the DOM
- *
- * Pure CSS + JS, no libraries.
- */
-function shootConfetti(x, y) {
-  // Color palette drawn from the dashboard's CSS variables
-  const colors = [
-    '#c8713a', // amber
-    '#e8a070', // amber light
-    '#5a7a62', // sage
-    '#8aaa92', // sage light
-    '#5a6b7a', // slate
-    '#8a9baa', // slate light
-    '#d4b896', // warm paper
-    '#b35a5a', // rose
-  ];
-
-  const particleCount = 17;
-
-  for (let i = 0; i < particleCount; i++) {
-    const el = document.createElement('div');
-
-    // Randomly decide: circle or square
-    const isCircle = Math.random() > 0.5;
-    const size = 5 + Math.random() * 6; // 5–11px
-
-    // Pick a random color from the palette
-    const color = colors[Math.floor(Math.random() * colors.length)];
-
-    // Style the particle
-    el.style.cssText = `
-      position: fixed;
-      left: ${x}px;
-      top: ${y}px;
-      width: ${size}px;
-      height: ${size}px;
-      background: ${color};
-      border-radius: ${isCircle ? '50%' : '2px'};
-      pointer-events: none;
-      z-index: 9999;
-      transform: translate(-50%, -50%);
-      opacity: 1;
-    `;
-    document.body.appendChild(el);
-
-    // Physics: random angle and speed for the outward burst
-    const angle  = Math.random() * Math.PI * 2;           // random direction (radians)
-    const speed  = 60 + Math.random() * 120;              // px/second
-    const vx     = Math.cos(angle) * speed;               // horizontal velocity
-    const vy     = Math.sin(angle) * speed - 80;          // vertical: bias upward a bit
-    const gravity = 200;                                   // downward pull (px/s²)
-
-    const startTime = performance.now();
-    const duration  = 700 + Math.random() * 200;          // 700–900ms
-
-    // Animate with requestAnimationFrame for buttery-smooth motion
-    function frame(now) {
-      const elapsed = (now - startTime) / 1000; // seconds
-      const progress = elapsed / (duration / 1000);
-
-      if (progress >= 1) {
-        el.remove();
-        return;
-      }
-
-      // Position: initial velocity + gravity arc
-      const px = vx * elapsed;
-      const py = vy * elapsed + 0.5 * gravity * elapsed * elapsed;
-
-      // Fade out during the second half of the animation
-      const opacity = progress < 0.5 ? 1 : 1 - (progress - 0.5) * 2;
-
-      // Slight rotation for realism
-      const rotate = elapsed * 200 * (isCircle ? 0 : 1); // squares spin, circles don't
-
-      el.style.transform = `translate(calc(-50% + ${px}px), calc(-50% + ${py}px)) rotate(${rotate}deg)`;
-      el.style.opacity = opacity;
-
-      requestAnimationFrame(frame);
-    }
-
-    requestAnimationFrame(frame);
-  }
-}
-
-/**
- * animateCardOut(card)
- *
- * Smoothly removes a mission card in two phases:
- * 1. Fade out + scale down (GPU-accelerated, smooth)
- * 2. After fade completes, remove from DOM
- *
- * Also fires confetti from the card's center for a satisfying "done!" moment.
- */
-function animateCardOut(card) {
-  if (!card) return;
-
-  // Get the card's center position on screen for the confetti origin
-  const rect = card.getBoundingClientRect();
-  const cx = rect.left + rect.width  / 2;
-  const cy = rect.top  + rect.height / 2;
-
-  // Shoot confetti from the card's center
-  shootConfetti(cx, cy);
-
-  // Phase 1: fade + scale down
-  card.classList.add('closing');
-  // Phase 2: remove from DOM after animation
-  setTimeout(() => {
-    card.remove();
-    // After card is gone, check if the missions grid is now empty
-    // and show the empty state if so
-    checkAndShowEmptyState();
-  }, 300);
-}
-
-function showToast(message) {
-  const toast = document.getElementById('toast');
-  document.getElementById('toastText').textContent = message;
-  toast.classList.add('visible');
-  setTimeout(() => toast.classList.remove('visible'), 2500);
-}
 
 /**
  * checkAndShowEmptyState()

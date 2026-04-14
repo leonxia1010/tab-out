@@ -1,0 +1,151 @@
+// Tab Out dashboard — purely presentational animations (Phase 2 PR D).
+//
+// Every function here is fire-and-forget DOM / Web Audio side-effects with no
+// state dependency, which is why this is the smallest slice in the god-file
+// teardown. Consumed by app.js via the window.animations bridge until PR G
+// deletes app.js. `animateCardOut` takes an optional `onComplete` callback so
+// this module stays free of `checkAndShowEmptyState` (that helper belongs to
+// the renderer slice in PR E).
+
+const CONFETTI_COLORS = [
+  '#c8713a', // amber
+  '#e8a070', // amber light
+  '#5a7a62', // sage
+  '#8aaa92', // sage light
+  '#5a6b7a', // slate
+  '#8a9baa', // slate light
+  '#d4b896', // warm paper
+  '#b35a5a', // rose
+] as const;
+
+const CONFETTI_PARTICLE_COUNT = 17;
+const CARD_CLOSE_DURATION_MS = 300;
+const TOAST_VISIBLE_MS = 2500;
+
+type AudioContextCtor = typeof AudioContext;
+
+export function playCloseSound(): void {
+  try {
+    const Ctor =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: AudioContextCtor }).webkitAudioContext;
+    if (!Ctor) return;
+
+    const ctx = new Ctor();
+    const t = ctx.currentTime;
+
+    const duration = 0.25;
+    const buffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < data.length; i++) {
+      const pos = i / data.length;
+      const env = pos < 0.1 ? pos / 0.1 : Math.pow(1 - (pos - 0.1) / 0.9, 1.5);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 2.0;
+    filter.frequency.setValueAtTime(4000, t);
+    filter.frequency.exponentialRampToValueAtTime(400, t + duration);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.15, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+    source.connect(filter).connect(gain).connect(ctx.destination);
+    source.start(t);
+
+    setTimeout(() => ctx.close(), 500);
+  } catch {
+    // Audio not supported — fail silently.
+  }
+}
+
+export function shootConfetti(x: number, y: number): void {
+  for (let i = 0; i < CONFETTI_PARTICLE_COUNT; i++) {
+    const el = document.createElement('div');
+
+    const isCircle = Math.random() > 0.5;
+    const size = 5 + Math.random() * 6;
+    const color = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+
+    el.style.cssText = `
+      position: fixed;
+      left: ${x}px;
+      top: ${y}px;
+      width: ${size}px;
+      height: ${size}px;
+      background: ${color};
+      border-radius: ${isCircle ? '50%' : '2px'};
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      opacity: 1;
+    `;
+    document.body.appendChild(el);
+
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 60 + Math.random() * 120;
+    const vx = Math.cos(angle) * speed;
+    const vy = Math.sin(angle) * speed - 80;
+    const gravity = 200;
+
+    const startTime = performance.now();
+    const duration = 700 + Math.random() * 200;
+
+    function frame(now: number) {
+      const elapsed = (now - startTime) / 1000;
+      const progress = elapsed / (duration / 1000);
+
+      if (progress >= 1) {
+        el.remove();
+        return;
+      }
+
+      const px = vx * elapsed;
+      const py = vy * elapsed + 0.5 * gravity * elapsed * elapsed;
+      const opacity = progress < 0.5 ? 1 : 1 - (progress - 0.5) * 2;
+      const rotate = elapsed * 200 * (isCircle ? 0 : 1);
+
+      el.style.transform =
+        `translate(calc(-50% + ${px}px), calc(-50% + ${py}px)) rotate(${rotate}deg)`;
+      el.style.opacity = String(opacity);
+
+      requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+  }
+}
+
+export function animateCardOut(
+  card: HTMLElement | null | undefined,
+  onComplete?: () => void,
+): void {
+  if (!card) return;
+
+  const rect = card.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  shootConfetti(cx, cy);
+
+  card.classList.add('closing');
+  setTimeout(() => {
+    card.remove();
+    onComplete?.();
+  }, CARD_CLOSE_DURATION_MS);
+}
+
+export function showToast(message: string): void {
+  const toast = document.getElementById('toast');
+  const text = document.getElementById('toastText');
+  if (!toast || !text) return;
+  text.textContent = message;
+  toast.classList.add('visible');
+  setTimeout(() => toast.classList.remove('visible'), TOAST_VISIBLE_MS);
+}
