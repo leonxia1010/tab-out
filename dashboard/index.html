@@ -125,17 +125,9 @@
   <span id="toastText"></span>
 </div>
 
-<!-- Main dashboard logic. Phase 2 PR A:
-       - dist/index.js (ES module, implicit defer) installs window.domUtils
-         from the TS source of truth (dashboard/src/dom-utils.ts).
-       - app.js (classic + explicit defer) shares the defer queue with the
-         module and runs AFTER it, so the `const { el, svg, mount } =
-         window.domUtils` destructure at the top of app.js reads the ESM
-         build (not the legacy IIFE). PR G removes app.js entirely.
-       - dashboard/dom-utils.js (legacy IIFE) still lives in the repo — it
-         is injected as a <script> string by tests/dashboard/render.test.js
-         into JSDOM — but it is NOT loaded by the browser anymore. -->
+<!-- Single ES module entry point. dist/index.js is built from
+     dashboard/src/index.ts by `npm run build` (tsc) and bootstraps
+     the dashboard. -->
 <script type="module" src="dist/index.js"></script>
-<script src="app.js" defer></script>
 </body>
 </html>
