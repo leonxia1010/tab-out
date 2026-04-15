@@ -141,13 +141,20 @@ async function readMeta(): Promise<MetaShape> {
 }
 
 // ─── ID generation (replaces SQLite AUTOINCREMENT) ─────────────────────────
-// Date.now()*1000 + random gives us a monotonically-increasing 64-bit-ish
-// number per call. Two simultaneous saves in the same millisecond stay
-// disjoint via the 0-999 random suffix. Phase 3 accepts the tiny collision
-// risk (1/1000 within a single ms) since deferred-tab volume is low.
+// Date.now()*1000 + random is the *candidate* for a fresh id. We then bump
+// it past the last id we handed out to guarantee strict monotonicity within
+// the running module. Without this, a single saveDefer({n}) loop fires
+// newId() N times in the same millisecond — birthday collisions over a 1000-
+// slot space hit ~19% at N=20 and ~71% at N=50, and a colliding id would
+// make checkDeferred/dismissDeferred update multiple rows at once.
+// Math.max(candidate, lastId+1) handles both the in-tick bump and the
+// cross-tick / cross-SW-restart case (Date.now() always wins by then).
 
+let lastId = 0;
 function newId(): number {
-  return Date.now() * 1000 + Math.floor(Math.random() * 1000);
+  const candidate = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+  lastId = Math.max(candidate, lastId + 1);
+  return lastId;
 }
 
 // ─── Mission endpoints ──────────────────────────────────────────────────────
@@ -336,18 +343,13 @@ export async function checkDeferred(
 ): Promise<{ success: true }> {
   const target = String(id);
   const all = await readArray<DeferredTab>('deferredTabs');
+  const t = all.find((row) => String(row.id) === target);
+  if (!t) throw new Error(`deferred ${id} not found`);
   const now = new Date().toISOString();
-  let found = false;
-  for (const t of all) {
-    if (String(t.id) === target) {
-      t.checked = 1;
-      t.checked_at = now;
-      t.archived = 1;
-      t.archived_at = now;
-      found = true;
-    }
-  }
-  if (!found) throw new Error(`deferred ${id} not found`);
+  t.checked = 1;
+  t.checked_at = now;
+  t.archived = 1;
+  t.archived_at = now;
   await writeArray('deferredTabs', all);
   return { success: true };
 }
@@ -357,17 +359,12 @@ export async function dismissDeferred(
 ): Promise<{ success: true }> {
   const target = String(id);
   const all = await readArray<DeferredTab>('deferredTabs');
+  const t = all.find((row) => String(row.id) === target);
+  if (!t) throw new Error(`deferred ${id} not found`);
   const now = new Date().toISOString();
-  let found = false;
-  for (const t of all) {
-    if (String(t.id) === target) {
-      t.dismissed = 1;
-      t.archived = 1;
-      t.archived_at = now;
-      found = true;
-    }
-  }
-  if (!found) throw new Error(`deferred ${id} not found`);
+  t.dismissed = 1;
+  t.archived = 1;
+  t.archived_at = now;
   await writeArray('deferredTabs', all);
   return { success: true };
 }
