@@ -64,44 +64,44 @@ describe('getUpdateStatus', () => {
     expect(await getUpdateStatus()).toEqual({ updateAvailable: false });
   });
 
-  it('reads updateAvailable + currentCommit + checkedAt from tabout:updateStatus', async () => {
+  it('reads updateAvailable + currentTag + checkedAt from tabout:updateStatus', async () => {
     installChromeStorage({
       'tabout:updateStatus': {
         updateAvailable: true,
-        latestSha: 'bbb',
-        currentSha: 'aaa',
+        latestTag: 'v2.0.1',
+        currentTag: 'v2.0.0',
         checkedAt: '2026-04-10T00:00:00.000Z',
-        dismissedSha: null,
+        dismissedTag: null,
       },
     });
     expect(await getUpdateStatus()).toEqual({
       updateAvailable: true,
-      currentCommit: 'aaa',
+      currentTag: 'v2.0.0',
       checkedAt: '2026-04-10T00:00:00.000Z',
     });
   });
 
-  it('suppresses updateAvailable when dismissedSha equals latestSha (user already dismissed this release)', async () => {
+  it('suppresses updateAvailable when dismissedTag equals latestTag (user already dismissed this release)', async () => {
     installChromeStorage({
       'tabout:updateStatus': {
         updateAvailable: true,
-        latestSha: 'bbb',
-        currentSha: 'aaa',
+        latestTag: 'v2.0.1',
+        currentTag: 'v2.0.0',
         checkedAt: '2026-04-10T00:00:00.000Z',
-        dismissedSha: 'bbb',
+        dismissedTag: 'v2.0.1',
       },
     });
     expect(await getUpdateStatus()).toMatchObject({ updateAvailable: false });
   });
 
-  it('shows updateAvailable again when a newer release lands past the dismissed sha', async () => {
+  it('shows updateAvailable again when a newer release lands past the dismissed tag', async () => {
     installChromeStorage({
       'tabout:updateStatus': {
         updateAvailable: true,
-        latestSha: 'ccc',
-        currentSha: 'aaa',
+        latestTag: 'v2.0.2',
+        currentTag: 'v2.0.0',
         checkedAt: '2026-04-12T00:00:00.000Z',
-        dismissedSha: 'bbb',
+        dismissedTag: 'v2.0.1',
       },
     });
     expect(await getUpdateStatus()).toMatchObject({ updateAvailable: true });

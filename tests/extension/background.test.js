@@ -179,54 +179,54 @@ describe('checkForUpdate', () => {
     vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('writes updateAvailable:true when fetched sha differs from stored currentSha', async () => {
+  it('writes updateAvailable:true when fetched tag differs from stored currentTag', async () => {
     storageGet.mockResolvedValue({
-      'tabout:updateStatus': { currentSha: 'aaa', dismissedSha: null },
+      'tabout:updateStatus': { currentTag: 'v2.0.0', dismissedTag: null },
     });
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ sha: 'bbb' }),
+      json: async () => ({ tag_name: 'v2.0.1' }),
     });
     await checkForUpdate();
     expect(storageSet).toHaveBeenCalledWith({
       'tabout:updateStatus': expect.objectContaining({
         updateAvailable: true,
-        latestSha: 'bbb',
-        currentSha: 'aaa',
+        latestTag: 'v2.0.1',
+        currentTag: 'v2.0.0',
       }),
     });
   });
 
-  it('writes updateAvailable:false when fetched sha matches stored currentSha', async () => {
+  it('writes updateAvailable:false when fetched tag matches stored currentTag', async () => {
     storageGet.mockResolvedValue({
-      'tabout:updateStatus': { currentSha: 'aaa', dismissedSha: null },
+      'tabout:updateStatus': { currentTag: 'v2.0.0', dismissedTag: null },
     });
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ sha: 'aaa' }),
+      json: async () => ({ tag_name: 'v2.0.0' }),
     });
     await checkForUpdate();
     expect(storageSet).toHaveBeenCalledWith({
       'tabout:updateStatus': expect.objectContaining({
         updateAvailable: false,
-        latestSha: 'aaa',
-        currentSha: 'aaa',
+        latestTag: 'v2.0.0',
+        currentTag: 'v2.0.0',
       }),
     });
   });
 
-  it('seeds currentSha = latestSha on first run so the banner does not flash on install', async () => {
+  it('seeds currentTag = latestTag on first run so the banner does not flash on install', async () => {
     storageGet.mockResolvedValue({}); // no prior state
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ sha: 'xyz' }),
+      json: async () => ({ tag_name: 'v2.0.0' }),
     });
     await checkForUpdate();
     expect(storageSet).toHaveBeenCalledWith({
       'tabout:updateStatus': expect.objectContaining({
         updateAvailable: false,
-        latestSha: 'xyz',
-        currentSha: 'xyz',
+        latestTag: 'v2.0.0',
+        currentTag: 'v2.0.0',
       }),
     });
   });
@@ -237,8 +237,8 @@ describe('checkForUpdate', () => {
     expect(storageSet).not.toHaveBeenCalled();
   });
 
-  it('does not write storage when response is not ok', async () => {
-    fetchMock.mockResolvedValue({ ok: false, json: async () => ({}) });
+  it('does not write storage when response is 404 (no release published yet)', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404, json: async () => ({}) });
     await checkForUpdate();
     expect(storageSet).not.toHaveBeenCalled();
   });
