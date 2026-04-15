@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // tests/dashboard/render.test.js
 // ─────────────────────────────────────────────────────────────────────────────
-// XSS hardening tests for dashboard/src/renderers.ts.
+// XSS hardening tests for extension/dashboard/src/renderers.ts.
 //
 // Phase 2 PR G: rewritten to ESM import the source modules directly under
 // vitest's jsdom environment. Earlier PRs injected hand-written legacy IIFE
@@ -15,7 +15,7 @@ import {
   renderDeferredItem,
   renderArchiveItem,
   renderDomainCard,
-} from '../../dashboard/src/renderers.ts';
+} from '../../extension/dashboard/src/renderers.ts';
 
 function mountResult(container, out) {
   if (out == null) return;

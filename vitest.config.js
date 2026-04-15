@@ -6,8 +6,8 @@ export default defineConfig({
     include: ['tests/**/*.test.js'],
     coverage: {
       provider: 'v8',
-      include: ['server/**', 'extension/**', 'dashboard/src/**'],
-      exclude: ['**/*.test.js', 'tests/**', 'dashboard/dist/**'],
+      include: ['server/**', 'extension/**'],
+      exclude: ['**/*.test.js', 'tests/**', 'extension/dashboard/dist/**'],
     },
   },
 });

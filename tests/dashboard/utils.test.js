@@ -1,6 +1,6 @@
 // tests/dashboard/utils.test.js
 //
-// Pure-function tests for dashboard/src/utils.ts (Phase 2 PR B). Node env,
+// Pure-function tests for extension/dashboard/src/utils.ts (Phase 2 PR B). Node env,
 // direct ESM import of the TS source — vitest transpiles on the fly.
 //
 // Coverage goal: the helpers that Phase 0 couldn't reach because they were
@@ -19,7 +19,7 @@ import {
   getRealTabs,
   getOpenTabsForMission,
   countOpenTabsForMission,
-} from '../../dashboard/src/utils.ts';
+} from '../../extension/dashboard/src/utils.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // timeAgo — clock math, lots of branches per minute/hour/day
