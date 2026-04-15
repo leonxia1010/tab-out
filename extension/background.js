@@ -1,87 +1,61 @@
 /**
- * background.js — Service Worker for Badge Updates
+ * background.js — Service Worker for Domain-Count Badge
  *
- * This is Chrome's "always-on" background script for the extension. Unlike a
- * normal webpage script, it keeps running even when no tabs are open.
+ * Phase 3 PR M — Source of truth swapped from the deleted localhost server's
+ * /api/stats to chrome.tabs directly. The badge now counts unique http(s)
+ * hostnames currently open. Color signal stays the same so users see no
+ * behavioral change:
+ *   1-3 domains → green  (#3d7a4a, focused)
+ *   4-6 domains → amber  (#b8892e, busy)
+ *   7+ domains  → red    (#b35a5a, overloaded)
  *
- * Its only job is to keep the toolbar badge up to date with the current
- * mission count from the dashboard server. The badge is the little number/text
- * that appears on the extension icon in the Chrome toolbar.
- *
- * Color coding gives the user a quick at-a-glance health signal:
- *   Green  (#3d7a4a) → 1–3 missions  (focused, manageable)
- *   Amber  (#b8892e) → 4–6 missions  (getting busy)
- *   Red    (#b35a5a) → 7+ missions   (overloaded — time to cull!)
+ * Event-driven only — the old 60s setInterval poll is gone because the data
+ * source is chrome.tabs itself; tab events are sufficient signal.
  */
 
-// ─── Badge updater ────────────────────────────────────────────────────────────
+function getDomainCount(tabs) {
+  const domains = new Set();
+  for (const t of tabs) {
+    const url = t && t.url;
+    if (!url || !/^https?:\/\//.test(url)) continue;
+    try { domains.add(new URL(url).hostname); }
+    catch { /* malformed URL — skip */ }
+  }
+  return domains.size;
+}
 
-/**
- * updateBadge — Fetches mission stats from the local server and updates the
- * Chrome toolbar badge to reflect the current total mission count.
- */
+function colorForCount(count) {
+  if (count <= 3) return '#3d7a4a';
+  if (count <= 6) return '#b8892e';
+  return '#b35a5a';
+}
+
 async function updateBadge() {
   try {
-    const res  = await fetch('http://localhost:3456/api/stats');
-    const data = await res.json();
-
-    const count = data.totalMissions ?? 0;
-
-    // Don't show "0" — an empty badge is cleaner when there's nothing to do
+    const tabs = await chrome.tabs.query({});
+    const count = getDomainCount(tabs);
     if (count === 0) {
       chrome.action.setBadgeText({ text: '' });
       return;
     }
-
-    // Set the text (Chrome badge supports short strings; a number works great)
     chrome.action.setBadgeText({ text: String(count) });
-
-    // Pick a color based on workload level
-    let badgeColor;
-    if (count <= 3) {
-      badgeColor = '#3d7a4a'; // Green — you're in control
-    } else if (count <= 6) {
-      badgeColor = '#b8892e'; // Amber — things are piling up
-    } else {
-      badgeColor = '#b35a5a'; // Red — time to focus and close some tabs
-    }
-
-    chrome.action.setBadgeBackgroundColor({ color: badgeColor });
-
+    chrome.action.setBadgeBackgroundColor({ color: colorForCount(count) });
   } catch {
-    // If the server isn't running, clear the badge rather than show stale data
     chrome.action.setBadgeText({ text: '' });
   }
 }
 
-// ─── Event listeners ──────────────────────────────────────────────────────────
-
-// Update the badge immediately when the extension is first installed
-chrome.runtime.onInstalled.addListener(() => {
+// Service-worker wiring. Guarded so importing this file from vitest (where
+// chrome is mocked but listener registration is irrelevant) does not crash.
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onInstalled) {
+  chrome.runtime.onInstalled.addListener(updateBadge);
+  chrome.runtime.onStartup.addListener(updateBadge);
+  chrome.tabs.onCreated.addListener(updateBadge);
+  chrome.tabs.onRemoved.addListener(updateBadge);
+  chrome.tabs.onUpdated.addListener(updateBadge);
   updateBadge();
-});
+}
 
-// Update the badge when Chrome starts up (e.g. after a reboot)
-chrome.runtime.onStartup.addListener(() => {
-  updateBadge();
-});
-
-// Update the badge whenever a new tab is opened — the user might be adding
-// work that should bump the mission count
-chrome.tabs.onCreated.addListener(() => {
-  updateBadge();
-});
-
-// Update the badge whenever a tab is closed — a mission may have been completed
-chrome.tabs.onRemoved.addListener(() => {
-  updateBadge();
-});
-
-// ─── Polling ─────────────────────────────────────────────────────────────────
-
-// Refresh the badge every 60 seconds in case missions are added/edited via
-// the dashboard without any tab events firing (e.g. editing inside the app)
-setInterval(updateBadge, 60 * 1000);
-
-// Also run once immediately when the service worker first loads
-updateBadge();
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { getDomainCount, colorForCount, updateBadge };
+}
