@@ -132,13 +132,13 @@ function effectiveDomain(hostname: string): string {
 }
 
 export function checkAndShowEmptyState(): void {
-  const missionsEl = document.getElementById('openTabsMissions');
-  if (!missionsEl) return;
-  const remaining = missionsEl.querySelectorAll('.mission-card:not(.closing)').length;
+  const domainsEl = document.getElementById('openTabsDomains');
+  if (!domainsEl) return;
+  const remaining = domainsEl.querySelectorAll('.domain-card:not(.closing)').length;
   if (remaining > 0) return;
   // Developer-authored static SVG, no user data — innerHTML is safe.
-  missionsEl.innerHTML = `
-    <div class="missions-empty-state">
+  domainsEl.innerHTML = `
+    <div class="domains-empty-state">
       <div class="empty-checkmark">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -149,7 +149,7 @@ export function checkAndShowEmptyState(): void {
     </div>
   `;
   const countEl = document.getElementById('openTabsSectionCount');
-  if (countEl) countEl.textContent = '0 missions';
+  if (countEl) countEl.textContent = '0 domains';
 }
 
 export function renderPageChip(
@@ -299,30 +299,30 @@ export function renderDomainCard(group: DomainGroup, _groupIndex: number): HTMLE
     style: hasDupes ? 'background: var(--accent-amber);' : undefined,
   });
 
-  const missionTopChildren: Array<Node | string | null | false | undefined> = [
+  const domainTopChildren: Array<Node | string | null | false | undefined> = [
     el('span', {
-      className: 'mission-name',
+      className: 'domain-name',
       textContent: isLanding ? 'Homepages' : friendlyDomain(group.domain),
     }),
     tabBadge,
   ];
-  if (dupeBadge) missionTopChildren.push(dupeBadge);
+  if (dupeBadge) domainTopChildren.push(dupeBadge);
 
-  const missionContent = el('div', { className: 'mission-content' }, [
-    el('div', { className: 'mission-top' }, missionTopChildren),
-    el('div', { className: 'mission-pages' }, chipNodes),
+  const domainContent = el('div', { className: 'domain-content' }, [
+    el('div', { className: 'domain-top' }, domainTopChildren),
+    el('div', { className: 'domain-pages' }, chipNodes),
     el('div', { className: 'actions' }, actionsChildren),
   ]);
 
-  const missionMeta = el('div', { className: 'mission-meta' }, [
-    el('div', { className: 'mission-page-count', textContent: String(tabCount) }),
-    el('div', { className: 'mission-page-label', textContent: 'tabs' }),
+  const domainMeta = el('div', { className: 'domain-meta' }, [
+    el('div', { className: 'domain-page-count', textContent: String(tabCount) }),
+    el('div', { className: 'domain-page-label', textContent: 'tabs' }),
   ]);
 
   return el('div', {
-    className: `mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}`,
+    className: `domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}`,
     dataset: { domainId: stableId },
-  }, [statusBar, missionContent, missionMeta]);
+  }, [statusBar, domainContent, domainMeta]);
 }
 
 export function renderDeferredItem(item: DeferredTab): HTMLElement {
@@ -486,7 +486,7 @@ export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
 
 // Header = section title + "X domains · Close all N tabs". Split out so
 // handlers can refresh the counters after a close action without wiping
-// the missions grid (and clobbering in-flight card animations).
+// the domains grid (and clobbering in-flight card animations).
 function renderOpenTabsHeader(sortedGroups: DomainGroup[], realTabsCount: number): void {
   const openTabsSectionTitle = document.getElementById('openTabsSectionTitle');
   const openTabsSectionCount = document.getElementById('openTabsSectionCount');
@@ -511,12 +511,12 @@ function renderOpenTabsHeader(sortedGroups: DomainGroup[], realTabsCount: number
 
 export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount: number): void {
   const openTabsSection    = document.getElementById('openTabsSection');
-  const openTabsMissionsEl = document.getElementById('openTabsMissions');
+  const openTabsDomainsEl = document.getElementById('openTabsDomains');
 
   if (sortedGroups.length > 0 && openTabsSection) {
     renderOpenTabsHeader(sortedGroups, realTabsCount);
-    if (openTabsMissionsEl) {
-      mount(openTabsMissionsEl, sortedGroups.map((g, idx) => renderDomainCard(g, idx)));
+    if (openTabsDomainsEl) {
+      mount(openTabsDomainsEl, sortedGroups.map((g, idx) => renderDomainCard(g, idx)));
     }
     openTabsSection.style.display = 'block';
   } else if (openTabsSection) {
@@ -527,7 +527,7 @@ export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount
 // Re-derive header counters + footer stat from the current openTabs snapshot.
 // Called by close handlers after fetchOpenTabs() so the "X domains · Close all
 // N tabs" badge and the footer "Open tabs" stat reflect reality without
-// re-mounting the missions grid (which would yank cards mid-animation).
+// re-mounting the domains grid (which would yank cards mid-animation).
 export function refreshOpenTabsCounters(): void {
   const realTabs = getDisplayableTabs(getOpenTabs());
   const sortedGroups = groupTabsByDomain(realTabs);

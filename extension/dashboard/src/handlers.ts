@@ -93,11 +93,11 @@ async function handleCloseSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
     chip.style.transform = 'scale(0.8)';
     setTimeout(() => {
       chip.remove();
-      const cardEmpty = document.querySelector<HTMLElement>('.mission-card:has(.mission-pages:empty)');
+      const cardEmpty = document.querySelector<HTMLElement>('.domain-card:has(.domain-pages:empty)');
       if (cardEmpty) {
         animateCardOut(cardEmpty);
       }
-      document.querySelectorAll<HTMLElement>('.mission-card').forEach(c => {
+      document.querySelectorAll<HTMLElement>('.domain-card').forEach(c => {
         const remainingTabs = c.querySelectorAll('.page-chip[data-action="focus-tab"]');
         if (remainingTabs.length === 0) {
           animateCardOut(c);
@@ -244,7 +244,7 @@ async function handleCloseAllOpenTabs(): Promise<void> {
   await fetchOpenTabs();
   playCloseSound();
 
-  document.querySelectorAll<HTMLElement>('#openTabsMissions .mission-card').forEach(c => {
+  document.querySelectorAll<HTMLElement>('#openTabsDomains .domain-card').forEach(c => {
     shootConfetti(
       c.getBoundingClientRect().left + c.offsetWidth / 2,
       c.getBoundingClientRect().top + c.offsetHeight / 2,
@@ -266,7 +266,7 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
   if (!actionEl) return;
 
   const action = actionEl.dataset.action;
-  const card   = actionEl.closest<HTMLElement>('.mission-card');
+  const card   = actionEl.closest<HTMLElement>('.domain-card');
 
   switch (action) {
     case 'close-tabout-dupes': return handleCloseTabOutDupes();

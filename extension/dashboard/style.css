@@ -1,5 +1,5 @@
 /* ============================================================
-   Tab Mission Control — Dashboard Styles
+   Tab Out — Dashboard Styles
    Extracted directly from mockup.html — do not modify unless
    also updating the mockup. This is the approved design.
    ============================================================ */
@@ -210,15 +210,15 @@ header {
   white-space: nowrap;
 }
 
-/* ---- Mission Cards ---- */
-.missions {
+/* ---- Domain Cards ---- */
+.domains {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
   margin-bottom: 40px;
 }
 
-.mission-card {
+.domain-card {
   background: var(--card-bg);
   border: 1px solid var(--warm-gray);
   border-radius: 8px;
@@ -233,7 +233,7 @@ header {
 }
 
 /* Colored top border instead of side bar for grid cards */
-.mission-card::before {
+.domain-card::before {
   content: '';
   position: absolute;
   top: 0;
@@ -243,24 +243,24 @@ header {
   background: var(--warm-gray);
 }
 
-.mission-card.has-active-bar::before { background: var(--status-active); }
-.mission-card.has-amber-bar::before { background: var(--accent-amber); }
-.mission-card.has-neutral-bar::before { background: var(--warm-gray); }
+.domain-card.has-active-bar::before { background: var(--status-active); }
+.domain-card.has-amber-bar::before { background: var(--accent-amber); }
+.domain-card.has-neutral-bar::before { background: var(--warm-gray); }
 
-.mission-card:hover {
+.domain-card:hover {
   box-shadow: 0 4px 20px var(--shadow);
   transform: translateY(-1px);
 }
 
 /* Closing animation — card scales down and fades out */
-.mission-card.closing {
+.domain-card.closing {
   opacity: 0;
   transform: scale(0.9);
   transition: opacity 0.25s ease, transform 0.25s ease;
   pointer-events: none;
 }
 
-.mission-card.collapsed {
+.domain-card.collapsed {
   display: none !important;
 }
 
@@ -269,16 +269,16 @@ header {
   display: none;
 }
 
-.mission-content {
+.domain-content {
   min-width: 0;
 }
 
 /* Hide the right-side meta (page count) — info is already in the badge */
-.mission-meta {
+.domain-meta {
   display: none;
 }
 
-.mission-top {
+.domain-top {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -286,38 +286,14 @@ header {
   flex-wrap: wrap;
 }
 
-.mission-name {
+.domain-name {
   font-weight: 600;
   font-size: 15px;
   color: var(--ink);
   letter-spacing: -0.2px;
 }
 
-.mission-tag {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 3px;
-}
-
-.mission-tag.active {
-  color: var(--status-active);
-  background: rgba(61, 122, 74, 0.08);
-}
-
-.mission-tag.cooling {
-  color: var(--status-cooling);
-  background: rgba(184, 137, 46, 0.08);
-}
-
-.mission-tag.abandoned {
-  color: var(--status-abandoned);
-  background: rgba(179, 90, 90, 0.08);
-}
-
-/* Tab indicator badge — shows how many Chrome tabs are still open for this mission */
+/* Tab indicator badge — shows how many Chrome tabs are still open for this domain */
 .open-tabs-badge {
   display: inline-flex;
   align-items: center;
@@ -335,14 +311,7 @@ header {
   height: 10px;
 }
 
-.mission-summary {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.5;
-  margin-bottom: 8px;
-}
-
-.mission-pages {
+.domain-pages {
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -460,15 +429,9 @@ header {
   padding: 6px 4px;
 }
 
-/* mission-meta hidden — see above */
+/* domain-meta hidden — see above */
 
-.mission-time {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-
-.mission-page-count {
+.domain-page-count {
   font-size: 20px;
   font-family: 'Newsreader', serif;
   font-weight: 300;
@@ -476,7 +439,7 @@ header {
   line-height: 1;
 }
 
-.mission-page-label {
+.domain-page-label {
   font-size: 10px;
   color: var(--muted);
   text-transform: uppercase;
@@ -654,14 +617,10 @@ header { animation: fadeUp 0.5s ease both; }
 .tab-cleanup-banner { animation: fadeUp 0.5s ease 0.1s both; }
 .nudge-banner { animation: fadeUp 0.5s ease 0.15s both; }
 .active-section .section-header { animation: fadeUp 0.5s ease 0.2s both; }
-.active-section .missions .mission-card:nth-child(1) { animation: fadeUp 0.4s ease 0.25s both; }
-.active-section .missions .mission-card:nth-child(2) { animation: fadeUp 0.4s ease 0.3s both; }
-.active-section .missions .mission-card:nth-child(3) { animation: fadeUp 0.4s ease 0.35s both; }
-.active-section .missions .mission-card:nth-child(4) { animation: fadeUp 0.4s ease 0.4s both; }
-.abandoned-section .section-header { animation: fadeUp 0.5s ease 0.45s both; }
-.abandoned-section .missions .mission-card:nth-child(1) { animation: fadeUp 0.4s ease 0.5s both; }
-.abandoned-section .missions .mission-card:nth-child(2) { animation: fadeUp 0.4s ease 0.55s both; }
-.abandoned-section .missions .mission-card:nth-child(3) { animation: fadeUp 0.4s ease 0.6s both; }
+.active-section .domains .domain-card:nth-child(1) { animation: fadeUp 0.4s ease 0.25s both; }
+.active-section .domains .domain-card:nth-child(2) { animation: fadeUp 0.4s ease 0.3s both; }
+.active-section .domains .domain-card:nth-child(3) { animation: fadeUp 0.4s ease 0.35s both; }
+.active-section .domains .domain-card:nth-child(4) { animation: fadeUp 0.4s ease 0.4s both; }
 footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 .deferred-list .deferred-item:nth-child(1) { animation-delay: 0.05s; }
@@ -681,19 +640,13 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--warm-gray);
 }
 
-/* ---- "Domain" tag on static domain cards ---- */
-.mission-tag.neutral {
-  color: var(--muted);
-  background: rgba(154, 145, 138, 0.1);
-}
-
 /* ================================================================
-   MISSIONS EMPTY STATE
-   Shown when all mission cards have been closed.
+   DOMAINS EMPTY STATE
+   Shown when all domain cards have been closed.
    A calm, satisfying "you did it" moment.
    ================================================================ */
 
-.missions-empty-state {
+.domains-empty-state {
   /* Takes the full grid width — span all columns */
   grid-column: 1 / -1;
 
