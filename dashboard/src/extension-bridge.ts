@@ -16,17 +16,14 @@ import {
   setOpenTabs,
   type Tab,
 } from './state.js';
+import { getMissions, type Mission } from './api.js';
+export type { Mission };
 
 export interface BridgeResponse {
   success: boolean;
   reason?: string;
   tabs?: Tab[];
   messageId?: string;
-  [key: string]: unknown;
-}
-
-export interface Mission {
-  id: number | string;
   [key: string]: unknown;
 }
 
@@ -105,9 +102,7 @@ export async function fetchMissionById(
   missionId: number | string,
 ): Promise<Mission | null> {
   try {
-    const res = await fetch('/api/missions');
-    if (!res.ok) return null;
-    const missions = (await res.json()) as Mission[];
+    const missions = await getMissions();
     return missions.find((m) => String(m.id) === String(missionId)) || null;
   } catch {
     return null;

@@ -25,6 +25,15 @@ import {
 } from './extension-bridge.js';
 import type { Mission } from './extension-bridge.js';
 import {
+  archiveMission as apiArchiveMission,
+  checkDeferred as apiCheckDeferred,
+  dismissDeferred as apiDismissDeferred,
+  dismissMission as apiDismissMission,
+  getDeferred,
+  saveDefer,
+  searchDeferred,
+} from './api.js';
+import {
   animateCardOut as animateCardOutRaw,
   playCloseSound,
   shootConfetti,
@@ -111,16 +120,12 @@ async function handleCloseSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
 
 async function handleDeferSingleTab(e: Event, actionEl: HTMLElement): Promise<void> {
   e.stopPropagation();
-  const tabUrl   = actionEl.dataset.tabUrl;
-  const tabTitle = actionEl.dataset.tabTitle || tabUrl;
+  const tabUrl = actionEl.dataset.tabUrl;
   if (!tabUrl) return;
+  const tabTitle = actionEl.dataset.tabTitle || tabUrl;
 
   try {
-    await fetch('/api/defer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tabs: [{ url: tabUrl, title: tabTitle }] }),
-    });
+    await saveDefer([{ url: tabUrl, title: tabTitle }]);
   } catch (err) {
     console.error('[tab-out] Failed to defer tab:', err);
     showToast('Failed to save tab');
@@ -147,11 +152,7 @@ async function handleCheckDeferred(actionEl: HTMLElement): Promise<void> {
   const id = actionEl.dataset.deferredId;
   if (!id) return;
   try {
-    await fetch(`/api/deferred/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checked: true }),
-    });
+    await apiCheckDeferred(id);
   } catch (err) {
     console.error('[tab-out] Failed to check deferred tab:', err);
     return;
@@ -173,11 +174,7 @@ async function handleDismissDeferred(actionEl: HTMLElement): Promise<void> {
   const id = actionEl.dataset.deferredId;
   if (!id) return;
   try {
-    await fetch(`/api/deferred/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dismissed: true }),
-    });
+    await apiDismissDeferred(id);
   } catch (err) {
     console.error('[tab-out] Failed to dismiss deferred tab:', err);
     return;
@@ -291,7 +288,7 @@ async function handleArchiveMission(missionId: string | undefined, card: HTMLEle
   await closeTabsByUrls(urls);
 
   try {
-    await fetch(`/api/missions/${missionId}/archive`, { method: 'POST' });
+    await apiArchiveMission(missionId);
   } catch (err) {
     console.warn('[tab-out] Could not archive mission:', err);
   }
@@ -318,7 +315,7 @@ async function handleDismissMission(missionId: string | undefined, card: HTMLEle
   }
 
   try {
-    await fetch(`/api/missions/${missionId}/dismiss`, { method: 'POST' });
+    await apiDismissMission(missionId);
   } catch (err) {
     console.warn('[tab-out] Could not dismiss mission:', err);
   }
@@ -408,19 +405,14 @@ async function dispatchArchiveSearch(e: Event): Promise<void> {
 
   if (q.length < 2) {
     try {
-      const res = await fetch('/api/deferred');
-      if (res.ok) {
-        const data = await res.json();
-        mount(archiveList, (data.archived || []).map(renderArchiveItem));
-      }
+      const data = await getDeferred();
+      mount(archiveList, (data.archived || []).map(renderArchiveItem));
     } catch {}
     return;
   }
 
   try {
-    const res = await fetch(`/api/deferred/search?q=${encodeURIComponent(q)}`);
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await searchDeferred(q);
     const results = data.results || [];
     if (results.length === 0) {
       mount(archiveList, el('div', {

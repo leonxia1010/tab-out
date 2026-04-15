@@ -10,16 +10,11 @@
 
 import * as handlers from './handlers.js';
 import { renderDashboard } from './renderers.js';
-
-interface UpdateStatusResponse {
-  updateAvailable?: boolean;
-}
+import { getUpdateStatus } from './api.js';
 
 async function checkForUpdates(): Promise<void> {
   try {
-    const res = await fetch('/api/update-status');
-    if (!res.ok) return;
-    const body = (await res.json()) as UpdateStatusResponse;
+    const body = await getUpdateStatus();
     if (!body.updateAvailable) return;
 
     const footer = document.querySelector('footer');
