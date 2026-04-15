@@ -1,16 +1,40 @@
-// Dashboard entry point (Phase 2 PR G — final).
+// Dashboard entry point.
 //
-// Single ESM module the browser loads via `<script type="module">`. Owns:
+// Owns:
 //   - module wiring (each src/*.ts file is imported here)
 //   - bootstrap: renderDashboard() + checkForUpdates() on load
 //   - event listener attach (handlers.attachListeners is idempotent)
 //
-// The window.* bridge that PR A-F maintained for the legacy app.js is gone.
-// All consumers are pure ESM modules now.
+// Update banner (phase 4 PR-B): background.js writes update state to
+// chrome.storage.local['tabout:updateStatus'] every 48h; we read it here,
+// render the banner via dom-utils.el() so no innerHTML touches user data,
+// and let the user dismiss it against the current latestSha.
 
 import * as handlers from './handlers.js';
 import { renderDashboard } from './renderers.js';
 import { getUpdateStatus } from './api.js';
+import { el } from './dom-utils.js';
+
+const UPDATE_STATUS_KEY = 'tabout:updateStatus';
+const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
+
+async function dismissBanner(e: Event): Promise<void> {
+  const banner = (e.currentTarget as HTMLElement | null)?.closest('.update-banner');
+  banner?.remove();
+  // Persist dismissal so the banner stays gone until the next release.
+  // Silent on failure — the banner is already removed visually.
+  try {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
+    const result = await chrome.storage.local.get(UPDATE_STATUS_KEY);
+    const s = (result as Record<string, { latestSha?: string } & Record<string, unknown>>)[UPDATE_STATUS_KEY];
+    if (!s?.latestSha) return;
+    await chrome.storage.local.set({
+      [UPDATE_STATUS_KEY]: { ...s, dismissedSha: s.latestSha },
+    });
+  } catch {
+    // noop
+  }
+}
 
 async function checkForUpdates(): Promise<void> {
   try {
@@ -19,16 +43,33 @@ async function checkForUpdates(): Promise<void> {
 
     const footer = document.querySelector('footer');
     if (!footer) return;
-    const notice = document.createElement('div');
-    notice.style.cssText = 'text-align:center; padding:8px; font-size:12px; color:var(--muted);';
-    // Developer-authored static string, no user data — innerHTML is safe.
-    notice.innerHTML =
-      'A new version of Tab Out is available. Run ' +
-      '<code style="background:var(--warm-gray);padding:2px 6px;border-radius:3px;font-size:11px;user-select:all;cursor:pointer;" title="Click to select">' +
-      'git pull https://github.com/leonxia1010/tab-out</code> to update.';
-    footer.after(notice);
+
+    const dismissBtn = el('button', {
+      className: 'update-banner-dismiss',
+      'aria-label': 'Dismiss',
+    }, ['\u00d7']);
+    dismissBtn.addEventListener('click', dismissBanner);
+
+    const banner = el('div', { className: 'update-banner' }, [
+      el('div', { className: 'update-banner-left' }, [
+        el('span', { className: 'update-banner-icon' }, ['\u2728']),
+        el('span', { className: 'update-banner-text' }, [
+          'A new version of Tab Out is available.',
+        ]),
+      ]),
+      el('div', { className: 'update-banner-right' }, [
+        el('a', {
+          className: 'update-banner-btn',
+          href: RELEASE_URL,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        }, ['See on GitHub']),
+        dismissBtn,
+      ]),
+    ]);
+    footer.after(banner);
   } catch {
-    // Network failure or parse error — silently no-op (no notice shown).
+    // Storage read failed — silently skip the banner.
   }
 }
 
