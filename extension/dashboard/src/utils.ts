@@ -10,11 +10,6 @@ export interface Tab {
   [key: string]: unknown;
 }
 
-export interface MissionUrlEntry {
-  url?: string;
-  [key: string]: unknown;
-}
-
 // Known hostnames → human-readable names. Internal; not exported because
 // friendlyDomain is the only consumer and the map would bloat the public API.
 const FRIENDLY_DOMAINS: Record<string, string> = {
@@ -290,37 +285,3 @@ export function getDisplayableTabs(tabs: Tab[]): Tab[] {
   });
 }
 
-// Returns the open tabs whose hostname matches any URL in `missionUrls`
-// (matched by hostname containment in either direction so "docs.github.com"
-// and "github.com" both resolve to the same group).
-export function getOpenTabsForMission(
-  missionUrls: Array<string | MissionUrlEntry> | null | undefined,
-  openTabs: Tab[],
-): Tab[] {
-  if (!missionUrls || missionUrls.length === 0 || openTabs.length === 0) return [];
-
-  const missionDomains = missionUrls.map((item) => {
-    const urlStr = typeof item === 'string' ? item : item.url || '';
-    try {
-      return new URL(urlStr.startsWith('http') ? urlStr : 'https://' + urlStr).hostname;
-    } catch {
-      return urlStr;
-    }
-  });
-
-  return openTabs.filter((tab) => {
-    try {
-      const tabDomain = new URL(tab.url || '').hostname;
-      return missionDomains.some((d) => tabDomain.includes(d) || d.includes(tabDomain));
-    } catch {
-      return false;
-    }
-  });
-}
-
-export function countOpenTabsForMission(
-  missionUrls: Array<string | MissionUrlEntry> | null | undefined,
-  openTabs: Tab[],
-): number {
-  return getOpenTabsForMission(missionUrls, openTabs).length;
-}

@@ -16,7 +16,6 @@ import {
   setOpenTabs,
   type Tab,
 } from './state.js';
-import { getMissions, type Mission } from './api.js';
 
 function chromeAvailable(): boolean {
   return typeof chrome !== 'undefined' && !!chrome?.tabs;
@@ -94,25 +93,6 @@ export async function closeTabsByUrls(
 
   if (ids.length > 0) await chrome.tabs.remove(ids);
   await fetchOpenTabs();
-}
-
-export async function focusTabsByUrls(urls: string[]): Promise<void> {
-  if (!chromeAvailable() || !urls || urls.length === 0) return;
-
-  const wantedHosts = urls.map(hostnameOf).filter((h): h is string => !!h);
-  if (wantedHosts.length === 0) return;
-
-  const allTabs = await chrome.tabs.query({});
-  const match = allTabs.find((t) => {
-    const h = hostnameOf(t.url);
-    return !!h && wantedHosts.includes(h);
-  });
-  if (!match || typeof match.id !== 'number') return;
-
-  await chrome.tabs.update(match.id, { active: true });
-  if (typeof match.windowId === 'number') {
-    await chrome.windows.update(match.windowId, { focused: true });
-  }
 }
 
 export async function focusTab(url: string): Promise<void> {
@@ -195,13 +175,3 @@ export function checkTabOutDupes(): void {
   }
 }
 
-export async function fetchMissionById(
-  missionId: number | string,
-): Promise<Mission | null> {
-  try {
-    const missions = await getMissions();
-    return missions.find((m) => String(m.id) === String(missionId)) || null;
-  } catch {
-    return null;
-  }
-}

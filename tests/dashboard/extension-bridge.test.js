@@ -12,7 +12,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   fetchOpenTabs,
   closeTabsByUrls,
-  focusTabsByUrls,
   focusTab,
   closeDuplicates,
   closeTabOutDupes,
@@ -76,7 +75,6 @@ describe('when chrome.tabs is unavailable', () => {
   it('mutating helpers no-op silently', async () => {
     await expect(closeTabsByUrls(['https://x'])).resolves.toBeUndefined();
     await expect(focusTab('https://x')).resolves.toBeUndefined();
-    await expect(focusTabsByUrls(['https://x'])).resolves.toBeUndefined();
     await expect(closeDuplicates(['https://x'])).resolves.toBeUndefined();
     await expect(closeTabOutDupes()).resolves.toBeUndefined();
   });
@@ -177,32 +175,6 @@ describe('closeTabsByUrls (exact mode)', () => {
     });
     await closeTabsByUrls(['https://gmail.com/inbox'], true);
     expect(tabsApi.remove).toHaveBeenCalledWith([1]);
-  });
-});
-
-// ─── focusTabsByUrls ────────────────────────────────────────────────────────
-
-describe('focusTabsByUrls', () => {
-  it('updates the first hostname-matching tab and brings its window forward', async () => {
-    const { tabsApi, windowsApi } = installChrome({
-      tabs: [
-        { id: 1, url: 'https://other.com', windowId: 1 },
-        { id: 2, url: 'https://github.com/a', windowId: 2 },
-        { id: 3, url: 'https://github.com/b', windowId: 3 },
-      ],
-    });
-    await focusTabsByUrls(['https://github.com/whatever']);
-    expect(tabsApi.update).toHaveBeenCalledWith(2, { active: true });
-    expect(windowsApi.update).toHaveBeenCalledWith(2, { focused: true });
-  });
-
-  it('no-ops when no tab matches', async () => {
-    const { tabsApi, windowsApi } = installChrome({
-      tabs: [{ id: 1, url: 'https://other.com' }],
-    });
-    await focusTabsByUrls(['https://github.com']);
-    expect(tabsApi.update).not.toHaveBeenCalled();
-    expect(windowsApi.update).not.toHaveBeenCalled();
   });
 });
 
