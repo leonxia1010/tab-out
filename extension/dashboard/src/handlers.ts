@@ -40,6 +40,15 @@ import {
   renderArchiveItem,
   renderDeferredColumn,
 } from './renderers.js';
+import { suppressRefresh } from './refresh.js';
+
+// Close-path handlers update local DOM (chip fade, animateCardOut) and
+// trigger chrome.tabs.remove, which makes chrome.tabs.onRemoved fire
+// immediately. Without suppression the refresh.ts listener would call
+// renderStaticDashboard() 500ms later — right when chip/card animations
+// finish — and replaceChildren() would yank the elements mid-transition.
+// 1000ms is animate total (~500ms) + buffer.
+const CLOSE_ANIMATION_SUPPRESS_MS = 1000;
 
 function animateCardOut(card: HTMLElement | null | undefined): void {
   animateCardOutRaw(card, checkAndShowEmptyState);
@@ -50,6 +59,7 @@ function animateCardOut(card: HTMLElement | null | undefined): void {
 // ──────────────────────────────────────────────────────────────────────────
 
 async function handleCloseTabOutDupes(): Promise<void> {
+  suppressRefresh(CLOSE_ANIMATION_SUPPRESS_MS);
   await closeTabOutDupes();
   playCloseSound();
   const banner = document.getElementById('tabOutDupeBanner');
@@ -82,6 +92,7 @@ async function handleCloseSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
   const tabUrl = actionEl.dataset.tabUrl;
   if (!tabUrl) return;
 
+  suppressRefresh(CLOSE_ANIMATION_SUPPRESS_MS);
   await closeTabsByUrls([tabUrl]);
   playCloseSound();
 
@@ -125,6 +136,7 @@ async function handleDeferSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
     return;
   }
 
+  suppressRefresh(CLOSE_ANIMATION_SUPPRESS_MS);
   await closeTabsByUrls([tabUrl]);
 
   const chip = actionEl.closest<HTMLElement>('.page-chip');
@@ -211,6 +223,7 @@ async function handleCloseDomainTabs(actionEl: HTMLElement, card: HTMLElement | 
 
   const urls = group.tabs.map(t => t.url || '').filter(Boolean);
   const useExact = group.domain === '__landing-pages__';
+  suppressRefresh(CLOSE_ANIMATION_SUPPRESS_MS);
   await closeTabsByUrls(urls, useExact);
 
   if (card) {
@@ -229,6 +242,7 @@ async function handleDedupKeepOne(actionEl: HTMLElement, card: HTMLElement | nul
   const urls = urlsEncoded.split(',').map(u => decodeURIComponent(u)).filter(Boolean);
   if (urls.length === 0) return;
 
+  suppressRefresh(CLOSE_ANIMATION_SUPPRESS_MS);
   await closeDuplicates(urls);
   playCloseSound();
 
@@ -269,6 +283,7 @@ async function handleCloseAllOpenTabs(): Promise<void> {
     .map(t => t.url || '');
   if (allUrls.length === 0) return;
 
+  suppressRefresh(CLOSE_ANIMATION_SUPPRESS_MS);
   await closeTabsByUrls(allUrls, /* exact */ true);
   playCloseSound();
 
