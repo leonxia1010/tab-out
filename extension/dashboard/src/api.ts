@@ -142,6 +142,13 @@ export async function getUpdateStatus(): Promise<UpdateStatus> {
 // ─── Deferred-tabs endpoints ────────────────────────────────────────────────
 
 const AGE_OUT_MS = 30 * 24 * 60 * 60 * 1000;
+// Archive auto-prune thresholds. chrome.storage.local is 10 MB total and
+// every read pulls the whole deferredTabs array, so we cap long-term growth
+// to two stacked limits: age (>90 days since archive) and count (keep only
+// the freshest 500 archived rows). The 30-day age-out above still operates
+// independently on *active* rows — this only trims the archive tail.
+const ARCHIVE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+const ARCHIVE_MAX_COUNT = 500;
 
 export async function saveDefer(
   inputs: DeferInput[],
@@ -186,17 +193,19 @@ export async function saveDefer(
 }
 
 export async function getDeferred(): Promise<DeferredListResult> {
+  const now = Date.now();
   const all = await readArray<DeferredTab>('deferredTabs');
-  const cutoff = Date.now() - AGE_OUT_MS;
-  const archivedAt = new Date().toISOString();
+  const ageOutCutoff = now - AGE_OUT_MS;
+  const archivedAt = new Date(now).toISOString();
   let changed = false;
 
+  // 1) Age-out: active rows untouched for 30d become archived.
   for (const t of all) {
     if (
       t.archived === 0 &&
       t.checked === 0 &&
       t.dismissed === 0 &&
-      new Date(t.deferred_at).getTime() < cutoff
+      new Date(t.deferred_at).getTime() < ageOutCutoff
     ) {
       t.archived = 1;
       t.archived_at = archivedAt;
@@ -204,13 +213,38 @@ export async function getDeferred(): Promise<DeferredListResult> {
     }
   }
 
-  if (changed) await writeArray('deferredTabs', all);
+  // 2) Archive auto-prune: drop rows older than ARCHIVE_MAX_AGE_MS, then
+  // trim the remainder by keeping only the freshest ARCHIVE_MAX_COUNT.
+  // Both passes run on the live `all` array so we never re-walk storage.
+  const archiveCutoff = now - ARCHIVE_MAX_AGE_MS;
+  const dropIds = new Set<number>();
+  for (const t of all) {
+    if (t.archived !== 1) continue;
+    const at = t.archived_at ? new Date(t.archived_at).getTime() : now;
+    if (at < archiveCutoff) dropIds.add(t.id);
+  }
+  if (dropIds.size > 0) changed = true;
+
+  const remainingArchived = all
+    .filter((t) => t.archived === 1 && !dropIds.has(t.id))
+    .sort((a, b) => (a.archived_at || '').localeCompare(b.archived_at || ''));
+  if (remainingArchived.length > ARCHIVE_MAX_COUNT) {
+    const excess = remainingArchived.length - ARCHIVE_MAX_COUNT;
+    for (let i = 0; i < excess; i++) dropIds.add(remainingArchived[i].id);
+    changed = true;
+  }
+
+  const kept = dropIds.size > 0
+    ? all.filter((t) => !dropIds.has(t.id))
+    : all;
+
+  if (changed) await writeArray('deferredTabs', kept);
 
   // Server ordered active by deferred_at DESC and archived by archived_at DESC.
-  const active = all
+  const active = kept
     .filter((t) => t.archived === 0)
     .sort((a, b) => b.deferred_at.localeCompare(a.deferred_at));
-  const archived = all
+  const archived = kept
     .filter((t) => t.archived === 1)
     .sort((a, b) => (b.archived_at || '').localeCompare(a.archived_at || ''));
 
@@ -264,4 +298,34 @@ export async function dismissDeferred(
   t.archived_at = now;
   await writeArray('deferredTabs', all);
   return { success: true };
+}
+
+// Permanent deletion of a single archived row. Throws if the id is not
+// found OR if the row is still active — callers should route unwanted
+// active rows through dismissDeferred first, which keeps the audit trail.
+export async function deleteArchived(
+  id: number | string,
+): Promise<{ success: true }> {
+  const target = String(id);
+  const all = await readArray<DeferredTab>('deferredTabs');
+  const idx = all.findIndex(
+    (row) => String(row.id) === target && row.archived === 1,
+  );
+  if (idx === -1) throw new Error(`archived ${id} not found`);
+  all.splice(idx, 1);
+  await writeArray('deferredTabs', all);
+  return { success: true };
+}
+
+// Bulk-delete every archived row. Active rows are preserved. Returns the
+// deleted count so callers can surface "Cleared N archived tab(s)" toast.
+export async function clearAllArchived(): Promise<{
+  success: true;
+  deleted: number;
+}> {
+  const all = await readArray<DeferredTab>('deferredTabs');
+  const remaining = all.filter((t) => t.archived === 0);
+  const deleted = all.length - remaining.length;
+  if (deleted > 0) await writeArray('deferredTabs', remaining);
+  return { success: true, deleted };
 }
