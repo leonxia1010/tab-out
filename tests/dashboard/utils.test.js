@@ -269,7 +269,7 @@ describe('smartTitle', () => {
 // getRealTabs — scheme filtering
 // ─────────────────────────────────────────────────────────────────────────────
 describe('getRealTabs', () => {
-  it('keeps http(s) tabs and drops chrome:// / about: / extension pages', () => {
+  it('keeps http(s) + chrome:// + chrome-extension:// tabs, drops about/edge/brave', () => {
     const tabs = [
       { url: 'https://github.com' },
       { url: 'http://localhost:3456' },
@@ -283,6 +283,8 @@ describe('getRealTabs', () => {
     expect(kept.map((t) => t.url)).toEqual([
       'https://github.com',
       'http://localhost:3456',
+      'chrome://extensions',
+      'chrome-extension://abc/newtab.html',
     ]);
   });
 
