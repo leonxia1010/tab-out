@@ -21,7 +21,7 @@ function chromeAvailable(): boolean {
   return typeof chrome !== 'undefined' && !!chrome?.tabs;
 }
 
-function tabOutNewtabUrls(): string[] {
+export function tabOutNewtabUrls(): string[] {
   const id = chrome.runtime?.id;
   return id
     ? [`chrome-extension://${id}/dashboard/index.html`, 'chrome://newtab/']

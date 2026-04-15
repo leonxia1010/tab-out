@@ -8,14 +8,18 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+const EXT_ID = 'EXTID';
+const SELF_URL = `chrome-extension://${EXT_ID}/dashboard/index.html`;
+
 // Capture listener callbacks so tests can invoke them directly.
-function installChrome() {
+function installChrome({ extId = EXT_ID } = {}) {
   const listeners = {
     onCreated: [],
     onRemoved: [],
     onUpdated: [],
   };
   vi.stubGlobal('chrome', {
+    runtime: extId ? { id: extId } : undefined,
     tabs: {
       onCreated: { addListener: (fn) => listeners.onCreated.push(fn) },
       onRemoved: { addListener: (fn) => listeners.onRemoved.push(fn) },
@@ -78,7 +82,7 @@ describe('scheduleRefresh', () => {
 });
 
 describe('attachTabsListeners', () => {
-  it('triggers refresh when a new tab is created', async () => {
+  it('triggers refresh when a new external tab is created', async () => {
     const listeners = installChrome();
     const renderSpy = vi.fn().mockResolvedValue(undefined);
     const { attachTabsListeners } = await loadRefreshModule(renderSpy);
@@ -86,12 +90,34 @@ describe('attachTabsListeners', () => {
     attachTabsListeners();
     expect(listeners.onCreated).toHaveLength(1);
 
-    listeners.onCreated[0]({ id: 123 });
+    listeners.onCreated[0]({ id: 123, url: 'https://example.com' });
     vi.advanceTimersByTime(500);
     expect(renderSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('triggers refresh when a tab is removed', async () => {
+  it('ignores onCreated for the Tab Out dashboard tab itself (url)', async () => {
+    const listeners = installChrome();
+    const renderSpy = vi.fn().mockResolvedValue(undefined);
+    const { attachTabsListeners } = await loadRefreshModule(renderSpy);
+
+    attachTabsListeners();
+    listeners.onCreated[0]({ id: 999, url: SELF_URL });
+    vi.advanceTimersByTime(500);
+    expect(renderSpy).not.toHaveBeenCalled();
+  });
+
+  it('ignores onCreated for Tab Out based on pendingUrl', async () => {
+    const listeners = installChrome();
+    const renderSpy = vi.fn().mockResolvedValue(undefined);
+    const { attachTabsListeners } = await loadRefreshModule(renderSpy);
+
+    attachTabsListeners();
+    listeners.onCreated[0]({ id: 999, url: '', pendingUrl: 'chrome://newtab/' });
+    vi.advanceTimersByTime(500);
+    expect(renderSpy).not.toHaveBeenCalled();
+  });
+
+  it('triggers refresh when any tab is removed (no URL available)', async () => {
     const listeners = installChrome();
     const renderSpy = vi.fn().mockResolvedValue(undefined);
     const { attachTabsListeners } = await loadRefreshModule(renderSpy);
@@ -109,35 +135,57 @@ describe('attachTabsListeners', () => {
 
     attachTabsListeners();
     const onUpdated = listeners.onUpdated[0];
+    const extTab = { id: 1, url: 'https://example.com' };
 
-    onUpdated(1, { favIconUrl: 'https://x.com/favicon.ico' });
-    onUpdated(1, { status: 'loading' });
-    onUpdated(1, { pinned: true });
-    onUpdated(1, { audible: false });
+    onUpdated(1, { favIconUrl: 'https://x.com/favicon.ico' }, extTab);
+    onUpdated(1, { status: 'loading' }, extTab);
+    onUpdated(1, { pinned: true }, extTab);
+    onUpdated(1, { audible: false }, extTab);
 
     vi.advanceTimersByTime(500);
     expect(renderSpy).not.toHaveBeenCalled();
   });
 
-  it('onUpdated schedules on url / title / status=complete', async () => {
+  it('onUpdated schedules on url / title / status=complete for external tabs', async () => {
     const listeners = installChrome();
     const renderSpy = vi.fn().mockResolvedValue(undefined);
     const { attachTabsListeners } = await loadRefreshModule(renderSpy);
 
     attachTabsListeners();
     const onUpdated = listeners.onUpdated[0];
+    const extTab = { id: 1, url: 'https://example.com' };
 
-    onUpdated(1, { url: 'https://new.com' });
+    onUpdated(1, { url: 'https://new.com' }, extTab);
     vi.advanceTimersByTime(500);
     expect(renderSpy).toHaveBeenCalledTimes(1);
 
-    onUpdated(2, { title: 'New Title' });
+    onUpdated(2, { title: 'New Title' }, extTab);
     vi.advanceTimersByTime(500);
     expect(renderSpy).toHaveBeenCalledTimes(2);
 
-    onUpdated(3, { status: 'complete' });
+    onUpdated(3, { status: 'complete' }, extTab);
     vi.advanceTimersByTime(500);
     expect(renderSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it('onUpdated ignores status=complete for the dashboard tab itself', async () => {
+    // This is the double-render bug: on page load the dashboard's own
+    // status=complete event fires AFTER renderDashboard() has already
+    // rendered once, causing a redundant re-render 500ms later.
+    const listeners = installChrome();
+    const renderSpy = vi.fn().mockResolvedValue(undefined);
+    const { attachTabsListeners } = await loadRefreshModule(renderSpy);
+
+    attachTabsListeners();
+    const onUpdated = listeners.onUpdated[0];
+    const selfTab = { id: 42, url: SELF_URL };
+
+    onUpdated(42, { status: 'complete' }, selfTab);
+    onUpdated(42, { url: SELF_URL }, selfTab);
+    onUpdated(42, { title: 'Tab Out' }, selfTab);
+
+    vi.advanceTimersByTime(500);
+    expect(renderSpy).not.toHaveBeenCalled();
   });
 
   it('no-ops silently when chrome.tabs is unavailable', async () => {
