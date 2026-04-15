@@ -16,6 +16,7 @@ import {
   renderArchiveItem,
   renderDomainCard,
   groupTabsByDomain,
+  renderOpenTabsSection,
 } from '../../extension/dashboard/src/renderers.ts';
 
 function mountResult(container, out) {
@@ -408,5 +409,72 @@ describe('groupTabsByDomain', () => {
       { url: 'chrome-extension://def/options.html' },
     ]);
     expect(bucket(groups, '__extensions__').tabs.length).toBe(2);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// renderOpenTabsSection — empty-state behaviour
+//
+// Regression for the "refresh while Tab Out is the only open tab erases the
+// inbox-zero empty state" bug. The old implementation hid the whole section
+// when sortedGroups was empty, so the affirmation disappeared on every
+// reload even though the user genuinely had zero non-TabOut tabs.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('renderOpenTabsSection — empty state', () => {
+  function setupDashboardDOM() {
+    document.body.innerHTML = `
+      <div class="active-section" id="openTabsSection" style="display:none">
+        <header>
+          <h2 id="openTabsSectionTitle">Right now</h2>
+          <div class="section-count" id="openTabsSectionCount"></div>
+        </header>
+        <div class="domains" id="openTabsDomains"></div>
+      </div>
+    `;
+  }
+
+  beforeEach(setupDashboardDOM);
+
+  it('keeps the section visible and paints inbox-zero markup when no groups', () => {
+    renderOpenTabsSection([], 0);
+
+    const section = document.getElementById('openTabsSection');
+    const domains = document.getElementById('openTabsDomains');
+    const count = document.getElementById('openTabsSectionCount');
+
+    expect(section.style.display).toBe('block');
+    expect(domains.querySelector('.domains-empty-state')).not.toBeNull();
+    expect(domains.textContent).toMatch(/Inbox zero/);
+    expect(count.textContent).toBe('0 domains');
+  });
+
+  it('renders domain cards and shows the section when groups are present', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://github.com/a', title: 'A' },
+      { url: 'https://github.com/b', title: 'B' },
+    ]);
+    renderOpenTabsSection(groups, 2);
+
+    const section = document.getElementById('openTabsSection');
+    const domains = document.getElementById('openTabsDomains');
+
+    expect(section.style.display).toBe('block');
+    expect(domains.querySelector('.domain-card')).not.toBeNull();
+    expect(domains.querySelector('.domains-empty-state')).toBeNull();
+  });
+
+  it('switches from populated to empty state on re-render (close-all flow)', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://x.test/a', title: 'A' },
+    ]);
+    renderOpenTabsSection(groups, 1);
+    expect(document.querySelector('.domain-card')).not.toBeNull();
+
+    // User closed every tab → next render pass gets empty groups.
+    renderOpenTabsSection([], 0);
+    const section = document.getElementById('openTabsSection');
+    expect(section.style.display).toBe('block');
+    expect(document.querySelector('.domain-card')).toBeNull();
+    expect(document.querySelector('.domains-empty-state')).not.toBeNull();
   });
 });
