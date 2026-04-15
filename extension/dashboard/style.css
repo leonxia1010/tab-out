@@ -617,10 +617,10 @@ header { animation: fadeUp 0.5s ease both; }
 .tab-cleanup-banner { animation: fadeUp 0.5s ease 0.1s both; }
 .nudge-banner { animation: fadeUp 0.5s ease 0.15s both; }
 .active-section .section-header { animation: fadeUp 0.5s ease 0.2s both; }
-.active-section .domains .domain-card:nth-child(1) { animation: fadeUp 0.4s ease 0.25s both; }
-.active-section .domains .domain-card:nth-child(2) { animation: fadeUp 0.4s ease 0.3s both; }
-.active-section .domains .domain-card:nth-child(3) { animation: fadeUp 0.4s ease 0.35s both; }
-.active-section .domains .domain-card:nth-child(4) { animation: fadeUp 0.4s ease 0.4s both; }
+/* Per-card fadeUp; delay is set inline via style.animationDelay in
+ * renderDomainCard() so every card — not just the first four — joins the
+ * waterfall, and every re-render restages the whole list. */
+.active-section .domains .domain-card { animation: fadeUp 0.4s ease both; }
 footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 .deferred-list .deferred-item:nth-child(1) { animation-delay: 0.05s; }
