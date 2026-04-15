@@ -1,12 +1,13 @@
 // tests/dashboard/api.test.js
 //
-// Unit tests for extension/dashboard/src/api.ts (Phase 3 PR H).
+// Phase 3 PR J — api.ts is now backed by chrome.storage.local.
+// We mock chrome.storage.local with an in-memory Map and assert the 10
+// public functions read/write the right keys, encode the same shapes the
+// old SQLite layer produced, and apply the 30-day age-out side effect on
+// getDeferred() that used to live in server/db.js:347.
 //
-// Mocks globalThis.fetch and asserts each of the 10 endpoint helpers builds
-// the right HTTP method + path + body, then unwraps the JSON response.
-//
-// Phase 3 PR J will rewrite api.ts internals to chrome.storage.local; these
-// fetch-shape tests will be replaced/extended at that point.
+// PR H/I left a fetch-shape version of this file behind. PR J replaces it
+// wholesale because there's no overlap with the new chrome.storage code path.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
@@ -22,255 +23,366 @@ import {
   dismissDeferred,
 } from '../../extension/dashboard/src/api.ts';
 
-// ─── fetch mocking helpers ──────────────────────────────────────────────────
+// ─── chrome.storage.local mock ──────────────────────────────────────────────
+//
+// The real API takes either a key string, an array of keys, an object of
+// defaults, or null (return everything). All we care about for these tests
+// is the string-key form (which is what api.ts uses).
 
-function mockFetchOk(body) {
-  const fn = vi.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => body,
-  });
-  vi.stubGlobal('fetch', fn);
-  return fn;
-}
+function installChromeStorage(initial = {}) {
+  const store = new Map(Object.entries(initial));
 
-function mockFetchError(status = 500) {
-  const fn = vi.fn().mockResolvedValue({
-    ok: false,
-    status,
-    json: async () => ({ error: 'boom' }),
-  });
-  vi.stubGlobal('fetch', fn);
-  return fn;
+  const local = {
+    get: vi.fn(async (keys) => {
+      if (typeof keys === 'string') {
+        return store.has(keys) ? { [keys]: store.get(keys) } : {};
+      }
+      if (Array.isArray(keys)) {
+        const out = {};
+        for (const k of keys) if (store.has(k)) out[k] = store.get(k);
+        return out;
+      }
+      // null / undefined → return everything
+      return Object.fromEntries(store);
+    }),
+    set: vi.fn(async (kv) => {
+      for (const [k, v] of Object.entries(kv)) store.set(k, v);
+    }),
+    remove: vi.fn(async () => {}),
+    clear: vi.fn(async () => store.clear()),
+  };
+
+  vi.stubGlobal('chrome', { storage: { local } });
+  return { store, local };
 }
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
-// ─── GET /api/missions ──────────────────────────────────────────────────────
+// ─── getMissions ────────────────────────────────────────────────────────────
 
 describe('getMissions', () => {
-  it('GETs /api/missions and returns the array', async () => {
-    const missions = [
-      { id: 'abc', name: 'Trip', status: 'active', urls: [] },
-    ];
-    const fetchFn = mockFetchOk(missions);
-
-    const result = await getMissions();
-
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    expect(fetchFn).toHaveBeenCalledWith('/api/missions');
-    expect(result).toEqual(missions);
+  it('returns [] when storage has no missions key', async () => {
+    installChromeStorage();
+    expect(await getMissions()).toEqual([]);
   });
 
-  it('throws when the server returns non-2xx', async () => {
-    mockFetchError(500);
-    await expect(getMissions()).rejects.toThrow(/GET \/missions failed: 500/);
+  it('hides dismissed missions and sorts active before cooling before abandoned', async () => {
+    installChromeStorage({
+      missions: [
+        { id: 'a', name: 'A', summary: null, status: 'cooling', last_activity: '2026-04-10', created_at: '', updated_at: '', dismissed: 0, urls: [] },
+        { id: 'b', name: 'B', summary: null, status: 'active', last_activity: '2026-04-12', created_at: '', updated_at: '', dismissed: 0, urls: [] },
+        { id: 'c', name: 'C', summary: null, status: 'abandoned', last_activity: '2026-04-13', created_at: '', updated_at: '', dismissed: 0, urls: [] },
+        { id: 'd', name: 'D', summary: null, status: 'active', last_activity: '2026-04-13', created_at: '', updated_at: '', dismissed: 1, urls: [] },
+      ],
+    });
+    const out = await getMissions();
+    expect(out.map((m) => m.id)).toEqual(['b', 'a', 'c']);
+  });
+
+  it('sorts same-status missions by last_activity DESC', async () => {
+    installChromeStorage({
+      missions: [
+        { id: 'old', name: '', summary: null, status: 'active', last_activity: '2026-01-01', created_at: '', updated_at: '', dismissed: 0, urls: [] },
+        { id: 'new', name: '', summary: null, status: 'active', last_activity: '2026-04-13', created_at: '', updated_at: '', dismissed: 0, urls: [] },
+      ],
+    });
+    const out = await getMissions();
+    expect(out.map((m) => m.id)).toEqual(['new', 'old']);
   });
 });
 
-// ─── POST /api/missions/:id/dismiss ─────────────────────────────────────────
+// ─── dismissMission ─────────────────────────────────────────────────────────
 
 describe('dismissMission', () => {
-  it('POSTs to /api/missions/:id/dismiss with no body', async () => {
-    const fetchFn = mockFetchOk({ success: true });
-
-    const result = await dismissMission('abc123');
-
-    expect(fetchFn).toHaveBeenCalledWith('/api/missions/abc123/dismiss', {
-      method: 'POST',
+  it('flips dismissed=1 on the matching id and writes back', async () => {
+    const { store } = installChromeStorage({
+      missions: [
+        { id: 'x', name: '', summary: null, status: 'active', last_activity: null, created_at: '', updated_at: '', dismissed: 0, urls: [] },
+      ],
     });
-    expect(result).toEqual({ success: true });
+    await dismissMission('x');
+    expect(store.get('missions')[0].dismissed).toBe(1);
   });
 
-  it('URL-encodes mission ids with reserved characters', async () => {
-    const fetchFn = mockFetchOk({ success: true });
-    await dismissMission('a/b c');
-    expect(fetchFn).toHaveBeenCalledWith('/api/missions/a%2Fb%20c/dismiss', {
-      method: 'POST',
-    });
+  it('is idempotent for ids that do not exist', async () => {
+    installChromeStorage({ missions: [] });
+    await expect(dismissMission('nope')).resolves.toEqual({ success: true });
   });
 });
 
-// ─── POST /api/missions/:id/archive ─────────────────────────────────────────
+// ─── archiveMission ─────────────────────────────────────────────────────────
 
 describe('archiveMission', () => {
-  it('POSTs to /api/missions/:id/archive', async () => {
-    const fetchFn = mockFetchOk({ success: true });
-    const result = await archiveMission('xyz');
-    expect(fetchFn).toHaveBeenCalledWith('/api/missions/xyz/archive', {
-      method: 'POST',
+  it('appends an archive entry then dismisses the mission', async () => {
+    const { store } = installChromeStorage({
+      missions: [
+        {
+          id: 'm1',
+          name: 'Trip planning',
+          summary: null,
+          status: 'active',
+          last_activity: '2026-04-13',
+          created_at: '',
+          updated_at: '',
+          dismissed: 0,
+          urls: [{ id: 1, mission_id: 'm1', url: 'https://a', title: 'A', visit_count: 1, last_visit: null }],
+        },
+      ],
     });
-    expect(result).toEqual({ success: true });
+    await archiveMission('m1');
+
+    expect(store.get('missions')[0].dismissed).toBe(1);
+    const archives = store.get('archives');
+    expect(archives).toHaveLength(1);
+    expect(archives[0].mission_name).toBe('Trip planning');
+    expect(JSON.parse(archives[0].urls_json)).toHaveLength(1);
   });
 
-  it('throws on 404', async () => {
-    mockFetchError(404);
-    await expect(archiveMission('missing')).rejects.toThrow(/404/);
+  it('throws when the mission id is missing or already dismissed', async () => {
+    installChromeStorage({ missions: [] });
+    await expect(archiveMission('ghost')).rejects.toThrow(/not found/);
   });
 });
 
-// ─── GET /api/stats ─────────────────────────────────────────────────────────
+// ─── getStats ───────────────────────────────────────────────────────────────
 
 describe('getStats', () => {
-  it('GETs /api/stats and returns the stats object', async () => {
-    const stats = {
-      totalMissions: 5,
-      totalUrls: 20,
+  it('counts active missions, urls, abandoned, and reads last_analysis from meta', async () => {
+    installChromeStorage({
+      missions: [
+        { id: 'a', name: '', summary: null, status: 'active', last_activity: null, created_at: '', updated_at: '', dismissed: 0, urls: [{ id: 1, mission_id: 'a', url: 'u1', title: null, visit_count: 1, last_visit: null }, { id: 2, mission_id: 'a', url: 'u2', title: null, visit_count: 1, last_visit: null }] },
+        { id: 'b', name: '', summary: null, status: 'abandoned', last_activity: null, created_at: '', updated_at: '', dismissed: 0, urls: [] },
+        { id: 'c', name: '', summary: null, status: 'active', last_activity: null, created_at: '', updated_at: '', dismissed: 1, urls: [{ id: 3, mission_id: 'c', url: 'u3', title: null, visit_count: 1, last_visit: null }] },
+      ],
+      meta: { last_analysis: '2026-04-13T12:00:00Z' },
+    });
+    const s = await getStats();
+    expect(s).toEqual({
+      totalMissions: 2,
+      totalUrls: 2,
       abandonedMissions: 1,
-      lastAnalysis: '2026-04-14T10:00:00Z',
-    };
-    const fetchFn = mockFetchOk(stats);
-    const result = await getStats();
-    expect(fetchFn).toHaveBeenCalledWith('/api/stats');
-    expect(result).toEqual(stats);
+      lastAnalysis: '2026-04-13T12:00:00Z',
+    });
+  });
+
+  it('returns lastAnalysis: null when meta is absent', async () => {
+    installChromeStorage({});
+    const s = await getStats();
+    expect(s.lastAnalysis).toBeNull();
+    expect(s.totalMissions).toBe(0);
   });
 });
 
-// ─── GET /api/update-status ─────────────────────────────────────────────────
+// ─── getUpdateStatus (PR J stub) ────────────────────────────────────────────
 
 describe('getUpdateStatus', () => {
-  it('GETs /api/update-status and returns the boolean payload', async () => {
-    const fetchFn = mockFetchOk({ updateAvailable: false });
-    const result = await getUpdateStatus();
-    expect(fetchFn).toHaveBeenCalledWith('/api/update-status');
-    expect(result).toEqual({ updateAvailable: false });
+  it('always returns updateAvailable: false (phase 4 decides the real impl)', async () => {
+    installChromeStorage({});
+    expect(await getUpdateStatus()).toEqual({ updateAvailable: false });
   });
 });
 
-// ─── POST /api/defer ────────────────────────────────────────────────────────
+// ─── saveDefer ──────────────────────────────────────────────────────────────
 
 describe('saveDefer', () => {
-  it('POSTs /api/defer with { tabs } body', async () => {
-    const fetchFn = mockFetchOk({ success: true, deferred: [] });
-    const tabs = [
-      { url: 'https://a.test/x', title: 'A' },
-      { url: 'https://b.test/y', title: 'B' },
-    ];
+  it('appends rows with auto-generated ids, returns the created list', async () => {
+    const { store } = installChromeStorage({});
+    const result = await saveDefer([
+      { url: 'https://a.test', title: 'A' },
+      { url: 'https://b.test', title: 'B', favicon_url: 'fav.png' },
+    ]);
 
-    await saveDefer(tabs);
+    expect(result.success).toBe(true);
+    expect(result.deferred).toHaveLength(2);
+    expect(result.deferred[0].url).toBe('https://a.test');
+    expect(typeof result.deferred[0].id).toBe('number');
+    expect(result.deferred[0].id).not.toBe(result.deferred[1].id);
 
-    const [url, init] = fetchFn.mock.calls[0];
-    expect(url).toBe('/api/defer');
-    expect(init.method).toBe('POST');
-    expect(init.headers).toEqual({ 'Content-Type': 'application/json' });
-    expect(JSON.parse(init.body)).toEqual({ tabs });
+    expect(store.get('deferredTabs')).toHaveLength(2);
+    expect(store.get('deferredTabs')[1].favicon_url).toBe('fav.png');
   });
 
-  it('returns the deferred-created list from the response', async () => {
-    const created = [
-      {
-        id: 1,
-        url: 'https://a.test',
-        title: 'A',
-        favicon_url: null,
-        source_mission: null,
-        deferred_at: '2026-04-14T10:00:00Z',
-      },
-    ];
-    mockFetchOk({ success: true, deferred: created });
-    const result = await saveDefer([{ url: 'https://a.test', title: 'A' }]);
-    expect(result.deferred).toEqual(created);
+  it('throws when given an empty list', async () => {
+    installChromeStorage({});
+    await expect(saveDefer([])).rejects.toThrow(/required/);
   });
 
-  it('throws on 400 when server rejects an empty tabs array', async () => {
-    mockFetchError(400);
-    await expect(saveDefer([])).rejects.toThrow(/POST \/defer failed: 400/);
+  it('skips entries without url or title (matches old server behaviour)', async () => {
+    const { store } = installChromeStorage({});
+    await saveDefer([
+      { url: '', title: 'no url' },
+      { url: 'https://ok.test', title: '' },
+      { url: 'https://ok.test', title: 'good' },
+    ]);
+    expect(store.get('deferredTabs')).toHaveLength(1);
   });
 });
 
-// ─── GET /api/deferred ──────────────────────────────────────────────────────
+// ─── getDeferred + age-out ──────────────────────────────────────────────────
 
 describe('getDeferred', () => {
-  it('GETs /api/deferred and returns { active, archived }', async () => {
-    const payload = {
-      active: [{ id: 1, url: 'a', title: 'A', archived: 0 }],
-      archived: [{ id: 2, url: 'b', title: 'B', archived: 1 }],
-    };
-    const fetchFn = mockFetchOk(payload);
-    const result = await getDeferred();
-    expect(fetchFn).toHaveBeenCalledWith('/api/deferred');
-    expect(result).toEqual(payload);
+  it('partitions rows by archived flag and orders both DESC by timestamp', async () => {
+    installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+        { id: 2, url: 'b', title: 'B', favicon_url: null, source_mission: null, deferred_at: '2026-04-12', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+        { id: 3, url: 'c', title: 'C', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 1, checked_at: '2026-04-02', dismissed: 0, archived: 1, archived_at: '2026-04-02' },
+        { id: 4, url: 'd', title: 'D', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 0, checked_at: null, dismissed: 1, archived: 1, archived_at: '2026-04-05' },
+      ],
+    });
+    const { active, archived } = await getDeferred();
+    expect(active.map((t) => t.id)).toEqual([2, 1]);
+    expect(archived.map((t) => t.id)).toEqual([4, 3]);
+  });
+
+  it('age-outs rows older than 30 days on read and writes them back', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-15T00:00:00Z'));
+
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        // 31 days old, not handled — should age out
+        { id: 1, url: 'old', title: 'old', favicon_url: null, source_mission: null, deferred_at: '2026-03-15T00:00:00Z', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+        // 5 days old — stays active
+        { id: 2, url: 'fresh', title: 'fresh', favicon_url: null, source_mission: null, deferred_at: '2026-04-10T00:00:00Z', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+        // 31 days old but already archived — left alone
+        { id: 3, url: 'kept', title: 'kept', favicon_url: null, source_mission: null, deferred_at: '2026-03-15T00:00:00Z', checked: 1, checked_at: '2026-03-16', dismissed: 0, archived: 1, archived_at: '2026-03-16' },
+      ],
+    });
+
+    const { active, archived } = await getDeferred();
+    expect(active.map((t) => t.id)).toEqual([2]);
+    expect(archived.map((t) => t.id).sort()).toEqual([1, 3]);
+
+    // Side effect: row 1 is now persisted with archived=1
+    const persisted = store.get('deferredTabs').find((t) => t.id === 1);
+    expect(persisted.archived).toBe(1);
+    expect(persisted.archived_at).toBe('2026-04-15T00:00:00.000Z');
+  });
+
+  it('does not write back when no row needs aging out', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-15T00:00:00Z'));
+
+    const { local } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'fresh', title: 'fresh', favicon_url: null, source_mission: null, deferred_at: '2026-04-10T00:00:00Z', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+    await getDeferred();
+    expect(local.set).not.toHaveBeenCalled();
   });
 });
 
-// ─── GET /api/deferred/search?q= ────────────────────────────────────────────
+// ─── searchDeferred ─────────────────────────────────────────────────────────
 
 describe('searchDeferred', () => {
-  it('GETs /api/deferred/search with the query encoded', async () => {
-    const fetchFn = mockFetchOk({ results: [] });
-    await searchDeferred('hello world');
-    expect(fetchFn).toHaveBeenCalledWith(
-      '/api/deferred/search?q=hello%20world',
-    );
+  it('matches archived rows by title or url, case-insensitive', async () => {
+    installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'https://github.com/foo', title: 'GitHub Actions docs', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 1, checked_at: '2026-04-02', dismissed: 0, archived: 1, archived_at: '2026-04-02' },
+        { id: 2, url: 'https://other.com', title: 'unrelated', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 0, checked_at: null, dismissed: 1, archived: 1, archived_at: '2026-04-03' },
+        { id: 3, url: 'https://github.com/bar', title: 'still active', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+    const { results } = await searchDeferred('github');
+    expect(results.map((r) => r.id)).toEqual([1]);
   });
 
-  it('encodes special characters that would break URLs', async () => {
-    const fetchFn = mockFetchOk({ results: [] });
-    await searchDeferred('a&b=c?d');
-    expect(fetchFn).toHaveBeenCalledWith(
-      '/api/deferred/search?q=a%26b%3Dc%3Fd',
-    );
+  it('returns [] for queries shorter than 2 characters', async () => {
+    installChromeStorage({});
+    expect((await searchDeferred('g')).results).toEqual([]);
+    expect((await searchDeferred('')).results).toEqual([]);
   });
 
-  it('returns the results array from the response', async () => {
-    const results = [
-      { id: 5, url: 'https://x', title: 'hit', archived: 1 },
-    ];
-    mockFetchOk({ results });
-    const out = await searchDeferred('hit');
-    expect(out.results).toEqual(results);
+  it('caps results at 50', async () => {
+    const tabs = Array.from({ length: 60 }, (_, i) => ({
+      id: i + 1,
+      url: `https://hit.test/${i}`,
+      title: `hit ${i}`,
+      favicon_url: null,
+      source_mission: null,
+      deferred_at: '2026-04-01',
+      checked: 1,
+      checked_at: '2026-04-02',
+      dismissed: 0,
+      archived: 1,
+      archived_at: `2026-04-${String((i % 28) + 1).padStart(2, '0')}`,
+    }));
+    installChromeStorage({ deferredTabs: tabs });
+    const { results } = await searchDeferred('hit');
+    expect(results).toHaveLength(50);
   });
 });
 
-// ─── PATCH /api/deferred/:id (checked) ──────────────────────────────────────
+// ─── checkDeferred / dismissDeferred ────────────────────────────────────────
 
 describe('checkDeferred', () => {
-  it('PATCHes /api/deferred/:id with { checked: true }', async () => {
-    const fetchFn = mockFetchOk({ success: true });
-    await checkDeferred(42);
-    const [url, init] = fetchFn.mock.calls[0];
-    expect(url).toBe('/api/deferred/42');
-    expect(init.method).toBe('PATCH');
-    expect(init.headers).toEqual({ 'Content-Type': 'application/json' });
-    expect(JSON.parse(init.body)).toEqual({ checked: true });
+  it('marks the row checked + archived with timestamps', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-15T10:00:00Z'));
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 7, url: 'u', title: 'u', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+    await checkDeferred(7);
+    const row = store.get('deferredTabs')[0];
+    expect(row.checked).toBe(1);
+    expect(row.archived).toBe(1);
+    expect(row.checked_at).toBe('2026-04-15T10:00:00.000Z');
+    expect(row.archived_at).toBe('2026-04-15T10:00:00.000Z');
   });
 
-  it('accepts a string id (e.g. from a dataset attribute)', async () => {
-    const fetchFn = mockFetchOk({ success: true });
+  it('accepts both numeric and string ids', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 99, url: 'u', title: 'u', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
     await checkDeferred('99');
-    expect(fetchFn.mock.calls[0][0]).toBe('/api/deferred/99');
+    expect(store.get('deferredTabs')[0].checked).toBe(1);
   });
 
-  it('URL-encodes ids with reserved characters (future UUID safety)', async () => {
-    const fetchFn = mockFetchOk({ success: true });
-    await checkDeferred('a/b c');
-    expect(fetchFn.mock.calls[0][0]).toBe('/api/deferred/a%2Fb%20c');
+  it('throws when the id does not exist', async () => {
+    installChromeStorage({ deferredTabs: [] });
+    await expect(checkDeferred(123)).rejects.toThrow(/not found/);
   });
 });
 
-// ─── PATCH /api/deferred/:id (dismissed) ────────────────────────────────────
-
 describe('dismissDeferred', () => {
-  it('PATCHes /api/deferred/:id with { dismissed: true }', async () => {
-    const fetchFn = mockFetchOk({ success: true });
-    await dismissDeferred(7);
-    const [url, init] = fetchFn.mock.calls[0];
-    expect(url).toBe('/api/deferred/7');
-    expect(init.method).toBe('PATCH');
-    expect(JSON.parse(init.body)).toEqual({ dismissed: true });
+  it('marks the row dismissed + archived', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 5, url: 'u', title: 'u', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+    await dismissDeferred(5);
+    const row = store.get('deferredTabs')[0];
+    expect(row.dismissed).toBe(1);
+    expect(row.archived).toBe(1);
   });
 
-  it('throws on server error', async () => {
-    mockFetchError(500);
-    await expect(dismissDeferred(1)).rejects.toThrow(/PATCH/);
+  it('throws when the id does not exist', async () => {
+    installChromeStorage({ deferredTabs: [] });
+    await expect(dismissDeferred(1)).rejects.toThrow(/not found/);
   });
+});
 
-  it('URL-encodes ids with reserved characters', async () => {
-    const fetchFn = mockFetchOk({ success: true });
-    await dismissDeferred('x?y=z');
-    expect(fetchFn.mock.calls[0][0]).toBe('/api/deferred/x%3Fy%3Dz');
+// ─── chrome.storage unavailable ─────────────────────────────────────────────
+
+describe('chrome.storage missing', () => {
+  beforeEach(() => {
+    vi.stubGlobal('chrome', undefined);
+  });
+  it('throws a clear error from any function (caller wraps in try/catch)', async () => {
+    await expect(getMissions()).rejects.toThrow(/unavailable/);
+    await expect(saveDefer([{ url: 'u', title: 't' }])).rejects.toThrow(
+      /unavailable/,
+    );
   });
 });
