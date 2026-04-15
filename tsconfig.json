@@ -4,8 +4,8 @@
     "module": "ES2020",
     "moduleResolution": "Node",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "outDir": "./dashboard/dist",
-    "rootDir": "./dashboard/src",
+    "outDir": "./extension/dashboard/dist",
+    "rootDir": "./extension/dashboard/src",
     "strict": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
@@ -19,6 +19,6 @@
     "sourceMap": true,
     "declaration": false
   },
-  "include": ["dashboard/src/**/*.ts"],
-  "exclude": ["node_modules", "dashboard/dist", "tests"]
+  "include": ["extension/dashboard/src/**/*.ts"],
+  "exclude": ["node_modules", "extension/dashboard/dist", "tests"]
 }

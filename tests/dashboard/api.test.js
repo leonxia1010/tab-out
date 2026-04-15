@@ -1,6 +1,6 @@
 // tests/dashboard/api.test.js
 //
-// Unit tests for dashboard/src/api.ts (Phase 3 PR H).
+// Unit tests for extension/dashboard/src/api.ts (Phase 3 PR H).
 //
 // Mocks globalThis.fetch and asserts each of the 10 endpoint helpers builds
 // the right HTTP method + path + body, then unwraps the JSON response.
@@ -20,7 +20,7 @@ import {
   searchDeferred,
   checkDeferred,
   dismissDeferred,
-} from '../../dashboard/src/api.ts';
+} from '../../extension/dashboard/src/api.ts';
 
 // ─── fetch mocking helpers ──────────────────────────────────────────────────
 
