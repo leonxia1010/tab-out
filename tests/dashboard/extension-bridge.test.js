@@ -163,6 +163,75 @@ describe('closeTabsByUrls (hostname mode)', () => {
   });
 });
 
+// ─── closeTabsByUrls chrome://* and chrome-extension://* → exact-URL mode ───
+//
+// Bug 2 defense: hostname matching for privileged schemes is unreliable
+// (chrome:// URLs parse with an empty or path-derived hostname depending on
+// the Chrome build; chrome-extension:// URLs share hostnames across all
+// pages of the same extension). The Chrome System card's "Close all N tabs"
+// used to send chrome:// URLs through the hostname branch and caused Chrome
+// to exit. These tests pin down the exact-URL routing.
+
+describe('closeTabsByUrls privileged-scheme exact routing', () => {
+  it('only closes chrome:// tabs whose URL exactly matches, not by hostname', async () => {
+    const { tabsApi } = installChrome({
+      tabs: [
+        { id: 1, url: 'chrome://settings/' },
+        { id: 2, url: 'chrome://settings/privacy' },
+        { id: 3, url: 'chrome://extensions/' },
+      ],
+    });
+    // Hostname mode with a chrome:// URL — the old code would try to match
+    // by 'settings' hostname and potentially nuke sibling pages. New
+    // behaviour: URL identity only.
+    await closeTabsByUrls(['chrome://settings/']);
+    expect(tabsApi.remove).toHaveBeenCalledWith([1]);
+  });
+
+  it('closes the full Chrome System card set (Bug 2 regression test)', async () => {
+    const { tabsApi } = installChrome({
+      tabs: [
+        { id: 1, url: 'chrome://settings/' },
+        { id: 2, url: 'chrome://extensions/' },
+        { id: 3, url: 'chrome://history/' },
+        { id: 4, url: 'https://github.com' },
+        { id: 5, url: NEWTAB_URL }, // dashboard — must survive via skipSelf
+      ],
+    });
+    await closeTabsByUrls([
+      'chrome://settings/',
+      'chrome://extensions/',
+      'chrome://history/',
+    ]);
+    // chrome:// tabs closed exactly; github untouched; dashboard preserved.
+    expect(tabsApi.remove).toHaveBeenCalledWith([1, 2, 3]);
+  });
+
+  it('only closes chrome-extension:// tabs whose URL exactly matches', async () => {
+    const { tabsApi } = installChrome({
+      tabs: [
+        { id: 1, url: `chrome-extension://${EXT_ID}/options.html` },
+        { id: 2, url: `chrome-extension://${EXT_ID}/popup.html` },
+      ],
+    });
+    await closeTabsByUrls([`chrome-extension://${EXT_ID}/options.html`]);
+    // Without this fix, the two pages share the same hostname (EXT_ID) and
+    // the hostname branch would close both.
+    expect(tabsApi.remove).toHaveBeenCalledWith([1]);
+  });
+
+  it('file:// continues to match exactly (regression guard for the existing path)', async () => {
+    const { tabsApi } = installChrome({
+      tabs: [
+        { id: 1, url: 'file:///Users/me/a.md' },
+        { id: 2, url: 'file:///Users/me/b.md' },
+      ],
+    });
+    await closeTabsByUrls(['file:///Users/me/a.md']);
+    expect(tabsApi.remove).toHaveBeenCalledWith([1]);
+  });
+});
+
 // ─── closeTabsByUrls (exact mode) ───────────────────────────────────────────
 
 describe('closeTabsByUrls (exact mode)', () => {
