@@ -23,7 +23,6 @@ import {
   focusTabsByUrls,
   sendToExtension,
 } from './extension-bridge.js';
-import type { Mission } from './extension-bridge.js';
 import {
   archiveMission as apiArchiveMission,
   checkDeferred as apiCheckDeferred,
@@ -32,6 +31,7 @@ import {
   getDeferred,
   saveDefer,
   searchDeferred,
+  type Mission,
 } from './api.js';
 import {
   animateCardOut as animateCardOutRaw,

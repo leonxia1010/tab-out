@@ -17,7 +17,6 @@ import {
   type Tab,
 } from './state.js';
 import { getMissions, type Mission } from './api.js';
-export type { Mission };
 
 export interface BridgeResponse {
   success: boolean;

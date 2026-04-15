@@ -25,15 +25,7 @@ import {
 import { getOpenTabs, setDomainGroups } from './state.js';
 import type { DomainGroup, Tab } from './state.js';
 import { checkTabOutDupes, fetchOpenTabs } from './extension-bridge.js';
-import { getDeferred } from './api.js';
-
-interface DeferredItem {
-  id: number;
-  url: string;
-  title?: string | null;
-  deferred_at?: string | null;
-  archived_at?: string | null;
-}
+import { getDeferred, type DeferredTab } from './api.js';
 
 const ICONS = {
   tabs:    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V18a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18V8.25m-18 0V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v2.25m-18 0h18" /></svg>',
@@ -269,7 +261,7 @@ export function renderDomainCard(group: DomainGroup, _groupIndex: number): HTMLE
   }, [statusBar, missionContent, missionMeta]);
 }
 
-export function renderDeferredItem(item: DeferredItem): HTMLElement {
+export function renderDeferredItem(item: DeferredTab): HTMLElement {
   let domain = '';
   try { domain = new URL(item.url).hostname.replace(/^www\./, ''); } catch {}
   const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=16`;
@@ -314,7 +306,7 @@ export function renderDeferredItem(item: DeferredItem): HTMLElement {
   }, [checkbox, el('div', { className: 'deferred-info' }, [link, meta]), dismiss]);
 }
 
-export function renderArchiveItem(item: DeferredItem): HTMLElement {
+export function renderArchiveItem(item: DeferredTab): HTMLElement {
   const ago = item.archived_at ? timeAgo(item.archived_at) : '';
   const titleText = item.title || item.url;
 
