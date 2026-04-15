@@ -86,6 +86,9 @@ const FRIENDLY_DOMAINS: Record<string, string> = {
   'local-files':          'Local Files',
   '__chrome-internal__':  'Chrome System',
   '__extensions__':       'Extensions',
+  'taobao.com':           'Taobao / Tmall',
+  'jd.com':               'JD',
+  'facebook.com':         'Facebook',
 };
 
 export function timeAgo(dateStr: string | null | undefined): string {

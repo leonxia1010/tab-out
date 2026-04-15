@@ -49,6 +49,7 @@ const LANDING_PAGE_PATTERNS: LandingPagePattern[] = [
   { hostname: 'mail.google.com', test: (_p, h) =>
       !h.includes('#inbox/') && !h.includes('#sent/') && !h.includes('#search/') },
   { hostname: 'x.com',            pathExact: ['/home'] },
+  { hostname: 'twitter.com',      pathExact: ['/home'] },
   { hostname: 'www.linkedin.com', pathExact: ['/'] },
   { hostname: 'github.com',       pathExact: ['/'] },
 ];
@@ -75,6 +76,7 @@ function isLandingPage(url: string): boolean {
 // Don't add google.com aliases — Gmail / Docs / Drive stay separate cards on
 // purpose via FRIENDLY_DOMAINS.
 const DOMAIN_ALIASES: Record<string, string> = {
+  // Bilibili — subdomains + b23.tv share shortlink
   'www.bilibili.com':    'bilibili.com',
   'search.bilibili.com': 'bilibili.com',
   'm.bilibili.com':      'bilibili.com',
@@ -82,6 +84,47 @@ const DOMAIN_ALIASES: Record<string, string> = {
   't.bilibili.com':      'bilibili.com',
   'space.bilibili.com':  'bilibili.com',
   'b23.tv':              'bilibili.com',
+
+  // YouTube — www / mobile / youtu.be share shortlink.
+  // music.youtube.com stays separate on purpose (FRIENDLY_DOMAINS → "YouTube Music").
+  'www.youtube.com':     'youtube.com',
+  'm.youtube.com':       'youtube.com',
+  'youtu.be':            'youtube.com',
+
+  // Twitter / X — Musk rename left both domains live; collapse to x.com (current
+  // official name). twitter.com/home still lands in Homepages via LANDING_PAGE_PATTERNS.
+  'www.x.com':           'x.com',
+  'twitter.com':         'x.com',
+  'www.twitter.com':     'x.com',
+
+  // Taobao + Tmall — same Alibaba commerce; users treat "逛淘宝/逛天猫" as one shopping card.
+  'www.taobao.com':      'taobao.com',
+  's.taobao.com':        'taobao.com',
+  'item.taobao.com':     'taobao.com',
+  'tmall.com':           'taobao.com',
+  'www.tmall.com':       'taobao.com',
+  'detail.tmall.com':    'taobao.com',
+
+  // JD — legacy 360buy + regional jd.hk fold into jd.com.
+  'www.jd.com':          'jd.com',
+  'item.jd.com':         'jd.com',
+  'jd.hk':               'jd.com',
+  '360buy.com':          'jd.com',
+
+  // Amazon — regional storefronts (.co.jp / .de / .fr / …) fold into amazon.com.
+  // Trade-off: loses "which region" visibility; user opted for brand-level grouping.
+  'www.amazon.com':      'amazon.com',
+  'amazon.co.jp':        'amazon.com',
+  'amazon.co.uk':        'amazon.com',
+  'amazon.de':           'amazon.com',
+  'amazon.fr':           'amazon.com',
+  'amazon.cn':           'amazon.com',
+
+  // Meta — vanity shortlinks fb.com / fb.me redirect to facebook.com.
+  'www.facebook.com':    'facebook.com',
+  'm.facebook.com':      'facebook.com',
+  'fb.com':              'facebook.com',
+  'fb.me':               'facebook.com',
 };
 
 function effectiveDomain(hostname: string): string {

@@ -246,7 +246,97 @@ describe('groupTabsByDomain', () => {
       { url: 'https://www.youtube.com/watch?v=abc' },
     ]);
     expect(bucket(groups, '__landing-pages__')).toBeUndefined();
-    expect(bucket(groups, 'www.youtube.com').tabs.length).toBe(2);
+    expect(bucket(groups, 'youtube.com').tabs.length).toBe(2);
+    expect(bucket(groups, 'www.youtube.com')).toBeUndefined();
+  });
+
+  it('collapses youtu.be + m.youtube.com + www.youtube.com into youtube.com', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://youtu.be/dQw4w9WgXcQ' },
+      { url: 'https://m.youtube.com/watch?v=abc' },
+      { url: 'https://www.youtube.com/feed/subscriptions' },
+    ]);
+    expect(bucket(groups, 'youtube.com').tabs.length).toBe(3);
+    expect(bucket(groups, 'youtu.be')).toBeUndefined();
+    expect(bucket(groups, 'm.youtube.com')).toBeUndefined();
+  });
+
+  it('collapses twitter.com + www.x.com into x.com', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://twitter.com/elonmusk' },
+      { url: 'https://www.x.com/jack' },
+      { url: 'https://x.com/tim_cook' },
+    ]);
+    expect(bucket(groups, 'x.com').tabs.length).toBe(3);
+    expect(bucket(groups, 'twitter.com')).toBeUndefined();
+  });
+
+  it('twitter.com/home lands in Homepages just like x.com/home', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://twitter.com/home' },
+      { url: 'https://x.com/home' },
+    ]);
+    expect(bucket(groups, '__landing-pages__').tabs.length).toBe(2);
+    expect(bucket(groups, 'x.com')).toBeUndefined();
+  });
+
+  it('collapses tmall.com + taobao subdomains into taobao.com (Alibaba ecommerce)', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://tmall.com/item/1' },
+      { url: 'https://detail.tmall.com/item/2' },
+      { url: 'https://item.taobao.com/3' },
+      { url: 'https://s.taobao.com/search?q=book' },
+    ]);
+    expect(bucket(groups, 'taobao.com').tabs.length).toBe(4);
+    expect(bucket(groups, 'tmall.com')).toBeUndefined();
+  });
+
+  it('collapses jd.hk + 360buy.com into jd.com', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://jd.hk/product/1' },
+      { url: 'https://360buy.com/' },
+      { url: 'https://item.jd.com/100.html' },
+    ]);
+    expect(bucket(groups, 'jd.com').tabs.length).toBe(3);
+    expect(bucket(groups, 'jd.hk')).toBeUndefined();
+    expect(bucket(groups, '360buy.com')).toBeUndefined();
+  });
+
+  it('collapses regional amazon.* storefronts into amazon.com', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://amazon.co.jp/dp/abc' },
+      { url: 'https://amazon.de/dp/def' },
+      { url: 'https://amazon.co.uk/dp/ghi' },
+      { url: 'https://www.amazon.com/dp/jkl' },
+    ]);
+    expect(bucket(groups, 'amazon.com').tabs.length).toBe(4);
+    expect(bucket(groups, 'amazon.co.jp')).toBeUndefined();
+    expect(bucket(groups, 'amazon.de')).toBeUndefined();
+  });
+
+  it('collapses fb.com + fb.me + m.facebook.com into facebook.com', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://fb.com/zuck' },
+      { url: 'https://fb.me/share/abc' },
+      { url: 'https://m.facebook.com/home.php' },
+      { url: 'https://www.facebook.com/me' },
+    ]);
+    expect(bucket(groups, 'facebook.com').tabs.length).toBe(4);
+    expect(bucket(groups, 'fb.com')).toBeUndefined();
+    expect(bucket(groups, 'fb.me')).toBeUndefined();
+  });
+
+  it('does NOT collapse unrelated lookalikes (costco stays out of amazon; qianniu stays out of taobao)', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://costco.com/item' },
+      { url: 'https://qianniu.taobao.com/admin' },
+      { url: 'https://www.amazon.com/dp/abc' },
+      { url: 'https://www.taobao.com/' },
+    ]);
+    expect(bucket(groups, 'costco.com').tabs.length).toBe(1);
+    expect(bucket(groups, 'qianniu.taobao.com').tabs.length).toBe(1);
+    expect(bucket(groups, 'amazon.com').tabs.length).toBe(1);
+    expect(bucket(groups, 'taobao.com').tabs.length).toBe(1);
   });
 
   it('still treats github root as a Homepages tab', () => {
