@@ -243,6 +243,12 @@ describe('checkDeferred', () => {
     await checkDeferred('99');
     expect(fetchFn.mock.calls[0][0]).toBe('/api/deferred/99');
   });
+
+  it('URL-encodes ids with reserved characters (future UUID safety)', async () => {
+    const fetchFn = mockFetchOk({ success: true });
+    await checkDeferred('a/b c');
+    expect(fetchFn.mock.calls[0][0]).toBe('/api/deferred/a%2Fb%20c');
+  });
 });
 
 // ─── PATCH /api/deferred/:id (dismissed) ────────────────────────────────────
@@ -260,5 +266,11 @@ describe('dismissDeferred', () => {
   it('throws on server error', async () => {
     mockFetchError(500);
     await expect(dismissDeferred(1)).rejects.toThrow(/PATCH/);
+  });
+
+  it('URL-encodes ids with reserved characters', async () => {
+    const fetchFn = mockFetchOk({ success: true });
+    await dismissDeferred('x?y=z');
+    expect(fetchFn.mock.calls[0][0]).toBe('/api/deferred/x%3Fy%3Dz');
   });
 });

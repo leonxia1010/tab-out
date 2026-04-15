@@ -171,11 +171,17 @@ export function searchDeferred(q: string): Promise<SearchDeferredResult> {
 }
 
 export function checkDeferred(id: number | string): Promise<{ success: true }> {
-  return patchJson<{ success: true }>(`/deferred/${id}`, { checked: true });
+  return patchJson<{ success: true }>(
+    `/deferred/${encodeURIComponent(String(id))}`,
+    { checked: true },
+  );
 }
 
 export function dismissDeferred(
   id: number | string,
 ): Promise<{ success: true }> {
-  return patchJson<{ success: true }>(`/deferred/${id}`, { dismissed: true });
+  return patchJson<{ success: true }>(
+    `/deferred/${encodeURIComponent(String(id))}`,
+    { dismissed: true },
+  );
 }
