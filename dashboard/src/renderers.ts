@@ -25,6 +25,7 @@ import {
 import { getOpenTabs, setDomainGroups } from './state.js';
 import type { DomainGroup, Tab } from './state.js';
 import { checkTabOutDupes, fetchOpenTabs } from './extension-bridge.js';
+import { getDeferred } from './api.js';
 
 interface DeferredItem {
   id: number;
@@ -32,11 +33,6 @@ interface DeferredItem {
   title?: string | null;
   deferred_at?: string | null;
   archived_at?: string | null;
-}
-
-interface DeferredApiPayload {
-  active?: DeferredItem[];
-  archived?: DeferredItem[];
 }
 
 const ICONS = {
@@ -349,9 +345,7 @@ export async function renderDeferredColumn(): Promise<void> {
   if (!column) return;
 
   try {
-    const res = await fetch('/api/deferred');
-    if (!res.ok) throw new Error('Failed to fetch deferred tabs');
-    const data = (await res.json()) as DeferredApiPayload;
+    const data = await getDeferred();
 
     const active   = data.active   || [];
     const archived = data.archived || [];
