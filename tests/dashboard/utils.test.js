@@ -16,7 +16,7 @@ import {
   stripTitleNoise,
   cleanTitle,
   smartTitle,
-  getRealTabs,
+  getDisplayableTabs,
   getOpenTabsForMission,
   countOpenTabsForMission,
 } from '../../extension/dashboard/src/utils.ts';
@@ -268,7 +268,7 @@ describe('smartTitle', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // getRealTabs — scheme filtering
 // ─────────────────────────────────────────────────────────────────────────────
-describe('getRealTabs', () => {
+describe('getDisplayableTabs', () => {
   it('keeps http(s) + chrome:// + chrome-extension:// tabs, drops about/edge/brave', () => {
     const tabs = [
       { url: 'https://github.com' },
@@ -279,7 +279,7 @@ describe('getRealTabs', () => {
       { url: 'edge://settings' },
       { url: 'brave://rewards' },
     ];
-    const kept = getRealTabs(tabs);
+    const kept = getDisplayableTabs(tabs);
     expect(kept.map((t) => t.url)).toEqual([
       'https://github.com',
       'http://localhost:3456',
@@ -288,8 +288,22 @@ describe('getRealTabs', () => {
     ]);
   });
 
+  it('drops Tab Out\'s own newtab pages (isTabOut flag)', () => {
+    const tabs = [
+      { url: 'https://github.com', isTabOut: false },
+      { url: 'chrome-extension://myid/dashboard/index.html', isTabOut: true },
+      { url: 'chrome://newtab/', isTabOut: true },
+      { url: 'chrome-extension://other/popup.html', isTabOut: false },
+    ];
+    const kept = getDisplayableTabs(tabs);
+    expect(kept.map((t) => t.url)).toEqual([
+      'https://github.com',
+      'chrome-extension://other/popup.html',
+    ]);
+  });
+
   it('returns empty array for empty input (no throw)', () => {
-    expect(getRealTabs([])).toEqual([]);
+    expect(getDisplayableTabs([])).toEqual([]);
   });
 });
 

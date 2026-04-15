@@ -271,8 +271,13 @@ export function smartTitle(
 // stays pure; app.js passes the module-level openTabs in explicitly. state.ts
 // lands in PR C.
 
-export function getRealTabs(tabs: Tab[]): Tab[] {
+// Allowlist filter: keep tabs the dashboard should render. We drop other-
+// browser internals (about/edge/brave) and Tab Out's own newtab pages so the
+// dashboard never lists itself in the Extensions card. chrome:// and
+// chrome-extension:// (other extensions) intentionally pass through.
+export function getDisplayableTabs(tabs: Tab[]): Tab[] {
   return tabs.filter((t) => {
+    if (t.isTabOut) return false;
     const url = t.url || '';
     return (
       !url.startsWith('about:') &&
