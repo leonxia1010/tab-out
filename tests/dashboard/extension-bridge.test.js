@@ -279,3 +279,69 @@ describe('closeTabOutDupes', () => {
     expect(tabsApi.remove).not.toHaveBeenCalled();
   });
 });
+
+// ─── closeTabsByUrls skipSelf guard ─────────────────────────────────────────
+//
+// Bug 1 / Bug 2 defense: any bulk close path must preserve the Tab Out
+// dashboard tab itself — otherwise closing it pulls the user's new-tab entry
+// point out from under them, and if it's the last remaining tab it can
+// trigger Chrome to exit. `skipSelf` defaults to true, so all existing
+// callers inherit the guard without a signature change.
+
+describe('closeTabsByUrls skipSelf guard', () => {
+  it('skips the dashboard tab even when its URL is in the input list (exact mode)', async () => {
+    const { tabsApi } = installChrome({
+      tabs: [
+        { id: 1, url: NEWTAB_URL },
+        { id: 2, url: 'https://github.com' },
+      ],
+    });
+    await closeTabsByUrls([NEWTAB_URL, 'https://github.com'], /* exact */ true);
+    expect(tabsApi.remove).toHaveBeenCalledWith([2]);
+  });
+
+  it('skips the dashboard tab in hostname mode when its hostname would otherwise match', async () => {
+    // If a caller ever passed a chrome-extension:// URL in hostname mode, the
+    // hostname would be the extension id — same as the dashboard's hostname.
+    // skipSelf must still drop the dashboard tab id from the remove call.
+    const { tabsApi } = installChrome({
+      tabs: [
+        { id: 1, url: NEWTAB_URL },
+        { id: 2, url: `chrome-extension://${EXT_ID}/other.html` },
+      ],
+    });
+    await closeTabsByUrls([`chrome-extension://${EXT_ID}/other.html`]);
+    // Only id 2 gets closed — id 1 (the dashboard) is protected.
+    expect(tabsApi.remove).toHaveBeenCalledWith([2]);
+  });
+
+  it('also protects chrome://newtab/ which Chrome may surface for the dashboard', async () => {
+    const { tabsApi } = installChrome({
+      tabs: [
+        { id: 1, url: 'chrome://newtab/' },
+        { id: 2, url: 'https://example.com' },
+      ],
+    });
+    await closeTabsByUrls(['chrome://newtab/', 'https://example.com'], true);
+    expect(tabsApi.remove).toHaveBeenCalledWith([2]);
+  });
+
+  it('skipSelf=false lets callers opt out (e.g. closeTabOutDupes collapsing duplicate dashboards)', async () => {
+    const { tabsApi } = installChrome({
+      tabs: [
+        { id: 1, url: NEWTAB_URL },
+        { id: 2, url: 'https://github.com' },
+      ],
+    });
+    await closeTabsByUrls([NEWTAB_URL], true, /* skipSelf */ false);
+    expect(tabsApi.remove).toHaveBeenCalledWith([1]);
+  });
+
+  it('skipSelf drops the only matching tab → no chrome.tabs.remove call at all', async () => {
+    const { tabsApi } = installChrome({
+      tabs: [{ id: 1, url: NEWTAB_URL }],
+    });
+    await closeTabsByUrls([NEWTAB_URL], true);
+    expect(tabsApi.remove).not.toHaveBeenCalled();
+  });
+});

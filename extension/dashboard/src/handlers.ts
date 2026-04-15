@@ -17,7 +17,6 @@ import {
   closeDuplicates,
   closeTabOutDupes,
   closeTabsByUrls,
-  fetchOpenTabs,
   focusTab,
 } from './extension-bridge.js';
 import {
@@ -237,11 +236,16 @@ async function handleDedupKeepOne(actionEl: HTMLElement, card: HTMLElement | nul
 }
 
 async function handleCloseAllOpenTabs(): Promise<void> {
+  // Close every non-Tab-Out tab (including chrome:// system pages).
+  // isTabOut filter + closeTabsByUrls's skipSelf=true guard together ensure
+  // the dashboard itself survives, so the user never loses their entry point
+  // (and we don't risk Chrome quitting when the last tab closes).
   const allUrls = getOpenTabs()
-    .filter(t => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
+    .filter(t => !!t.url && !t.isTabOut)
     .map(t => t.url || '');
-  await closeTabsByUrls(allUrls);
-  await fetchOpenTabs();
+  if (allUrls.length === 0) return;
+
+  await closeTabsByUrls(allUrls, /* exact */ true);
   playCloseSound();
 
   document.querySelectorAll<HTMLElement>('#openTabsDomains .domain-card').forEach(c => {
