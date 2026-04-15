@@ -1,16 +1,18 @@
 // tests/extension/background.test.js
 //
-// Phase 3 PR M — background.js was rewritten to read tab counts from
-// chrome.tabs directly (the localhost server it used to fetch from is gone).
-// This file pins down the new behavior:
+// Phase 3 PR M rewrote the badge to read from chrome.tabs directly.
+// Phase 4 PR-B added a chrome.alarms-backed update checker. This file pins
+// down both:
 //   - getDomainCount dedupes by hostname and ignores non-http(s) URLs
 //   - colorForCount returns the right band for each count threshold
 //   - updateBadge clears text on count=0 and otherwise sets text+color
 //   - chrome.tabs.query failures degrade to a cleared badge instead of throwing
+//   - checkForUpdate writes updateAvailable state based on GitHub sha delta
+//   - network failures in checkForUpdate are swallowed (alarm retries in 48h)
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-let getDomainCount, colorForCount, updateBadge;
+let getDomainCount, colorForCount, updateBadge, checkForUpdate;
 let setBadgeText, setBadgeBgColor, queryFn;
 
 function installChrome({ tabs = [], queryThrows = false } = {}) {
@@ -31,6 +33,18 @@ function installChrome({ tabs = [], queryThrows = false } = {}) {
       onInstalled: { addListener: vi.fn() },
       onStartup: { addListener: vi.fn() },
     },
+    // alarms + storage are required at module load time by the update-checker
+    // wiring; individual tests override .get/.set as needed.
+    alarms: {
+      create: vi.fn(),
+      onAlarm: { addListener: vi.fn() },
+    },
+    storage: {
+      local: {
+        get: vi.fn(async () => ({})),
+        set: vi.fn(async () => {}),
+      },
+    },
   });
 }
 
@@ -40,7 +54,7 @@ beforeEach(async () => {
   // clear mock state right after loading so each test starts clean.
   installChrome();
   vi.resetModules();
-  ({ getDomainCount, colorForCount, updateBadge } =
+  ({ getDomainCount, colorForCount, updateBadge, checkForUpdate } =
     await import('../../extension/background.js'));
   // Drain the auto-fired updateBadge() promise + reset call counters.
   await Promise.resolve();
@@ -145,5 +159,87 @@ describe('updateBadge', () => {
     await updateBadge();
     expect(setBadgeText).toHaveBeenCalledWith({ text: '' });
     expect(setBadgeBgColor).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkForUpdate', () => {
+  let fetchMock, storageGet, storageSet;
+
+  beforeEach(() => {
+    // installChrome() already set storage.local.{get,set} mocks in the outer
+    // beforeEach, but those resolve to empty. Replace with test-controlled
+    // spies so we can assert payloads.
+    storageGet = vi.fn(async () => ({}));
+    storageSet = vi.fn(async () => {});
+    // eslint-disable-next-line no-undef
+    chrome.storage.local.get = storageGet;
+    // eslint-disable-next-line no-undef
+    chrome.storage.local.set = storageSet;
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  it('writes updateAvailable:true when fetched sha differs from stored currentSha', async () => {
+    storageGet.mockResolvedValue({
+      'tabout:updateStatus': { currentSha: 'aaa', dismissedSha: null },
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ sha: 'bbb' }),
+    });
+    await checkForUpdate();
+    expect(storageSet).toHaveBeenCalledWith({
+      'tabout:updateStatus': expect.objectContaining({
+        updateAvailable: true,
+        latestSha: 'bbb',
+        currentSha: 'aaa',
+      }),
+    });
+  });
+
+  it('writes updateAvailable:false when fetched sha matches stored currentSha', async () => {
+    storageGet.mockResolvedValue({
+      'tabout:updateStatus': { currentSha: 'aaa', dismissedSha: null },
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ sha: 'aaa' }),
+    });
+    await checkForUpdate();
+    expect(storageSet).toHaveBeenCalledWith({
+      'tabout:updateStatus': expect.objectContaining({
+        updateAvailable: false,
+        latestSha: 'aaa',
+        currentSha: 'aaa',
+      }),
+    });
+  });
+
+  it('seeds currentSha = latestSha on first run so the banner does not flash on install', async () => {
+    storageGet.mockResolvedValue({}); // no prior state
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ sha: 'xyz' }),
+    });
+    await checkForUpdate();
+    expect(storageSet).toHaveBeenCalledWith({
+      'tabout:updateStatus': expect.objectContaining({
+        updateAvailable: false,
+        latestSha: 'xyz',
+        currentSha: 'xyz',
+      }),
+    });
+  });
+
+  it('does not write storage and does not throw when fetch rejects', async () => {
+    fetchMock.mockRejectedValue(new Error('network'));
+    await expect(checkForUpdate()).resolves.toBeUndefined();
+    expect(storageSet).not.toHaveBeenCalled();
+  });
+
+  it('does not write storage when response is not ok', async () => {
+    fetchMock.mockResolvedValue({ ok: false, json: async () => ({}) });
+    await checkForUpdate();
+    expect(storageSet).not.toHaveBeenCalled();
   });
 });

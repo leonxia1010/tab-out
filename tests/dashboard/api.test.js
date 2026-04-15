@@ -56,12 +56,55 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// ─── getUpdateStatus (PR J stub) ────────────────────────────────────────────
+// ─── getUpdateStatus (Phase 4 PR-B: reads background.js-written state) ─────
 
 describe('getUpdateStatus', () => {
-  it('always returns updateAvailable: false (phase 4 decides the real impl)', async () => {
+  it('returns updateAvailable:false when the storage key is missing', async () => {
     installChromeStorage({});
     expect(await getUpdateStatus()).toEqual({ updateAvailable: false });
+  });
+
+  it('reads updateAvailable + currentCommit + checkedAt from tabout:updateStatus', async () => {
+    installChromeStorage({
+      'tabout:updateStatus': {
+        updateAvailable: true,
+        latestSha: 'bbb',
+        currentSha: 'aaa',
+        checkedAt: '2026-04-10T00:00:00.000Z',
+        dismissedSha: null,
+      },
+    });
+    expect(await getUpdateStatus()).toEqual({
+      updateAvailable: true,
+      currentCommit: 'aaa',
+      checkedAt: '2026-04-10T00:00:00.000Z',
+    });
+  });
+
+  it('suppresses updateAvailable when dismissedSha equals latestSha (user already dismissed this release)', async () => {
+    installChromeStorage({
+      'tabout:updateStatus': {
+        updateAvailable: true,
+        latestSha: 'bbb',
+        currentSha: 'aaa',
+        checkedAt: '2026-04-10T00:00:00.000Z',
+        dismissedSha: 'bbb',
+      },
+    });
+    expect(await getUpdateStatus()).toMatchObject({ updateAvailable: false });
+  });
+
+  it('shows updateAvailable again when a newer release lands past the dismissed sha', async () => {
+    installChromeStorage({
+      'tabout:updateStatus': {
+        updateAvailable: true,
+        latestSha: 'ccc',
+        currentSha: 'aaa',
+        checkedAt: '2026-04-12T00:00:00.000Z',
+        dismissedSha: 'bbb',
+      },
+    });
+    expect(await getUpdateStatus()).toMatchObject({ updateAvailable: true });
   });
 });
 

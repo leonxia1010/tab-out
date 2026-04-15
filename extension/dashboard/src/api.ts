@@ -107,11 +107,35 @@ function newId(): number {
 
 // ─── Update status ──────────────────────────────────────────────────────────
 
-export function getUpdateStatus(): Promise<UpdateStatus> {
-  // Stub for phase 4. The old server/updater.js polled GitHub every 48h; phase 4
-  // decides whether to delete the feature, move it to background.js, or run it
-  // from the dashboard on load. Until then, never show the update banner.
-  return Promise.resolve({ updateAvailable: false });
+// Shape written by background.js checkForUpdate(). All fields optional
+// because a fresh install may have no key yet.
+interface UpdateStatusStorage {
+  updateAvailable?: boolean;
+  latestSha?: string;
+  currentSha?: string;
+  checkedAt?: string;
+  dismissedSha?: string | null;
+}
+
+export async function getUpdateStatus(): Promise<UpdateStatus> {
+  try {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+      return { updateAvailable: false };
+    }
+    const result = await chrome.storage.local.get('tabout:updateStatus');
+    const s = (result as Record<string, UpdateStatusStorage>)['tabout:updateStatus'];
+    if (!s) return { updateAvailable: false };
+    // Banner stays dismissed until a *new* release comes out (dismissedSha
+    // tracks the last latestSha the user dismissed against).
+    const suppressedByDismiss = s.dismissedSha != null && s.dismissedSha === s.latestSha;
+    return {
+      updateAvailable: Boolean(s.updateAvailable) && !suppressedByDismiss,
+      currentCommit: s.currentSha,
+      checkedAt: s.checkedAt,
+    };
+  } catch {
+    return { updateAvailable: false };
+  }
 }
 
 // ─── Deferred-tabs endpoints ────────────────────────────────────────────────
