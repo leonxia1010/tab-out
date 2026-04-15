@@ -220,6 +220,21 @@ describe('saveDefer', () => {
     ]);
     expect(store.get('deferredTabs')).toHaveLength(1);
   });
+
+  it('assigns unique ids to 50 items saved in the same tick (no birthday collisions)', async () => {
+    // Regression for the old Date.now()*1000 + rand%1000 scheme: at N=50,
+    // the birthday-problem collision rate over a 1000-slot space hits ~71%.
+    // The monotonic newId() should give us 50 distinct ids regardless.
+    installChromeStorage({});
+    const inputs = Array.from({ length: 50 }, (_, i) => ({
+      url: `https://t${i}.test`,
+      title: `T${i}`,
+    }));
+    const result = await saveDefer(inputs);
+    const ids = result.deferred.map((d) => d.id);
+    expect(ids).toHaveLength(50);
+    expect(new Set(ids).size).toBe(50);
+  });
 });
 
 // ─── getDeferred + age-out ──────────────────────────────────────────────────
@@ -351,6 +366,22 @@ describe('checkDeferred', () => {
   it('throws when the id does not exist', async () => {
     installChromeStorage({ deferredTabs: [] });
     await expect(checkDeferred(123)).rejects.toThrow(/not found/);
+  });
+
+  it('updates only the first matching row when duplicate ids exist (defensive)', async () => {
+    // newId() should never produce duplicates, but if it ever did, we don't
+    // want check/dismiss to silently mass-update unrelated rows. find()-based
+    // lookup limits the blast radius to one row.
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 7, url: 'a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+        { id: 7, url: 'b', title: 'B', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+    await checkDeferred(7);
+    const stored = store.get('deferredTabs');
+    expect(stored.filter((t) => t.checked === 1)).toHaveLength(1);
+    expect(stored.filter((t) => t.checked === 0)).toHaveLength(1);
   });
 });
 
