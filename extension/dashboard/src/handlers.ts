@@ -1,10 +1,7 @@
 // Tab Out dashboard — event delegation handlers (Phase 2 PR F).
 //
-// Single document-level click + input listeners, dispatched to one of 14
-// data-action handlers. Mission-based actions (archive/dismiss/focus/
-// close-uncat) are kept verbatim from app.js for backward compatibility
-// with old DOM that still emits them; phase 3 may delete the mission API
-// surface entirely, at which point those branches go.
+// Single document-level click + input listeners, dispatched to one of 10
+// data-action handlers.
 //
 // Lifecycle: src/index.ts calls attachListeners() exactly once on module
 // load. attachListeners is idempotent so accidental re-imports do not
@@ -20,20 +17,15 @@ import {
   closeDuplicates,
   closeTabOutDupes,
   closeTabsByUrls,
-  fetchMissionById,
   fetchOpenTabs,
   focusTab,
-  focusTabsByUrls,
 } from './extension-bridge.js';
 import {
-  archiveMission as apiArchiveMission,
   checkDeferred as apiCheckDeferred,
   dismissDeferred as apiDismissDeferred,
-  dismissMission as apiDismissMission,
   getDeferred,
   saveDefer,
   searchDeferred,
-  type Mission,
 } from './api.js';
 import {
   animateCardOut as animateCardOutRaw,
@@ -264,92 +256,6 @@ async function handleCloseAllOpenTabs(): Promise<void> {
   showToast('All tabs closed. Fresh start.');
 }
 
-interface MissionUrlEntry { url?: string }
-
-function missionUrls(mission: Mission): string[] {
-  const raw = mission.urls;
-  const arr = Array.isArray(raw) ? raw as MissionUrlEntry[] : [];
-  return arr.map(u => u?.url || '').filter(Boolean);
-}
-
-function missionName(mission: Mission): string {
-  return typeof mission.name === 'string' ? mission.name : '';
-}
-
-async function handleArchiveMission(missionId: string | undefined, card: HTMLElement | null): Promise<void> {
-  if (!missionId) return;
-  const mission = await fetchMissionById(missionId);
-  if (!mission) return;
-
-  const urls = missionUrls(mission);
-  await closeTabsByUrls(urls);
-
-  try {
-    await apiArchiveMission(missionId);
-  } catch (err) {
-    console.warn('[tab-out] Could not archive mission:', err);
-  }
-
-  if (card) {
-    playCloseSound();
-    animateCardOut(card);
-  }
-
-  showToast(`Archived "${missionName(mission)}"`);
-}
-
-async function handleDismissMission(missionId: string | undefined, card: HTMLElement | null): Promise<void> {
-  if (!missionId) return;
-  const mission = await fetchMissionById(missionId);
-  if (!mission) return;
-
-  const tabCountStr = card
-    ? (card.querySelector('.open-tabs-badge')?.textContent?.match(/\d+/)?.[0] || '0')
-    : '0';
-
-  if (parseInt(tabCountStr, 10) > 0) {
-    await closeTabsByUrls(missionUrls(mission));
-  }
-
-  try {
-    await apiDismissMission(missionId);
-  } catch (err) {
-    console.warn('[tab-out] Could not dismiss mission:', err);
-  }
-
-  if (card) {
-    playCloseSound();
-    animateCardOut(card);
-  }
-
-  showToast(`Let go of "${missionName(mission)}"`);
-}
-
-async function handleFocusMission(missionId: string | undefined): Promise<void> {
-  if (!missionId) return;
-  const mission = await fetchMissionById(missionId);
-  if (!mission) return;
-  await focusTabsByUrls(missionUrls(mission));
-  showToast(`Focused on "${missionName(mission)}"`);
-}
-
-async function handleCloseUncat(actionEl: HTMLElement, card: HTMLElement | null): Promise<void> {
-  const domain = actionEl.dataset.domain;
-  if (!domain) return;
-  const tabsToClose = getOpenTabs().filter(t => {
-    try { return new URL(t.url || '').hostname === domain; }
-    catch { return false; }
-  });
-  const urls = tabsToClose.map(t => t.url || '').filter(Boolean);
-  await closeTabsByUrls(urls);
-
-  if (card) {
-    playCloseSound();
-    animateCardOut(card);
-  }
-  showToast(`Closed ${tabsToClose.length} tab${tabsToClose.length !== 1 ? 's' : ''} from ${domain}`);
-}
-
 // ──────────────────────────────────────────────────────────────────────────
 // Dispatchers (single listener per event type, action lookup, then forward)
 // ──────────────────────────────────────────────────────────────────────────
@@ -359,9 +265,8 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
   const actionEl = target?.closest<HTMLElement>('[data-action]') ?? null;
   if (!actionEl) return;
 
-  const action    = actionEl.dataset.action;
-  const missionId = actionEl.dataset.missionId;
-  const card      = actionEl.closest<HTMLElement>('.mission-card');
+  const action = actionEl.dataset.action;
+  const card   = actionEl.closest<HTMLElement>('.mission-card');
 
   switch (action) {
     case 'close-tabout-dupes': return handleCloseTabOutDupes();
@@ -374,10 +279,6 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'close-domain-tabs':  return handleCloseDomainTabs(actionEl, card);
     case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card);
     case 'close-all-open-tabs':return handleCloseAllOpenTabs();
-    case 'archive':            return handleArchiveMission(missionId, card);
-    case 'dismiss':            return handleDismissMission(missionId, card);
-    case 'focus':              return handleFocusMission(missionId);
-    case 'close-uncat':        return handleCloseUncat(actionEl, card);
     default:                   return;
   }
 }

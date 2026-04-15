@@ -1,17 +1,10 @@
 // extension/dashboard/src/api.ts
 //
 // Phase 3 PR J — Tab Out data layer backed by chrome.storage.local.
+// Phase 4 PR-A — mission surface removed; deferred-tabs is the only feature.
 //
-// PR H/I introduced this module as a thin facade over the localhost server
-// (10 functions matching the old REST endpoints). PR J rips out the fetch
-// implementations and reads/writes chrome.storage.local directly. The public
-// signatures stay byte-identical so handlers/renderers/index don't change.
-//
-// KV layout (4 keys total):
-//   missions       Mission[]              ← legacy mission list (phase 4 decides fate)
-//   archives       MissionArchive[]       ← archived mission snapshots
-//   deferredTabs   DeferredTab[]          ← saved-for-later list (the active feature)
-//   meta           { last_analysis: string | null }
+// KV layout:
+//   deferredTabs   DeferredTab[]          ← saved-for-later list
 //
 // All callers already wrap us in try/catch (see handlers.ts), so we throw
 // freely when chrome.storage is missing — this also surfaces dev-mode usage
@@ -19,45 +12,16 @@
 //
 // The 30-day age-out for deferred tabs runs as a read-time side effect inside
 // getDeferred(): the first call after midnight on day 31 archives the row and
-// writes the result back. This mirrors server/db.js:347 which used the same
-// "fix it on the next read" pattern via SQL ageOutDeferred.
+// writes the result back. This mirrors the old SQL ageOutDeferred behaviour.
 
-// ─── Types (mirror the old server/db.js shapes) ────────────────────────────
-
-export interface MissionUrl {
-  id: number;
-  mission_id: string;
-  url: string;
-  title: string | null;
-  visit_count: number;
-  last_visit: string | null;
-}
-
-export interface Mission {
-  id: string;
-  name: string;
-  summary: string | null;
-  status: 'active' | 'cooling' | 'abandoned';
-  last_activity: string | null;
-  created_at: string;
-  updated_at: string;
-  dismissed: 0 | 1;
-  urls: MissionUrl[];
-}
-
-export interface MissionArchive {
-  id: number;
-  mission_id: string;
-  mission_name: string;
-  urls_json: string;
-  archived_at: string;
-}
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface DeferredTab {
   id: number;
   url: string;
   title: string;
   favicon_url: string | null;
+  // v1 legacy field, preserved for backwards-read compat with existing stored rows.
   source_mission: string | null;
   deferred_at: string;
   checked: 0 | 1;
@@ -72,6 +36,7 @@ export interface DeferredCreated {
   url: string;
   title: string;
   favicon_url: string | null;
+  // v1 legacy field, preserved for backwards-read compat with existing stored rows.
   source_mission: string | null;
   deferred_at: string;
 }
@@ -80,14 +45,8 @@ export interface DeferInput {
   url: string;
   title: string;
   favicon_url?: string | null;
+  // v1 legacy field, preserved for backwards-read compat with existing stored rows.
   source_mission?: string | null;
-}
-
-export interface Stats {
-  totalMissions: number;
-  totalUrls: number;
-  abandonedMissions: number;
-  lastAnalysis: string | null;
 }
 
 export interface UpdateStatus {
@@ -110,10 +69,6 @@ export interface SearchDeferredResult {
   results: DeferredTab[];
 }
 
-interface MetaShape {
-  last_analysis: string | null;
-}
-
 // ─── chrome.storage.local helpers ──────────────────────────────────────────
 
 function storage(): chrome.storage.StorageArea {
@@ -133,13 +88,6 @@ async function writeArray<T>(key: string, value: T[]): Promise<void> {
   await storage().set({ [key]: value });
 }
 
-async function readMeta(): Promise<MetaShape> {
-  const result = await storage().get('meta');
-  const value = (result as Record<string, unknown>).meta;
-  if (value && typeof value === 'object') return value as MetaShape;
-  return { last_analysis: null };
-}
-
 // ─── ID generation (replaces SQLite AUTOINCREMENT) ─────────────────────────
 // Date.now()*1000 + random is the *candidate* for a fresh id. We then bump
 // it past the last id we handed out to guarantee strict monotonicity within
@@ -157,83 +105,7 @@ function newId(): number {
   return lastId;
 }
 
-// ─── Mission endpoints ──────────────────────────────────────────────────────
-
-const STATUS_PRIORITY: Record<Mission['status'], number> = {
-  active: 1,
-  cooling: 2,
-  abandoned: 3,
-};
-
-export async function getMissions(): Promise<Mission[]> {
-  const all = await readArray<Mission>('missions');
-  return all
-    .filter((m) => m.dismissed === 0)
-    .sort((a, b) => {
-      const pa = STATUS_PRIORITY[a.status] ?? 4;
-      const pb = STATUS_PRIORITY[b.status] ?? 4;
-      if (pa !== pb) return pa - pb;
-      const la = a.last_activity || '';
-      const lb = b.last_activity || '';
-      return lb.localeCompare(la);
-    });
-}
-
-export async function dismissMission(id: string): Promise<{ success: true }> {
-  const all = await readArray<Mission>('missions');
-  const now = new Date().toISOString();
-  let changed = false;
-  for (const m of all) {
-    if (m.id === id && m.dismissed === 0) {
-      m.dismissed = 1;
-      m.updated_at = now;
-      changed = true;
-    }
-  }
-  if (changed) await writeArray('missions', all);
-  return { success: true };
-}
-
-export async function archiveMission(id: string): Promise<{ success: true }> {
-  const missions = await readArray<Mission>('missions');
-  const target = missions.find((m) => m.id === id && m.dismissed === 0);
-  if (!target) throw new Error(`mission ${id} not found`);
-
-  const archives = await readArray<MissionArchive>('archives');
-  archives.push({
-    id: newId(),
-    mission_id: target.id,
-    mission_name: target.name,
-    urls_json: JSON.stringify(target.urls || []),
-    archived_at: new Date().toISOString(),
-  });
-  await writeArray('archives', archives);
-
-  // Soft-delete the live mission after the archive write succeeds, matching
-  // server/routes.js:128 ordering (archive first, then dismiss).
-  target.dismissed = 1;
-  target.updated_at = new Date().toISOString();
-  await writeArray('missions', missions);
-
-  return { success: true };
-}
-
-// ─── Stats / update ─────────────────────────────────────────────────────────
-
-export async function getStats(): Promise<Stats> {
-  const missions = await readArray<Mission>('missions');
-  const active = missions.filter((m) => m.dismissed === 0);
-  const totalUrls = active.reduce((sum, m) => sum + (m.urls?.length || 0), 0);
-  const abandonedMissions = active.filter((m) => m.status === 'abandoned').length;
-  const meta = await readMeta();
-
-  return {
-    totalMissions: active.length,
-    totalUrls,
-    abandonedMissions,
-    lastAnalysis: meta.last_analysis,
-  };
-}
+// ─── Update status ──────────────────────────────────────────────────────────
 
 export function getUpdateStatus(): Promise<UpdateStatus> {
   // Stub for phase 4. The old server/updater.js polled GitHub every 48h; phase 4

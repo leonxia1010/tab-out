@@ -17,8 +17,6 @@ import {
   cleanTitle,
   smartTitle,
   getDisplayableTabs,
-  getOpenTabsForMission,
-  countOpenTabsForMission,
 } from '../../extension/dashboard/src/utils.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -307,38 +305,3 @@ describe('getDisplayableTabs', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// getOpenTabsForMission / countOpenTabsForMission — hostname matching
-// ─────────────────────────────────────────────────────────────────────────────
-describe('getOpenTabsForMission', () => {
-  const tabs = [
-    { url: 'https://github.com/a' },
-    { url: 'https://docs.github.com/b' },
-    { url: 'https://example.com/c' },
-    { url: 'https://reddit.com/r/foo' },
-  ];
-
-  it('matches tabs by hostname containment (either direction)', () => {
-    const result = getOpenTabsForMission(['github.com'], tabs);
-    expect(result.map((t) => t.url)).toEqual([
-      'https://github.com/a',
-      'https://docs.github.com/b',
-    ]);
-  });
-
-  it('accepts mission URLs as plain strings or objects with .url', () => {
-    const withObjects = getOpenTabsForMission([{ url: 'reddit.com' }], tabs);
-    expect(withObjects.map((t) => t.url)).toEqual(['https://reddit.com/r/foo']);
-  });
-
-  it('returns [] for empty mission URL list or empty tabs', () => {
-    expect(getOpenTabsForMission([], tabs)).toEqual([]);
-    expect(getOpenTabsForMission(['github.com'], [])).toEqual([]);
-    expect(getOpenTabsForMission(null, tabs)).toEqual([]);
-  });
-
-  it('countOpenTabsForMission returns the length of getOpenTabsForMission', () => {
-    expect(countOpenTabsForMission(['github.com'], tabs)).toBe(2);
-    expect(countOpenTabsForMission([], tabs)).toBe(0);
-  });
-});
