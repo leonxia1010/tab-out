@@ -33,6 +33,16 @@ function hostnameOf(url: string | undefined): string | null {
   try { return new URL(url).hostname; } catch { return null; }
 }
 
+// Schemes where hostname matching is unreliable or meaningless:
+//   file://     — no hostname component at all
+//   chrome://   — URL parser may return '' or the path segment; either way
+//                 matching by hostname over-fires across unrelated system pages
+//   chrome-extension:// — hostname is the extension id; two different
+//                         extension pages share a hostname, so hostname match
+//                         would nuke siblings
+// These schemes go through wantedExact (URL identity) in closeTabsByUrls.
+const EXACT_ONLY_SCHEME = /^(file|chrome|chrome-extension):\/\//;
+
 export async function fetchOpenTabs(): Promise<void> {
   if (!chromeAvailable()) {
     setOpenTabs([]);
@@ -73,7 +83,7 @@ export async function closeTabsByUrls(
     const wantedHosts: string[] = [];
     const wantedExact = new Set<string>();
     for (const u of urls) {
-      if (u.startsWith('file://')) wantedExact.add(u);
+      if (EXACT_ONLY_SCHEME.test(u)) wantedExact.add(u);
       else {
         const h = hostnameOf(u);
         if (h) wantedHosts.push(h);
@@ -81,7 +91,7 @@ export async function closeTabsByUrls(
     }
     matched = allTabs.filter((t) => {
       const url = t.url || '';
-      if (url.startsWith('file://')) return wantedExact.has(url);
+      if (EXACT_ONLY_SCHEME.test(url)) return wantedExact.has(url);
       const h = hostnameOf(url);
       return !!h && wantedHosts.includes(h);
     });
