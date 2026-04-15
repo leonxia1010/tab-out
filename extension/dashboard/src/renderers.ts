@@ -526,15 +526,22 @@ function renderOpenTabsHeader(sortedGroups: DomainGroup[], realTabsCount: number
 export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount: number): void {
   const openTabsSection    = document.getElementById('openTabsSection');
   const openTabsDomainsEl = document.getElementById('openTabsDomains');
+  if (!openTabsSection) return;
 
-  if (sortedGroups.length > 0 && openTabsSection) {
+  // Always reveal the section. When there are no domains to render we fall
+  // back to the "inbox zero" empty state instead of hiding the whole column
+  // — otherwise refreshing the dashboard while Tab Out is the only open tab
+  // erases the affirmation the user just earned by closing everything.
+  openTabsSection.style.display = 'block';
+
+  if (sortedGroups.length > 0) {
     renderOpenTabsHeader(sortedGroups, realTabsCount);
     if (openTabsDomainsEl) {
       mount(openTabsDomainsEl, sortedGroups.map((g, idx) => renderDomainCard(g, idx)));
     }
-    openTabsSection.style.display = 'block';
-  } else if (openTabsSection) {
-    openTabsSection.style.display = 'none';
+  } else {
+    if (openTabsDomainsEl) openTabsDomainsEl.innerHTML = '';
+    checkAndShowEmptyState();
   }
 }
 
