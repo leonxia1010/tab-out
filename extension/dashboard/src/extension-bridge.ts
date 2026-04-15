@@ -58,18 +58,17 @@ export async function fetchOpenTabs(): Promise<void> {
 export async function closeTabsByUrls(
   urls: string[],
   exact = false,
+  skipSelf = true,
 ): Promise<void> {
   if (!chromeAvailable() || !urls || urls.length === 0) return;
 
   const allTabs = await chrome.tabs.query({});
-  let ids: number[];
+  const selfUrls = skipSelf ? new Set(tabOutNewtabUrls()) : null;
+  let matched: chrome.tabs.Tab[];
 
   if (exact) {
     const wanted = new Set(urls);
-    ids = allTabs
-      .filter((t) => !!t.url && wanted.has(t.url))
-      .map((t) => t.id)
-      .filter((id): id is number => typeof id === 'number');
+    matched = allTabs.filter((t) => !!t.url && wanted.has(t.url));
   } else {
     const wantedHosts: string[] = [];
     const wantedExact = new Set<string>();
@@ -80,16 +79,18 @@ export async function closeTabsByUrls(
         if (h) wantedHosts.push(h);
       }
     }
-    ids = allTabs
-      .filter((t) => {
-        const url = t.url || '';
-        if (url.startsWith('file://')) return wantedExact.has(url);
-        const h = hostnameOf(url);
-        return !!h && wantedHosts.includes(h);
-      })
-      .map((t) => t.id)
-      .filter((id): id is number => typeof id === 'number');
+    matched = allTabs.filter((t) => {
+      const url = t.url || '';
+      if (url.startsWith('file://')) return wantedExact.has(url);
+      const h = hostnameOf(url);
+      return !!h && wantedHosts.includes(h);
+    });
   }
+
+  const ids = matched
+    .filter((t) => !selfUrls || !(t.url && selfUrls.has(t.url)))
+    .map((t) => t.id)
+    .filter((id): id is number => typeof id === 'number');
 
   if (ids.length > 0) await chrome.tabs.remove(ids);
   await fetchOpenTabs();
