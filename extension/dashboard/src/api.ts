@@ -1,21 +1,28 @@
-// dashboard/src/api.ts
+// extension/dashboard/src/api.ts
 //
-// Phase 3 — Tab Out API client.
+// Phase 3 PR J — Tab Out data layer backed by chrome.storage.local.
 //
-// PR H: All 10 functions internally call `fetch('/api/...')` against the
-// existing localhost:3456 server. Behavior identical to the inline fetches
-// they will replace in PR I.
+// PR H/I introduced this module as a thin facade over the localhost server
+// (10 functions matching the old REST endpoints). PR J rips out the fetch
+// implementations and reads/writes chrome.storage.local directly. The public
+// signatures stay byte-identical so handlers/renderers/index don't change.
 //
-// PR I: handlers / renderers / index / extension-bridge swap their inline
-// fetch for these helpers (no behavioral change).
+// KV layout (4 keys total):
+//   missions       Mission[]              ← legacy mission list (phase 4 decides fate)
+//   archives       MissionArchive[]       ← archived mission snapshots
+//   deferredTabs   DeferredTab[]          ← saved-for-later list (the active feature)
+//   meta           { last_analysis: string | null }
 //
-// PR J: Internal implementation swaps from fetch to chrome.storage.local
-// after PR K moves the dashboard into extension context.
+// All callers already wrap us in try/catch (see handlers.ts), so we throw
+// freely when chrome.storage is missing — this also surfaces dev-mode usage
+// outside an extension context as a loud failure rather than silent corruption.
 //
-// All functions throw on HTTP error. Callers handle (matches the existing
-// try/catch style across handlers).
+// The 30-day age-out for deferred tabs runs as a read-time side effect inside
+// getDeferred(): the first call after midnight on day 31 archives the row and
+// writes the result back. This mirrors server/db.js:347 which used the same
+// "fix it on the next read" pattern via SQL ageOutDeferred.
 
-// ─── Types (mirror server/routes.js + server/db.js shapes) ──────────────────
+// ─── Types (mirror the old server/db.js shapes) ────────────────────────────
 
 export interface MissionUrl {
   id: number;
@@ -36,6 +43,14 @@ export interface Mission {
   updated_at: string;
   dismissed: 0 | 1;
   urls: MissionUrl[];
+}
+
+export interface MissionArchive {
+  id: number;
+  mission_id: string;
+  mission_name: string;
+  urls_json: string;
+  archived_at: string;
 }
 
 export interface DeferredTab {
@@ -95,93 +110,264 @@ export interface SearchDeferredResult {
   results: DeferredTab[];
 }
 
-// ─── HTTP helpers ───────────────────────────────────────────────────────────
-
-const API_BASE = '/api';
-
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
-  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
-  return (await res.json()) as T;
+interface MetaShape {
+  last_analysis: string | null;
 }
 
-async function postJson<T>(path: string, body?: unknown): Promise<T> {
-  const init: RequestInit = { method: 'POST' };
-  if (body !== undefined) {
-    init.headers = { 'Content-Type': 'application/json' };
-    init.body = JSON.stringify(body);
+// ─── chrome.storage.local helpers ──────────────────────────────────────────
+
+function storage(): chrome.storage.StorageArea {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    throw new Error('chrome.storage.local unavailable');
   }
-  const res = await fetch(`${API_BASE}${path}`, init);
-  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
-  return (await res.json()) as T;
+  return chrome.storage.local;
 }
 
-async function patchJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
-  return (await res.json()) as T;
+async function readArray<T>(key: string): Promise<T[]> {
+  const result = await storage().get(key);
+  const value = (result as Record<string, unknown>)[key];
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+async function writeArray<T>(key: string, value: T[]): Promise<void> {
+  await storage().set({ [key]: value });
+}
+
+async function readMeta(): Promise<MetaShape> {
+  const result = await storage().get('meta');
+  const value = (result as Record<string, unknown>).meta;
+  if (value && typeof value === 'object') return value as MetaShape;
+  return { last_analysis: null };
+}
+
+// ─── ID generation (replaces SQLite AUTOINCREMENT) ─────────────────────────
+// Date.now()*1000 + random gives us a monotonically-increasing 64-bit-ish
+// number per call. Two simultaneous saves in the same millisecond stay
+// disjoint via the 0-999 random suffix. Phase 3 accepts the tiny collision
+// risk (1/1000 within a single ms) since deferred-tab volume is low.
+
+function newId(): number {
+  return Date.now() * 1000 + Math.floor(Math.random() * 1000);
 }
 
 // ─── Mission endpoints ──────────────────────────────────────────────────────
 
-export function getMissions(): Promise<Mission[]> {
-  return getJson<Mission[]>('/missions');
+const STATUS_PRIORITY: Record<Mission['status'], number> = {
+  active: 1,
+  cooling: 2,
+  abandoned: 3,
+};
+
+export async function getMissions(): Promise<Mission[]> {
+  const all = await readArray<Mission>('missions');
+  return all
+    .filter((m) => m.dismissed === 0)
+    .sort((a, b) => {
+      const pa = STATUS_PRIORITY[a.status] ?? 4;
+      const pb = STATUS_PRIORITY[b.status] ?? 4;
+      if (pa !== pb) return pa - pb;
+      const la = a.last_activity || '';
+      const lb = b.last_activity || '';
+      return lb.localeCompare(la);
+    });
 }
 
-export function dismissMission(id: string): Promise<{ success: true }> {
-  return postJson<{ success: true }>(
-    `/missions/${encodeURIComponent(id)}/dismiss`,
-  );
+export async function dismissMission(id: string): Promise<{ success: true }> {
+  const all = await readArray<Mission>('missions');
+  const now = new Date().toISOString();
+  let changed = false;
+  for (const m of all) {
+    if (m.id === id && m.dismissed === 0) {
+      m.dismissed = 1;
+      m.updated_at = now;
+      changed = true;
+    }
+  }
+  if (changed) await writeArray('missions', all);
+  return { success: true };
 }
 
-export function archiveMission(id: string): Promise<{ success: true }> {
-  return postJson<{ success: true }>(
-    `/missions/${encodeURIComponent(id)}/archive`,
-  );
+export async function archiveMission(id: string): Promise<{ success: true }> {
+  const missions = await readArray<Mission>('missions');
+  const target = missions.find((m) => m.id === id && m.dismissed === 0);
+  if (!target) throw new Error(`mission ${id} not found`);
+
+  const archives = await readArray<MissionArchive>('archives');
+  archives.push({
+    id: newId(),
+    mission_id: target.id,
+    mission_name: target.name,
+    urls_json: JSON.stringify(target.urls || []),
+    archived_at: new Date().toISOString(),
+  });
+  await writeArray('archives', archives);
+
+  // Soft-delete the live mission after the archive write succeeds, matching
+  // server/routes.js:128 ordering (archive first, then dismiss).
+  target.dismissed = 1;
+  target.updated_at = new Date().toISOString();
+  await writeArray('missions', missions);
+
+  return { success: true };
 }
 
 // ─── Stats / update ─────────────────────────────────────────────────────────
 
-export function getStats(): Promise<Stats> {
-  return getJson<Stats>('/stats');
+export async function getStats(): Promise<Stats> {
+  const missions = await readArray<Mission>('missions');
+  const active = missions.filter((m) => m.dismissed === 0);
+  const totalUrls = active.reduce((sum, m) => sum + (m.urls?.length || 0), 0);
+  const abandonedMissions = active.filter((m) => m.status === 'abandoned').length;
+  const meta = await readMeta();
+
+  return {
+    totalMissions: active.length,
+    totalUrls,
+    abandonedMissions,
+    lastAnalysis: meta.last_analysis,
+  };
 }
 
 export function getUpdateStatus(): Promise<UpdateStatus> {
-  return getJson<UpdateStatus>('/update-status');
+  // Stub for phase 4. The old server/updater.js polled GitHub every 48h; phase 4
+  // decides whether to delete the feature, move it to background.js, or run it
+  // from the dashboard on load. Until then, never show the update banner.
+  return Promise.resolve({ updateAvailable: false });
 }
 
 // ─── Deferred-tabs endpoints ────────────────────────────────────────────────
 
-export function saveDefer(tabs: DeferInput[]): Promise<SaveDeferResult> {
-  return postJson<SaveDeferResult>('/defer', { tabs });
+const AGE_OUT_MS = 30 * 24 * 60 * 60 * 1000;
+
+export async function saveDefer(
+  inputs: DeferInput[],
+): Promise<SaveDeferResult> {
+  if (!Array.isArray(inputs) || inputs.length === 0) {
+    throw new Error('tabs array is required');
+  }
+
+  const all = await readArray<DeferredTab>('deferredTabs');
+  const created: DeferredCreated[] = [];
+  const now = new Date().toISOString();
+
+  for (const tab of inputs) {
+    if (!tab.url || !tab.title) continue;
+    const id = newId();
+    const row: DeferredTab = {
+      id,
+      url: tab.url,
+      title: tab.title,
+      favicon_url: tab.favicon_url ?? null,
+      source_mission: tab.source_mission ?? null,
+      deferred_at: now,
+      checked: 0,
+      checked_at: null,
+      dismissed: 0,
+      archived: 0,
+      archived_at: null,
+    };
+    all.push(row);
+    created.push({
+      id,
+      url: row.url,
+      title: row.title,
+      favicon_url: row.favicon_url,
+      source_mission: row.source_mission,
+      deferred_at: row.deferred_at,
+    });
+  }
+
+  await writeArray('deferredTabs', all);
+  return { success: true, deferred: created };
 }
 
-export function getDeferred(): Promise<DeferredListResult> {
-  return getJson<DeferredListResult>('/deferred');
+export async function getDeferred(): Promise<DeferredListResult> {
+  const all = await readArray<DeferredTab>('deferredTabs');
+  const cutoff = Date.now() - AGE_OUT_MS;
+  const archivedAt = new Date().toISOString();
+  let changed = false;
+
+  for (const t of all) {
+    if (
+      t.archived === 0 &&
+      t.checked === 0 &&
+      t.dismissed === 0 &&
+      new Date(t.deferred_at).getTime() < cutoff
+    ) {
+      t.archived = 1;
+      t.archived_at = archivedAt;
+      changed = true;
+    }
+  }
+
+  if (changed) await writeArray('deferredTabs', all);
+
+  // Server ordered active by deferred_at DESC and archived by archived_at DESC.
+  const active = all
+    .filter((t) => t.archived === 0)
+    .sort((a, b) => b.deferred_at.localeCompare(a.deferred_at));
+  const archived = all
+    .filter((t) => t.archived === 1)
+    .sort((a, b) => (b.archived_at || '').localeCompare(a.archived_at || ''));
+
+  return { active, archived };
 }
 
-export function searchDeferred(q: string): Promise<SearchDeferredResult> {
-  return getJson<SearchDeferredResult>(
-    `/deferred/search?q=${encodeURIComponent(q)}`,
-  );
+export async function searchDeferred(q: string): Promise<SearchDeferredResult> {
+  if (!q || q.length < 2) return { results: [] };
+
+  const needle = q.toLowerCase();
+  const all = await readArray<DeferredTab>('deferredTabs');
+  const results = all
+    .filter((t) => t.archived === 1)
+    .filter(
+      (t) =>
+        t.title.toLowerCase().includes(needle) ||
+        t.url.toLowerCase().includes(needle),
+    )
+    .sort((a, b) => (b.archived_at || '').localeCompare(a.archived_at || ''))
+    .slice(0, 50);
+
+  return { results };
 }
 
-export function checkDeferred(id: number | string): Promise<{ success: true }> {
-  return patchJson<{ success: true }>(
-    `/deferred/${encodeURIComponent(String(id))}`,
-    { checked: true },
-  );
-}
-
-export function dismissDeferred(
+export async function checkDeferred(
   id: number | string,
 ): Promise<{ success: true }> {
-  return patchJson<{ success: true }>(
-    `/deferred/${encodeURIComponent(String(id))}`,
-    { dismissed: true },
-  );
+  const target = String(id);
+  const all = await readArray<DeferredTab>('deferredTabs');
+  const now = new Date().toISOString();
+  let found = false;
+  for (const t of all) {
+    if (String(t.id) === target) {
+      t.checked = 1;
+      t.checked_at = now;
+      t.archived = 1;
+      t.archived_at = now;
+      found = true;
+    }
+  }
+  if (!found) throw new Error(`deferred ${id} not found`);
+  await writeArray('deferredTabs', all);
+  return { success: true };
+}
+
+export async function dismissDeferred(
+  id: number | string,
+): Promise<{ success: true }> {
+  const target = String(id);
+  const all = await readArray<DeferredTab>('deferredTabs');
+  const now = new Date().toISOString();
+  let found = false;
+  for (const t of all) {
+    if (String(t.id) === target) {
+      t.dismissed = 1;
+      t.archived = 1;
+      t.archived_at = now;
+      found = true;
+    }
+  }
+  if (!found) throw new Error(`deferred ${id} not found`);
+  await writeArray('deferredTabs', all);
+  return { success: true };
 }

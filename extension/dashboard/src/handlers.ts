@@ -17,11 +17,13 @@ import {
   getOpenTabs,
 } from './state.js';
 import {
+  closeDuplicates,
+  closeTabOutDupes,
   closeTabsByUrls,
   fetchMissionById,
   fetchOpenTabs,
+  focusTab,
   focusTabsByUrls,
-  sendToExtension,
 } from './extension-bridge.js';
 import {
   archiveMission as apiArchiveMission,
@@ -55,8 +57,7 @@ function animateCardOut(card: HTMLElement | null | undefined): void {
 // ──────────────────────────────────────────────────────────────────────────
 
 async function handleCloseTabOutDupes(): Promise<void> {
-  await sendToExtension('closeTabOutDupes');
-  await fetchOpenTabs();
+  await closeTabOutDupes();
   playCloseSound();
   const banner = document.getElementById('tabOutDupeBanner');
   if (banner) {
@@ -79,7 +80,7 @@ function handleExpandChips(actionEl: HTMLElement): void {
 async function handleFocusTab(actionEl: HTMLElement): Promise<void> {
   const tabUrl = actionEl.dataset.tabUrl;
   if (tabUrl) {
-    await sendToExtension('focusTab', { url: tabUrl });
+    await focusTab(tabUrl);
   }
 }
 
@@ -88,9 +89,8 @@ async function handleCloseSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
   const tabUrl = actionEl.dataset.tabUrl;
   if (!tabUrl) return;
 
-  await sendToExtension('closeTabs', { urls: [tabUrl] });
+  await closeTabsByUrls([tabUrl]);
   playCloseSound();
-  await fetchOpenTabs();
 
   const chip = actionEl.closest<HTMLElement>('.page-chip');
   if (chip) {
@@ -132,8 +132,7 @@ async function handleDeferSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
     return;
   }
 
-  await sendToExtension('closeTabs', { urls: [tabUrl] });
-  await fetchOpenTabs();
+  await closeTabsByUrls([tabUrl]);
 
   const chip = actionEl.closest<HTMLElement>('.page-chip');
   if (chip) {
@@ -197,8 +196,7 @@ async function handleCloseDomainTabs(actionEl: HTMLElement, card: HTMLElement | 
 
   const urls = group.tabs.map(t => t.url || '').filter(Boolean);
   const useExact = group.domain === '__landing-pages__';
-  await sendToExtension('closeTabs', { urls, exact: useExact });
-  await fetchOpenTabs();
+  await closeTabsByUrls(urls, useExact);
 
   if (card) {
     playCloseSound();
@@ -216,9 +214,8 @@ async function handleDedupKeepOne(actionEl: HTMLElement, card: HTMLElement | nul
   const urls = urlsEncoded.split(',').map(u => decodeURIComponent(u)).filter(Boolean);
   if (urls.length === 0) return;
 
-  await sendToExtension('closeDuplicates', { urls, keepOne: true });
+  await closeDuplicates(urls);
   playCloseSound();
-  await fetchOpenTabs();
 
   actionEl.style.transition = 'opacity 0.2s';
   actionEl.style.opacity = '0';
