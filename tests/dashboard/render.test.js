@@ -259,6 +259,7 @@ describe('groupTabsByDomain', () => {
     expect(bucket(groups, 'youtube.com').tabs.length).toBe(3);
     expect(bucket(groups, 'youtu.be')).toBeUndefined();
     expect(bucket(groups, 'm.youtube.com')).toBeUndefined();
+    expect(bucket(groups, '__landing-pages__')).toBeUndefined();
   });
 
   it('collapses twitter.com + www.x.com into x.com', () => {
@@ -269,6 +270,7 @@ describe('groupTabsByDomain', () => {
     ]);
     expect(bucket(groups, 'x.com').tabs.length).toBe(3);
     expect(bucket(groups, 'twitter.com')).toBeUndefined();
+    expect(bucket(groups, '__landing-pages__')).toBeUndefined();
   });
 
   it('twitter.com/home lands in Homepages just like x.com/home', () => {
@@ -289,6 +291,7 @@ describe('groupTabsByDomain', () => {
     ]);
     expect(bucket(groups, 'taobao.com').tabs.length).toBe(4);
     expect(bucket(groups, 'tmall.com')).toBeUndefined();
+    expect(bucket(groups, '__landing-pages__')).toBeUndefined();
   });
 
   it('collapses jd.hk + 360buy.com into jd.com', () => {
@@ -300,6 +303,7 @@ describe('groupTabsByDomain', () => {
     expect(bucket(groups, 'jd.com').tabs.length).toBe(3);
     expect(bucket(groups, 'jd.hk')).toBeUndefined();
     expect(bucket(groups, '360buy.com')).toBeUndefined();
+    expect(bucket(groups, '__landing-pages__')).toBeUndefined();
   });
 
   it('collapses regional amazon.* storefronts into amazon.com', () => {
@@ -307,11 +311,16 @@ describe('groupTabsByDomain', () => {
       { url: 'https://amazon.co.jp/dp/abc' },
       { url: 'https://amazon.de/dp/def' },
       { url: 'https://amazon.co.uk/dp/ghi' },
+      { url: 'https://amazon.fr/dp/mno' },
+      { url: 'https://amazon.cn/dp/pqr' },
       { url: 'https://www.amazon.com/dp/jkl' },
     ]);
-    expect(bucket(groups, 'amazon.com').tabs.length).toBe(4);
+    expect(bucket(groups, 'amazon.com').tabs.length).toBe(6);
     expect(bucket(groups, 'amazon.co.jp')).toBeUndefined();
     expect(bucket(groups, 'amazon.de')).toBeUndefined();
+    expect(bucket(groups, 'amazon.fr')).toBeUndefined();
+    expect(bucket(groups, 'amazon.cn')).toBeUndefined();
+    expect(bucket(groups, '__landing-pages__')).toBeUndefined();
   });
 
   it('collapses fb.com + fb.me + m.facebook.com into facebook.com', () => {
@@ -324,6 +333,7 @@ describe('groupTabsByDomain', () => {
     expect(bucket(groups, 'facebook.com').tabs.length).toBe(4);
     expect(bucket(groups, 'fb.com')).toBeUndefined();
     expect(bucket(groups, 'fb.me')).toBeUndefined();
+    expect(bucket(groups, '__landing-pages__')).toBeUndefined();
   });
 
   it('does NOT collapse unrelated lookalikes (costco stays out of amazon; qianniu stays out of taobao)', () => {
@@ -361,6 +371,7 @@ describe('groupTabsByDomain', () => {
     expect(bucket(groups, 'www.bilibili.com')).toBeUndefined();
     expect(bucket(groups, 'b23.tv')).toBeUndefined();
     expect(bucket(groups, 'm.bilibili.com')).toBeUndefined();
+    expect(bucket(groups, '__landing-pages__')).toBeUndefined();
   });
 
   it('does NOT fold fakebilibili.com into bilibili (prefix-only match is forbidden)', () => {
