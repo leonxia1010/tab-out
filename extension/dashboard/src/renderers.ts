@@ -17,7 +17,7 @@ import {
   friendlyDomain,
   getDateDisplay,
   getGreeting,
-  getRealTabs,
+  getDisplayableTabs,
   smartTitle,
   stripTitleNoise,
   timeAgo,
@@ -66,19 +66,26 @@ function isLandingPage(url: string): boolean {
   } catch { return false; }
 }
 
-// Hostnames whose subdomains should be collapsed to one card. Bilibili splits
-// search.bilibili.com / b23.tv / www.bilibili.com but users see one site.
-// Don't add google.com — Gmail / Docs / Drive are intentionally separate
-// cards via FRIENDLY_DOMAINS subdomain entries.
-const MERGE_SUBDOMAINS_FOR = new Set([
-  'bilibili.com',
-]);
+// Explicit hostname → card-key aliases. Replaces the old endsWith('.' + root)
+// logic for two reasons: (1) cross-TLD short links like b23.tv aren't
+// subdomains of bilibili.com, so endsWith never matched them; (2) endsWith
+// without a dot prefix risks fakebilibili.com getting folded into bilibili.
+// Laying out each hostname by hand is the Linus-esque "dumb but clear" fix —
+// new subdomains get one line each, no clever matching required.
+// Don't add google.com aliases — Gmail / Docs / Drive stay separate cards on
+// purpose via FRIENDLY_DOMAINS.
+const DOMAIN_ALIASES: Record<string, string> = {
+  'www.bilibili.com':    'bilibili.com',
+  'search.bilibili.com': 'bilibili.com',
+  'm.bilibili.com':      'bilibili.com',
+  'live.bilibili.com':   'bilibili.com',
+  't.bilibili.com':      'bilibili.com',
+  'space.bilibili.com':  'bilibili.com',
+  'b23.tv':              'bilibili.com',
+};
 
 function effectiveDomain(hostname: string): string {
-  for (const root of MERGE_SUBDOMAINS_FOR) {
-    if (hostname === root || hostname.endsWith('.' + root)) return root;
-  }
-  return hostname;
+  return DOMAIN_ALIASES[hostname] ?? hostname;
 }
 
 export function checkAndShowEmptyState(): void {
@@ -479,7 +486,7 @@ export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount
 // N tabs" badge and the footer "Open tabs" stat reflect reality without
 // re-mounting the missions grid (which would yank cards mid-animation).
 export function refreshOpenTabsCounters(): void {
-  const realTabs = getRealTabs(getOpenTabs());
+  const realTabs = getDisplayableTabs(getOpenTabs());
   const sortedGroups = groupTabsByDomain(realTabs);
   setDomainGroups(sortedGroups);
   renderOpenTabsHeader(sortedGroups, realTabs.length);
@@ -494,7 +501,7 @@ export async function renderStaticDashboard(): Promise<void> {
   if (dateEl)     dateEl.textContent     = getDateDisplay();
 
   await fetchOpenTabs();
-  const realTabs = getRealTabs(getOpenTabs());
+  const realTabs = getDisplayableTabs(getOpenTabs());
   const sortedGroups = groupTabsByDomain(realTabs);
   setDomainGroups(sortedGroups);
   renderOpenTabsSection(sortedGroups, realTabs.length);

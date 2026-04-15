@@ -258,15 +258,28 @@ describe('groupTabsByDomain', () => {
     expect(bucket(groups, 'github.com').tabs.length).toBe(1);
   });
 
-  it('collapses bilibili subdomains into one card', () => {
+  it('collapses bilibili subdomains + b23.tv short link into one card', () => {
     const groups = groupTabsByDomain([
       { url: 'https://www.bilibili.com/video/BV1' },
       { url: 'https://search.bilibili.com/all?keyword=test' },
       { url: 'https://bilibili.com/' },
+      { url: 'https://b23.tv/abc123' },
+      { url: 'https://m.bilibili.com/video/BV2' },
     ]);
-    expect(bucket(groups, 'bilibili.com').tabs.length).toBe(3);
+    expect(bucket(groups, 'bilibili.com').tabs.length).toBe(5);
     expect(bucket(groups, 'search.bilibili.com')).toBeUndefined();
     expect(bucket(groups, 'www.bilibili.com')).toBeUndefined();
+    expect(bucket(groups, 'b23.tv')).toBeUndefined();
+    expect(bucket(groups, 'm.bilibili.com')).toBeUndefined();
+  });
+
+  it('does NOT fold fakebilibili.com into bilibili (prefix-only match is forbidden)', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://fakebilibili.com/phish' },
+      { url: 'https://www.bilibili.com/video/BV1' },
+    ]);
+    expect(bucket(groups, 'fakebilibili.com').tabs.length).toBe(1);
+    expect(bucket(groups, 'bilibili.com').tabs.length).toBe(1);
   });
 
   it('does NOT collapse google subdomains (Docs / Drive stay separate)', () => {
