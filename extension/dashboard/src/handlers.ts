@@ -21,6 +21,8 @@ import {
 } from './extension-bridge.js';
 import {
   checkDeferred as apiCheckDeferred,
+  clearAllArchived,
+  deleteArchived,
   dismissDeferred as apiDismissDeferred,
   getDeferred,
   saveDefer,
@@ -179,6 +181,28 @@ async function handleDismissDeferred(actionEl: HTMLElement): Promise<void> {
   }
 }
 
+async function handleDeleteArchived(actionEl: HTMLElement): Promise<void> {
+  const id = actionEl.dataset.deferredId;
+  if (!id) return;
+  try {
+    await deleteArchived(id);
+  } catch (err) {
+    console.error('[tab-out] Failed to delete archived tab:', err);
+    return;
+  }
+  const row = actionEl.closest<HTMLElement>('.archive-item');
+  if (row) {
+    row.classList.add('removing');
+    setTimeout(() => {
+      row.remove();
+      void renderDeferredColumn();
+    }, 200);
+  } else {
+    void renderDeferredColumn();
+  }
+  showToast('Deleted from archive');
+}
+
 async function handleCloseDomainTabs(actionEl: HTMLElement, card: HTMLElement | null): Promise<void> {
   const domainId = actionEl.dataset.domainId;
   const groups = getDomainGroups();
@@ -283,18 +307,35 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'close-domain-tabs':  return handleCloseDomainTabs(actionEl, card);
     case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card);
     case 'close-all-open-tabs':return handleCloseAllOpenTabs();
+    case 'delete-archived':    return handleDeleteArchived(actionEl);
     default:                   return;
+  }
+}
+
+async function dispatchArchiveClearAll(e: MouseEvent): Promise<void> {
+  const btn = (e.target as HTMLElement | null)?.closest('#archiveClearAll');
+  if (!btn) return;
+  // Browser confirm is fine here: this is a dashboard page (not a service
+  // worker) and the action is genuinely destructive + user-initiated.
+  if (!window.confirm('Clear every archived tab? This cannot be undone.')) return;
+  try {
+    const { deleted } = await clearAllArchived();
+    await renderDeferredColumn();
+    showToast(`Cleared ${deleted} archived tab${deleted === 1 ? '' : 's'}`);
+  } catch (err) {
+    console.error('[tab-out] Clear all archived failed:', err);
   }
 }
 
 function dispatchArchiveToggle(e: MouseEvent): void {
   const toggle = (e.target as HTMLElement | null)?.closest('#archiveToggle');
   if (!toggle) return;
-  toggle.classList.toggle('open');
+  // Ignore clicks that bubbled from the Clear all button (it sits in the
+  // same header row but is not a toggle).
+  if ((e.target as HTMLElement | null)?.closest('#archiveClearAll')) return;
+  const open = toggle.classList.toggle('open');
   const body = document.getElementById('archiveBody');
-  if (body) {
-    body.style.display = body.style.display === 'none' ? 'block' : 'none';
-  }
+  if (body) body.classList.toggle('open', open);
 }
 
 async function dispatchArchiveSearch(e: Event): Promise<void> {
@@ -338,6 +379,7 @@ export function attachListeners(): void {
   if (attached) return;
   attached = true;
   document.addEventListener('click', dispatchClick);
+  document.addEventListener('click', dispatchArchiveClearAll);
   document.addEventListener('click', dispatchArchiveToggle);
   document.addEventListener('input', dispatchArchiveSearch);
 }

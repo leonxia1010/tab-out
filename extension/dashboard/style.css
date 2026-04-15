@@ -1004,6 +1004,12 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   border-top: 1px solid var(--warm-gray);
 }
 
+.archive-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .archive-toggle {
   font-family: 'DM Sans', sans-serif;
   font-size: 12px;
@@ -1016,7 +1022,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   align-items: center;
   gap: 6px;
   padding: 4px 0;
-  width: 100%;
+  flex: 1;
   text-align: left;
   transition: color 0.15s;
 }
@@ -1041,7 +1047,43 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   opacity: 0.7;
 }
 
+/* Inline Clear all button — sits in the header next to the toggle. Only
+ * shown when renderDeferredColumn detects archived.length > 0. */
+.archive-clear-all {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--warm-gray);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.archive-clear-all:hover {
+  color: var(--accent-rose, #b35a5a);
+  border-color: var(--accent-rose, #b35a5a);
+}
+
+/* Smooth fold/expand using grid-template-rows 0fr → 1fr trick. Chrome 117+
+ * interpolates between fr values; we keep a plain max-height fallback via
+ * overflow hidden so older engines still collapse cleanly. */
 .archive-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  transition: grid-template-rows 0.25s ease;
+}
+
+.archive-body.open {
+  grid-template-rows: 1fr;
+}
+
+.archive-body-inner {
+  min-height: 0; /* Required for the 0fr → 1fr transition to collapse the row. */
   padding-top: 12px;
 }
 
@@ -1101,4 +1143,50 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   color: var(--muted);
   opacity: 0.6;
   flex-shrink: 0;
+}
+
+/* Per-row × delete button. Fades in on row hover so the archive list still
+ * reads like a dense index when untouched. */
+.archive-item-delete {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 6px;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.archive-item:hover .archive-item-delete,
+.archive-item-delete:focus {
+  opacity: 0.5;
+}
+
+.archive-item-delete:hover,
+.archive-item-delete:focus {
+  opacity: 1;
+  color: var(--accent-rose, #b35a5a);
+  outline: none;
+}
+
+.archive-item.removing {
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Respect the user's reduced-motion preference — zero out transitions +
+ * keyframe animations everywhere so the dashboard behaves predictably for
+ * anyone who's set OS-level "Reduce motion". */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

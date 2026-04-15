@@ -383,9 +383,20 @@ export function renderArchiveItem(item: DeferredTab): HTMLElement {
     textContent: titleText,
   });
 
-  return el('div', { className: 'archive-item' }, [
+  const deleteBtn = el('button', {
+    className: 'archive-item-delete',
+    'aria-label': 'Delete from archive',
+    title: 'Delete',
+    dataset: { action: 'delete-archived', deferredId: item.id },
+  }, ['\u00d7']);
+
+  return el('div', {
+    className: 'archive-item',
+    dataset: { deferredId: item.id },
+  }, [
     link,
     el('span', { className: 'archive-item-date', textContent: ago }),
+    deleteBtn,
   ]);
 }
 
@@ -397,6 +408,7 @@ export async function renderDeferredColumn(): Promise<void> {
   const archiveEl = document.getElementById('deferredArchive');
   const archiveCountEl = document.getElementById('archiveCount');
   const archiveList    = document.getElementById('archiveList');
+  const archiveClearEl = document.getElementById('archiveClearAll');
 
   if (!column) return;
 
@@ -428,8 +440,10 @@ export async function renderDeferredColumn(): Promise<void> {
       archiveCountEl.textContent = `(${archived.length})`;
       mount(archiveList, archived.map(renderArchiveItem));
       archiveEl.style.display = 'block';
+      if (archiveClearEl) archiveClearEl.style.display = '';
     } else if (archiveEl) {
       archiveEl.style.display = 'none';
+      if (archiveClearEl) archiveClearEl.style.display = 'none';
     }
   } catch (err) {
     console.warn('[tab-out] Could not load deferred tabs:', err);

@@ -15,6 +15,8 @@ import {
   searchDeferred,
   checkDeferred,
   dismissDeferred,
+  deleteArchived,
+  clearAllArchived,
 } from '../../extension/dashboard/src/api.ts';
 
 // ─── chrome.storage.local mock ──────────────────────────────────────────────
@@ -323,6 +325,164 @@ describe('dismissDeferred', () => {
   it('throws when the id does not exist', async () => {
     installChromeStorage({ deferredTabs: [] });
     await expect(dismissDeferred(1)).rejects.toThrow(/not found/);
+  });
+});
+
+// ─── deleteArchived / clearAllArchived ──────────────────────────────────────
+//
+// Bug 3 fix: the archive used to be append-only once a row hit archived=1.
+// With chrome.storage.local capped at 10MB and every row read pulling the
+// whole array, unbounded growth was a long-term risk. These two functions
+// are the user-facing purge paths; getDeferred's auto-prune below is the
+// background safety net.
+
+describe('deleteArchived', () => {
+  it('removes exactly the matching archived row', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 1, checked_at: '2026-04-02', dismissed: 0, archived: 1, archived_at: '2026-04-02' },
+        { id: 2, url: 'b', title: 'B', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 0, checked_at: null, dismissed: 1, archived: 1, archived_at: '2026-04-03' },
+      ],
+    });
+    await deleteArchived(1);
+    const rows = store.get('deferredTabs');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(2);
+  });
+
+  it('accepts numeric and string ids interchangeably', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 42, url: 'u', title: 'u', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 1, checked_at: '2026-04-02', dismissed: 0, archived: 1, archived_at: '2026-04-02' },
+      ],
+    });
+    await deleteArchived('42');
+    expect(store.get('deferredTabs')).toHaveLength(0);
+  });
+
+  it('throws when the id does not exist', async () => {
+    installChromeStorage({ deferredTabs: [] });
+    await expect(deleteArchived(999)).rejects.toThrow(/not found/);
+  });
+
+  it('refuses to delete an active (non-archived) row — callers must dismiss first', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 7, url: 'u', title: 'u', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+    await expect(deleteArchived(7)).rejects.toThrow(/not found/);
+    // The row is still there — active rows are not silently repurposed.
+    expect(store.get('deferredTabs')).toHaveLength(1);
+  });
+});
+
+describe('clearAllArchived', () => {
+  it('drops every archived row and keeps every active row', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+        { id: 2, url: 'b', title: 'B', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 1, checked_at: '2026-04-02', dismissed: 0, archived: 1, archived_at: '2026-04-02' },
+        { id: 3, url: 'c', title: 'C', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 0, checked_at: null, dismissed: 1, archived: 1, archived_at: '2026-04-03' },
+      ],
+    });
+    const { deleted } = await clearAllArchived();
+    expect(deleted).toBe(2);
+    const rows = store.get('deferredTabs');
+    expect(rows.map((r) => r.id)).toEqual([1]);
+  });
+
+  it('returns deleted:0 and does not write storage when the archive is already empty', async () => {
+    const { local } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+    const result = await clearAllArchived();
+    expect(result).toEqual({ success: true, deleted: 0 });
+    expect(local.set).not.toHaveBeenCalled();
+  });
+});
+
+// ─── getDeferred auto-prune (Bug 3 background safety net) ──────────────────
+//
+// Two thresholds stacked on top of the existing 30-day active age-out:
+//   • archived rows older than ARCHIVE_MAX_AGE_MS (90 days) → dropped
+//   • remaining archived count > ARCHIVE_MAX_COUNT (500) → drop oldest until cap
+
+describe('getDeferred auto-prune', () => {
+  it('drops archived rows older than 90 days', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-01T00:00:00Z'));
+
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        // 95 days old — should drop
+        { id: 1, url: 'old', title: 'old', favicon_url: null, source_mission: null, deferred_at: '2026-04-20', checked: 1, checked_at: '2026-04-28', dismissed: 0, archived: 1, archived_at: '2026-04-28T00:00:00Z' },
+        // 20 days old — keeps
+        { id: 2, url: 'fresh', title: 'fresh', favicon_url: null, source_mission: null, deferred_at: '2026-07-10', checked: 1, checked_at: '2026-07-12', dismissed: 0, archived: 1, archived_at: '2026-07-12T00:00:00Z' },
+      ],
+    });
+
+    const { archived } = await getDeferred();
+    expect(archived.map((t) => t.id)).toEqual([2]);
+    // Persisted — id 1 is gone from storage too
+    expect(store.get('deferredTabs').map((t) => t.id)).toEqual([2]);
+  });
+
+  it('trims archived count down to ARCHIVE_MAX_COUNT (500) when exceeded, keeping the freshest', async () => {
+    // 502 archived rows with sequential archived_at; freshest 500 must survive.
+    const rows = Array.from({ length: 502 }, (_, i) => ({
+      id: i + 1,
+      url: `https://t${i}.test`,
+      title: `T${i}`,
+      favicon_url: null,
+      source_mission: null,
+      deferred_at: '2026-07-01',
+      checked: 1,
+      checked_at: '2026-07-02',
+      dismissed: 0,
+      archived: 1,
+      // i=0 oldest; i=501 newest. Use padded number so string compare works.
+      archived_at: `2026-07-02T${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00Z`,
+    }));
+    const { store } = installChromeStorage({ deferredTabs: rows });
+
+    const { archived } = await getDeferred();
+    expect(archived).toHaveLength(500);
+    // The two oldest (i=0, i=1) are the ones gone
+    const survivingIds = new Set(store.get('deferredTabs').map((r) => r.id));
+    expect(survivingIds.has(1)).toBe(false);
+    expect(survivingIds.has(2)).toBe(false);
+    expect(survivingIds.has(3)).toBe(true);
+    expect(survivingIds.has(502)).toBe(true);
+  });
+
+  it('does not write storage when the archive is within both thresholds', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-15T00:00:00Z'));
+
+    const { local } = installChromeStorage({
+      deferredTabs: [
+        // 10 archived rows, all fresh (< 90d), under the 500 cap — no prune expected
+        ...Array.from({ length: 10 }, (_, i) => ({
+          id: i + 1,
+          url: `u${i}`,
+          title: `u${i}`,
+          favicon_url: null,
+          source_mission: null,
+          deferred_at: '2026-04-01',
+          checked: 1,
+          checked_at: '2026-04-02',
+          dismissed: 0,
+          archived: 1,
+          archived_at: `2026-04-02T0${i}:00:00Z`,
+        })),
+      ],
+    });
+
+    await getDeferred();
+    expect(local.set).not.toHaveBeenCalled();
   });
 });
 
