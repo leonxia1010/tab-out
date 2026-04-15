@@ -53,31 +53,36 @@ async function updateBadge() {
 
 const UPDATE_ALARM = 'tabout-update-check';
 const UPDATE_STORAGE_KEY = 'tabout:updateStatus';
-const GITHUB_COMMITS_URL = 'https://api.github.com/repos/leonxia1010/tab-out/commits/main';
+// Tracks releases, not main commits — README/AGENTS/index.ts all route users
+// to the releases page, so anything else would false-positive the banner on
+// every doc push.
+const GITHUB_RELEASE_URL = 'https://api.github.com/repos/leonxia1010/tab-out/releases/latest';
 const UPDATE_CHECK_PERIOD_MIN = 60 * 48; // 48h — once-per-user rate is ~0.02 req/h, nowhere near GitHub's 60 req/h/IP anon limit.
 
 async function checkForUpdate() {
   try {
-    const res = await fetch(GITHUB_COMMITS_URL);
+    const res = await fetch(GITHUB_RELEASE_URL);
+    // 404 == repo has no release yet (pre-v2.0.0). Treat the same as a
+    // network failure: no-op, retry next alarm.
     if (!res.ok) return;
     const body = await res.json();
-    const latestSha = body && body.sha;
-    if (!latestSha) return;
+    const latestTag = body && body.tag_name;
+    if (!latestTag) return;
 
     const stored = await chrome.storage.local.get(UPDATE_STORAGE_KEY);
     const state = stored[UPDATE_STORAGE_KEY] || {};
-    // First run after install: seed currentSha = latestSha so we don't flash
+    // First run after install: seed currentTag = latestTag so we don't flash
     // an update banner on day one.
-    const currentSha = state.currentSha || latestSha;
-    const updateAvailable = currentSha !== latestSha;
+    const currentTag = state.currentTag || latestTag;
+    const updateAvailable = currentTag !== latestTag;
 
     await chrome.storage.local.set({
       [UPDATE_STORAGE_KEY]: {
         updateAvailable,
-        latestSha,
-        currentSha,
+        latestTag,
+        currentTag,
         checkedAt: new Date().toISOString(),
-        dismissedSha: state.dismissedSha || null,
+        dismissedTag: state.dismissedTag || null,
       },
     });
   } catch {

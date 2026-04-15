@@ -51,7 +51,7 @@ export interface DeferInput {
 
 export interface UpdateStatus {
   updateAvailable: boolean;
-  currentCommit?: string;
+  currentTag?: string;
   checkedAt?: string;
 }
 
@@ -108,13 +108,14 @@ function newId(): number {
 // ─── Update status ──────────────────────────────────────────────────────────
 
 // Shape written by background.js checkForUpdate(). All fields optional
-// because a fresh install may have no key yet.
+// because a fresh install may have no key yet. Tags (release tag_name)
+// rather than commit shas so non-release pushes don't trigger the banner.
 interface UpdateStatusStorage {
   updateAvailable?: boolean;
-  latestSha?: string;
-  currentSha?: string;
+  latestTag?: string;
+  currentTag?: string;
   checkedAt?: string;
-  dismissedSha?: string | null;
+  dismissedTag?: string | null;
 }
 
 export async function getUpdateStatus(): Promise<UpdateStatus> {
@@ -125,12 +126,12 @@ export async function getUpdateStatus(): Promise<UpdateStatus> {
     const result = await chrome.storage.local.get('tabout:updateStatus');
     const s = (result as Record<string, UpdateStatusStorage>)['tabout:updateStatus'];
     if (!s) return { updateAvailable: false };
-    // Banner stays dismissed until a *new* release comes out (dismissedSha
-    // tracks the last latestSha the user dismissed against).
-    const suppressedByDismiss = s.dismissedSha != null && s.dismissedSha === s.latestSha;
+    // Banner stays dismissed until a *new* release comes out (dismissedTag
+    // tracks the last latestTag the user dismissed against).
+    const suppressedByDismiss = s.dismissedTag != null && s.dismissedTag === s.latestTag;
     return {
       updateAvailable: Boolean(s.updateAvailable) && !suppressedByDismiss,
-      currentCommit: s.currentSha,
+      currentTag: s.currentTag,
       checkedAt: s.checkedAt,
     };
   } catch {
