@@ -412,18 +412,17 @@ export async function renderDeferredColumn(): Promise<void> {
 
   if (!column) return;
 
+  // Column + Archive header stay mounted even when both lists are empty so
+  // the layout doesn't collapse on a fresh install / after Clear all. Empty
+  // states fill the inner slots instead.
+  column.style.display = 'block';
+  if (archiveEl) archiveEl.style.display = 'block';
+
   try {
     const data = await getDeferred();
 
     const active   = data.active   || [];
     const archived = data.archived || [];
-
-    if (active.length === 0 && archived.length === 0) {
-      column.style.display = 'none';
-      return;
-    }
-
-    column.style.display = 'block';
 
     if (active.length > 0 && list && empty && countEl) {
       countEl.textContent = `${active.length} item${active.length !== 1 ? 's' : ''}`;
@@ -436,18 +435,28 @@ export async function renderDeferredColumn(): Promise<void> {
       empty.style.display = 'block';
     }
 
-    if (archived.length > 0 && archiveEl && archiveCountEl && archiveList) {
-      archiveCountEl.textContent = `(${archived.length})`;
-      mount(archiveList, archived.map(renderArchiveItem));
-      archiveEl.style.display = 'block';
-      if (archiveClearEl) archiveClearEl.style.display = '';
-    } else if (archiveEl) {
-      archiveEl.style.display = 'none';
-      if (archiveClearEl) archiveClearEl.style.display = 'none';
+    if (archiveCountEl && archiveList) {
+      if (archived.length > 0) {
+        archiveCountEl.textContent = `(${archived.length})`;
+        mount(archiveList, archived.map(renderArchiveItem));
+        if (archiveClearEl) archiveClearEl.style.display = '';
+      } else {
+        archiveCountEl.textContent = '';
+        // Empty state placeholder — shown inside the expandable body so the
+        // toggle still works and users see a clear "there's nothing here yet"
+        // rather than an invisible void.
+        mount(archiveList, el('div', {
+          className: 'archive-empty',
+          textContent: 'No archived tabs yet.',
+        }));
+        if (archiveClearEl) archiveClearEl.style.display = 'none';
+      }
     }
   } catch (err) {
     console.warn('[tab-out] Could not load deferred tabs:', err);
-    column.style.display = 'none';
+    // Leave the column visible; swallowing state on storage errors is what
+    // the caller already does for getUpdateStatus, and hiding the whole
+    // saved-for-later surface would lose the user's affordance to re-try.
   }
 }
 

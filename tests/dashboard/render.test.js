@@ -9,7 +9,7 @@
 // dance are gone.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import {
   renderDeferredItem,
@@ -17,6 +17,7 @@ import {
   renderDomainCard,
   groupTabsByDomain,
   renderOpenTabsSection,
+  renderDeferredColumn,
 } from '../../extension/dashboard/src/renderers.ts';
 
 function mountResult(container, out) {
@@ -476,5 +477,108 @@ describe('renderOpenTabsSection — empty state', () => {
     expect(section.style.display).toBe('block');
     expect(document.querySelector('.domain-card')).toBeNull();
     expect(document.querySelector('.domains-empty-state')).not.toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// renderDeferredColumn — always-visible column + archive
+//
+// Regression for: Saved for later + Archive sections used to disappear when
+// both lists were empty. The user wants those affordances pinned so the
+// layout stays stable across a fresh install or a Clear all sweep.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('renderDeferredColumn — always visible', () => {
+  function setupDeferredDOM() {
+    document.body.innerHTML = `
+      <div class="deferred-column" id="deferredColumn" style="display:none">
+        <h2>Saved for later</h2>
+        <div class="section-count" id="deferredCount"></div>
+        <div class="deferred-list" id="deferredList"></div>
+        <div class="deferred-empty" id="deferredEmpty" style="display:none">
+          Nothing saved. Living in the moment.
+        </div>
+        <div class="deferred-archive" id="deferredArchive" style="display:none">
+          <div class="archive-header">
+            <button class="archive-toggle" id="archiveToggle">
+              Archive
+              <span class="archive-count" id="archiveCount"></span>
+            </button>
+            <button class="archive-clear-all" id="archiveClearAll" style="display:none">Clear all</button>
+          </div>
+          <div class="archive-body" id="archiveBody">
+            <div class="archive-body-inner">
+              <input id="archiveSearch" />
+              <div class="archive-list" id="archiveList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function stubChromeStorage(deferredTabs = []) {
+    vi.stubGlobal('chrome', {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({ deferredTabs })),
+          set: vi.fn(async () => {}),
+        },
+      },
+    });
+  }
+
+  beforeEach(setupDeferredDOM);
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('keeps the column + archive header visible even with zero active and zero archived', async () => {
+    stubChromeStorage([]);
+    await renderDeferredColumn();
+
+    const column = document.getElementById('deferredColumn');
+    const archiveEl = document.getElementById('deferredArchive');
+    const emptyEl = document.getElementById('deferredEmpty');
+    const clearAll = document.getElementById('archiveClearAll');
+    const archiveList = document.getElementById('archiveList');
+
+    expect(column.style.display).toBe('block');
+    expect(archiveEl.style.display).toBe('block');
+    expect(emptyEl.style.display).toBe('block'); // "Nothing saved. Living in the moment."
+    expect(clearAll.style.display).toBe('none');
+    expect(archiveList.querySelector('.archive-empty')).not.toBeNull();
+    expect(archiveList.textContent).toMatch(/No archived tabs yet/);
+  });
+
+  it('shows archived rows + Clear all when archive is populated', async () => {
+    stubChromeStorage([
+      { id: 1, url: 'https://x.test', title: 'X', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 1, checked_at: '2026-04-11', dismissed: 0, archived: 1, archived_at: '2026-04-11T00:00:00Z' },
+    ]);
+    await renderDeferredColumn();
+
+    const clearAll = document.getElementById('archiveClearAll');
+    const archiveList = document.getElementById('archiveList');
+
+    expect(clearAll.style.display).toBe('');
+    expect(archiveList.querySelectorAll('.archive-item').length).toBe(1);
+    expect(archiveList.querySelector('.archive-empty')).toBeNull();
+  });
+
+  it('switches back to archive empty state after Clear all empties the list', async () => {
+    // First render: one archived row
+    stubChromeStorage([
+      { id: 1, url: 'https://x.test', title: 'X', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 1, checked_at: '2026-04-11', dismissed: 0, archived: 1, archived_at: '2026-04-11T00:00:00Z' },
+    ]);
+    await renderDeferredColumn();
+    expect(document.querySelectorAll('.archive-item').length).toBe(1);
+
+    // Clear all → next render: empty storage
+    vi.unstubAllGlobals();
+    stubChromeStorage([]);
+    await renderDeferredColumn();
+
+    const archiveList = document.getElementById('archiveList');
+    const clearAll = document.getElementById('archiveClearAll');
+    expect(archiveList.querySelectorAll('.archive-item').length).toBe(0);
+    expect(archiveList.querySelector('.archive-empty')).not.toBeNull();
+    expect(clearAll.style.display).toBe('none');
   });
 });
