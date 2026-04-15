@@ -15,6 +15,7 @@ import {
   renderDeferredItem,
   renderArchiveItem,
   renderDomainCard,
+  groupTabsByDomain,
 } from '../../extension/dashboard/src/renderers.ts';
 
 function mountResult(container, out) {
@@ -228,5 +229,70 @@ describe('href scheme sanitization', () => {
 
     const link = container.querySelector('.deferred-title');
     expect(link.getAttribute('href')).toBe('https://example.com/path?q=1#hash');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// groupTabsByDomain — bucket assignment for special schemes + subdomain merge
+// ─────────────────────────────────────────────────────────────────────────────
+describe('groupTabsByDomain', () => {
+  function bucket(groups, domain) {
+    return groups.find((g) => g.domain === domain);
+  }
+
+  it('youtube root no longer becomes a Homepages tab', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://www.youtube.com/' },
+      { url: 'https://www.youtube.com/watch?v=abc' },
+    ]);
+    expect(bucket(groups, '__landing-pages__')).toBeUndefined();
+    expect(bucket(groups, 'www.youtube.com').tabs.length).toBe(2);
+  });
+
+  it('still treats github root as a Homepages tab', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://github.com/' },
+      { url: 'https://github.com/owner/repo' },
+    ]);
+    expect(bucket(groups, '__landing-pages__').tabs.length).toBe(1);
+    expect(bucket(groups, 'github.com').tabs.length).toBe(1);
+  });
+
+  it('collapses bilibili subdomains into one card', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://www.bilibili.com/video/BV1' },
+      { url: 'https://search.bilibili.com/all?keyword=test' },
+      { url: 'https://bilibili.com/' },
+    ]);
+    expect(bucket(groups, 'bilibili.com').tabs.length).toBe(3);
+    expect(bucket(groups, 'search.bilibili.com')).toBeUndefined();
+    expect(bucket(groups, 'www.bilibili.com')).toBeUndefined();
+  });
+
+  it('does NOT collapse google subdomains (Docs / Drive stay separate)', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://docs.google.com/document/d/1' },
+      { url: 'https://drive.google.com/drive/folders/abc' },
+    ]);
+    expect(bucket(groups, 'docs.google.com').tabs.length).toBe(1);
+    expect(bucket(groups, 'drive.google.com').tabs.length).toBe(1);
+    expect(bucket(groups, 'google.com')).toBeUndefined();
+  });
+
+  it('groups all chrome:// pages into __chrome-internal__', () => {
+    const groups = groupTabsByDomain([
+      { url: 'chrome://settings/' },
+      { url: 'chrome://extensions/' },
+      { url: 'chrome://history/' },
+    ]);
+    expect(bucket(groups, '__chrome-internal__').tabs.length).toBe(3);
+  });
+
+  it('groups all chrome-extension:// pages into __extensions__', () => {
+    const groups = groupTabsByDomain([
+      { url: 'chrome-extension://abc/popup.html' },
+      { url: 'chrome-extension://def/options.html' },
+    ]);
+    expect(bucket(groups, '__extensions__').tabs.length).toBe(2);
   });
 });

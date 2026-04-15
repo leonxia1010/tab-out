@@ -84,6 +84,8 @@ const FRIENDLY_DOMAINS: Record<string, string> = {
   'xiaohongshu.com':      'RedNote',
   'www.xiaohongshu.com':  'RedNote',
   'local-files':          'Local Files',
+  '__chrome-internal__':  'Chrome System',
+  '__extensions__':       'Extensions',
 };
 
 export function timeAgo(dateStr: string | null | undefined): string {
@@ -273,8 +275,6 @@ export function getRealTabs(tabs: Tab[]): Tab[] {
   return tabs.filter((t) => {
     const url = t.url || '';
     return (
-      !url.startsWith('chrome://') &&
-      !url.startsWith('chrome-extension://') &&
       !url.startsWith('about:') &&
       !url.startsWith('edge://') &&
       !url.startsWith('brave://')

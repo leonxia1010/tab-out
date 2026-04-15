@@ -51,7 +51,6 @@ const LANDING_PAGE_PATTERNS: LandingPagePattern[] = [
   { hostname: 'x.com',            pathExact: ['/home'] },
   { hostname: 'www.linkedin.com', pathExact: ['/'] },
   { hostname: 'github.com',       pathExact: ['/'] },
-  { hostname: 'www.youtube.com',  pathExact: ['/'] },
 ];
 
 function isLandingPage(url: string): boolean {
@@ -65,6 +64,21 @@ function isLandingPage(url: string): boolean {
       return parsed.pathname === '/';
     });
   } catch { return false; }
+}
+
+// Hostnames whose subdomains should be collapsed to one card. Bilibili splits
+// search.bilibili.com / b23.tv / www.bilibili.com but users see one site.
+// Don't add google.com — Gmail / Docs / Drive are intentionally separate
+// cards via FRIENDLY_DOMAINS subdomain entries.
+const MERGE_SUBDOMAINS_FOR = new Set([
+  'bilibili.com',
+]);
+
+function effectiveDomain(hostname: string): string {
+  for (const root of MERGE_SUBDOMAINS_FOR) {
+    if (hostname === root || hostname.endsWith('.' + root)) return root;
+  }
+  return hostname;
 }
 
 export function checkAndShowEmptyState(): void {
@@ -383,11 +397,16 @@ export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
         landingTabs.push(tab);
         continue;
       }
+      const url = tab.url || '';
       let hostname: string;
-      if (tab.url && tab.url.startsWith('file://')) {
+      if (url.startsWith('file://')) {
         hostname = 'local-files';
+      } else if (url.startsWith('chrome://')) {
+        hostname = '__chrome-internal__';
+      } else if (url.startsWith('chrome-extension://')) {
+        hostname = '__extensions__';
       } else {
-        hostname = new URL(tab.url || '').hostname;
+        hostname = effectiveDomain(new URL(url).hostname);
       }
       if (!hostname) continue;
       if (!groupMap[hostname]) {
