@@ -8,25 +8,16 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "prestart": "npm run build",
-    "start": "node server/index.js",
-    "preinstall-service": "npm run build",
-    "install-service": "node scripts/install.js"
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "type": "commonjs",
-  "dependencies": {
-    "better-sqlite3": "12.8.0",
-    "express": "5.2.1"
-  },
   "devDependencies": {
     "@types/chrome": "^0.1.40",
     "@vitest/coverage-v8": "^2.1.9",
     "jsdom": "^25.0.1",
-    "supertest": "^7.2.2",
     "typescript": "5.4",
     "vitest": "^2.1.9"
   }
