@@ -408,6 +408,20 @@ export function renderArchiveItem(item: DeferredTab): HTMLElement {
   ]);
 }
 
+// Force-restart a CSS animation on an element that's already in the DOM.
+// Needed because `.deferred-empty` / `.deferred-archive` are static HTML
+// nodes whose `display:none → block` switch does NOT re-trigger their
+// CSS animation in Chrome. Clearing inline `animation`, forcing a reflow,
+// then re-clearing it lets the stylesheet rule kick back in from frame 0.
+// (`.deferred-item` doesn't need this because mount() replaces those
+// nodes — a fresh DOM insertion triggers animation naturally.)
+function restartAnim(elem: HTMLElement | null): void {
+  if (!elem) return;
+  elem.style.animation = 'none';
+  void elem.offsetHeight; // force reflow
+  elem.style.animation = '';
+}
+
 export async function renderDeferredColumn(): Promise<void> {
   const column    = document.getElementById('deferredColumn');
   const list      = document.getElementById('deferredList');
@@ -441,6 +455,7 @@ export async function renderDeferredColumn(): Promise<void> {
       list.style.display = 'none';
       countEl.textContent = '';
       empty.style.display = 'block';
+      restartAnim(empty);
     }
 
     if (archiveCountEl && archiveList) {
@@ -460,6 +475,7 @@ export async function renderDeferredColumn(): Promise<void> {
         if (archiveClearEl) archiveClearEl.style.display = 'none';
       }
     }
+    restartAnim(archiveEl);
   } catch (err) {
     console.warn('[tab-out] Could not load deferred tabs:', err);
     // Leave the column visible; swallowing state on storage errors is what
