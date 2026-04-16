@@ -630,6 +630,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 .deferred-list .deferred-item:nth-child(4) { animation-delay: 0.2s; }
 .deferred-list .deferred-item:nth-child(5) { animation-delay: 0.25s; }
 .deferred-column .section-header { animation: fadeUp 0.5s ease 0.1s both; }
+.deferred-empty    { animation: fadeUp 0.5s ease 0.2s both; }
+.deferred-archive  { animation: fadeUp 0.5s ease 0.3s both; }
 
 
 /* ================================================================
