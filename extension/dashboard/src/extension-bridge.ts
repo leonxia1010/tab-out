@@ -21,6 +21,21 @@ function chromeAvailable(): boolean {
   return typeof chrome !== 'undefined' && !!chrome?.tabs;
 }
 
+// chrome.tabs.remove / update and chrome.windows.update reject when any
+// target was closed externally between the time we queried it and the
+// time we acted on it — a common race with bulk operations or rapid
+// user clicks. For our semantics ("user wants these gone" / "focus this
+// if it still exists") a missing target is already success. We swallow
+// the rejection and warn, so callers can run their post-action UI work
+// unconditionally without try/finally guards everywhere.
+async function swallow(p: Promise<unknown>, label: string): Promise<void> {
+  try {
+    await p;
+  } catch (err) {
+    console.warn(`[tab-out] ${label} rejected (likely already-gone tab):`, err);
+  }
+}
+
 function tabOutNewtabUrls(): string[] {
   const id = chrome.runtime?.id;
   return id
@@ -84,20 +99,20 @@ export async function closeTabsByUrls(
     const wanted = new Set(urls);
     matched = allTabs.filter((t) => !!t.url && wanted.has(t.url));
   } else {
-    const wantedHosts: string[] = [];
+    const wantedHosts = new Set<string>();
     const wantedExact = new Set<string>();
     for (const u of urls) {
       if (EXACT_ONLY_SCHEME.test(u)) wantedExact.add(u);
       else {
         const h = hostnameOf(u);
-        if (h) wantedHosts.push(h);
+        if (h) wantedHosts.add(h);
       }
     }
     matched = allTabs.filter((t) => {
       const url = t.url || '';
       if (EXACT_ONLY_SCHEME.test(url)) return wantedExact.has(url);
       const h = hostnameOf(url);
-      return !!h && wantedHosts.includes(h);
+      return !!h && wantedHosts.has(h);
     });
   }
 
@@ -106,7 +121,7 @@ export async function closeTabsByUrls(
     .map((t) => t.id)
     .filter((id): id is number => typeof id === 'number');
 
-  if (ids.length > 0) await chrome.tabs.remove(ids);
+  if (ids.length > 0) await swallow(chrome.tabs.remove(ids), 'chrome.tabs.remove');
   await fetchOpenTabs();
 }
 
@@ -130,9 +145,9 @@ export async function focusTab(url: string): Promise<void> {
     matches.find((t) => t.windowId !== currentWindow.id) || matches[0];
   if (typeof match.id !== 'number') return;
 
-  await chrome.tabs.update(match.id, { active: true });
+  await swallow(chrome.tabs.update(match.id, { active: true }), 'chrome.tabs.update');
   if (typeof match.windowId === 'number') {
-    await chrome.windows.update(match.windowId, { focused: true });
+    await swallow(chrome.windows.update(match.windowId, { focused: true }), 'chrome.windows.update');
   }
 }
 
@@ -151,7 +166,7 @@ export async function closeDuplicates(urls: string[]): Promise<void> {
     }
   }
 
-  if (toClose.length > 0) await chrome.tabs.remove(toClose);
+  if (toClose.length > 0) await swallow(chrome.tabs.remove(toClose), 'chrome.tabs.remove');
   await fetchOpenTabs();
 }
 
@@ -179,7 +194,7 @@ export async function closeTabOutDupes(): Promise<void> {
     .map((t) => t.id)
     .filter((id): id is number => typeof id === 'number');
 
-  if (ids.length > 0) await chrome.tabs.remove(ids);
+  if (ids.length > 0) await swallow(chrome.tabs.remove(ids), 'chrome.tabs.remove');
   await fetchOpenTabs();
 }
 

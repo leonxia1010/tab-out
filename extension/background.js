@@ -99,7 +99,12 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onInstalle
   chrome.runtime.onStartup.addListener(updateBadge);
   chrome.tabs.onCreated.addListener(updateBadge);
   chrome.tabs.onRemoved.addListener(updateBadge);
-  chrome.tabs.onUpdated.addListener(updateBadge);
+  // Filter onUpdated the same way refresh.ts does — only navigations can
+  // shift the hostname count. Without this, every favicon/title/status
+  // tick fires a chrome.tabs.query({}) over the entire browser.
+  chrome.tabs.onUpdated.addListener((_id, change) => {
+    if (change.url) void updateBadge();
+  });
   updateBadge();
 
   // 60s initial delay avoids racing the install; then period kicks in.

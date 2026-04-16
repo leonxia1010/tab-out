@@ -36,6 +36,7 @@ import {
 } from './animations.js';
 import {
   checkAndShowEmptyState,
+  domainIdFor,
   refreshOpenTabsCounters,
   renderArchiveItem,
   renderDeferredColumn,
@@ -43,6 +44,46 @@ import {
 
 function animateCardOut(card: HTMLElement | null | undefined): void {
   animateCardOutRaw(card, checkAndShowEmptyState);
+}
+
+// Matches the CSS transition duration below. Named so it stays in sync
+// with the inline style-duration string if the timing ever changes.
+const CHIP_FADE_DURATION_MS = 200;
+
+// Shared chip-disappearance animation for handleCloseSingleTab and
+// handleDeferSingleTab. The two handlers had drifted into near-identical
+// 20-line blocks (chip fade → 200ms timeout → remove → fly-out any card
+// whose .domain-pages is now empty). Extracting the common shape keeps
+// both paths in lockstep whenever the timing or the empty-card detection
+// rule changes.
+//
+// After the chip is gone we must fly out any now-empty domain-card by
+// hand — refresh.ts sees signature parity (closeTabsByUrls already
+// pre-synced openTabs) and correctly skips the diff pass, so the card's
+// header + "Close all N tabs" button would otherwise sit stale on
+// screen. The `:has(.domain-pages:empty)` query catches the fast path;
+// the forEach with a chip-count fallback covers cards that still have
+// overflow containers or other non-chip descendants.
+function fadeChipAndCleanupCards(
+  chip: HTMLElement,
+  opts: { confetti: boolean } = { confetti: false },
+): void {
+  if (opts.confetti) {
+    const rect = chip.getBoundingClientRect();
+    shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  }
+  chip.style.transition = 'opacity 0.2s, transform 0.2s';
+  chip.style.opacity = '0';
+  chip.style.transform = 'scale(0.8)';
+  setTimeout(() => {
+    chip.remove();
+    const cardEmpty = document.querySelector<HTMLElement>('.domain-card:has(.domain-pages:empty)');
+    if (cardEmpty) animateCardOut(cardEmpty);
+    document.querySelectorAll<HTMLElement>('.domain-card').forEach(c => {
+      const remainingTabs = c.querySelectorAll('.page-chip[data-action="focus-tab"]');
+      if (remainingTabs.length === 0) animateCardOut(c);
+    });
+  }, CHIP_FADE_DURATION_MS);
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -86,26 +127,7 @@ async function handleCloseSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
   playCloseSound();
 
   const chip = actionEl.closest<HTMLElement>('.page-chip');
-  if (chip) {
-    const rect = chip.getBoundingClientRect();
-    shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    chip.style.transition = 'opacity 0.2s, transform 0.2s';
-    chip.style.opacity = '0';
-    chip.style.transform = 'scale(0.8)';
-    setTimeout(() => {
-      chip.remove();
-      const cardEmpty = document.querySelector<HTMLElement>('.domain-card:has(.domain-pages:empty)');
-      if (cardEmpty) {
-        animateCardOut(cardEmpty);
-      }
-      document.querySelectorAll<HTMLElement>('.domain-card').forEach(c => {
-        const remainingTabs = c.querySelectorAll('.page-chip[data-action="focus-tab"]');
-        if (remainingTabs.length === 0) {
-          animateCardOut(c);
-        }
-      });
-    }, 200);
-  }
+  if (chip) fadeChipAndCleanupCards(chip, { confetti: true });
 
   refreshOpenTabsCounters();
   showToast('Tab closed');
@@ -130,29 +152,7 @@ async function handleDeferSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
   await closeTabsByUrls([tabUrl]);
 
   const chip = actionEl.closest<HTMLElement>('.page-chip');
-  if (chip) {
-    chip.style.transition = 'opacity 0.2s, transform 0.2s';
-    chip.style.opacity = '0';
-    chip.style.transform = 'scale(0.8)';
-    setTimeout(() => {
-      chip.remove();
-      // Same pattern as handleCloseSingleTab: after the chip is gone we
-      // must fly out any now-empty domain-card. Without this, the card
-      // keeps its header + "Close all N tabs" button stale on-screen,
-      // because refresh.ts sees signature parity (closeTabsByUrls already
-      // pre-synced openTabs) and correctly skips re-render.
-      const cardEmpty = document.querySelector<HTMLElement>('.domain-card:has(.domain-pages:empty)');
-      if (cardEmpty) {
-        animateCardOut(cardEmpty);
-      }
-      document.querySelectorAll<HTMLElement>('.domain-card').forEach(c => {
-        const remainingTabs = c.querySelectorAll('.page-chip[data-action="focus-tab"]');
-        if (remainingTabs.length === 0) {
-          animateCardOut(c);
-        }
-      });
-    }, 200);
-  }
+  if (chip) fadeChipAndCleanupCards(chip);
 
   refreshOpenTabsCounters();
   showToast(wasRenewed ? 'Already saved. Moved to top.' : 'Saved for later');
@@ -243,7 +243,7 @@ async function handleOpenSaved(e: Event, actionEl: HTMLElement): Promise<void> {
 async function handleCloseDomainTabs(actionEl: HTMLElement, card: HTMLElement | null): Promise<void> {
   const domainId = actionEl.dataset.domainId;
   const groups = getDomainGroups();
-  const group = groups.find(g => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId);
+  const group = groups.find(g => domainIdFor(g.domain) === domainId);
   if (!group) return;
 
   const urls = group.tabs.map(t => t.url || '').filter(Boolean);
@@ -323,6 +323,28 @@ async function handleCloseAllOpenTabs(): Promise<void> {
   showToast('All tabs closed. Fresh start.');
 }
 
+async function handleArchiveClearAll(): Promise<void> {
+  // Browser confirm is fine here: this is a dashboard page (not a service
+  // worker) and the action is genuinely destructive + user-initiated.
+  if (!window.confirm('Clear every archived tab? This cannot be undone.')) return;
+  try {
+    const { deleted } = await clearAllArchived();
+    await renderDeferredColumn();
+    showToast(`Cleared ${deleted} archived tab${deleted === 1 ? '' : 's'}`);
+  } catch (err) {
+    console.error('[tab-out] Clear all archived failed:', err);
+  }
+}
+
+function handleArchiveToggle(toggle: HTMLElement): void {
+  // actionEl comes from closest('[data-action]'), so the clearAll vs toggle
+  // disambiguation the old id-based dispatcher needed is a non-issue now —
+  // each button carries its own data-action and gets routed here directly.
+  const open = toggle.classList.toggle('open');
+  const body = document.getElementById('archiveBody');
+  if (body) body.classList.toggle('open', open);
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Dispatchers (single listener per event type, action lookup, then forward)
 // ──────────────────────────────────────────────────────────────────────────
@@ -348,34 +370,10 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card);
     case 'close-all-open-tabs':return handleCloseAllOpenTabs();
     case 'delete-archived':    return handleDeleteArchived(actionEl);
+    case 'archive-toggle':     return handleArchiveToggle(actionEl);
+    case 'archive-clear-all':  return handleArchiveClearAll();
     default:                   return;
   }
-}
-
-async function dispatchArchiveClearAll(e: MouseEvent): Promise<void> {
-  const btn = (e.target as HTMLElement | null)?.closest('#archiveClearAll');
-  if (!btn) return;
-  // Browser confirm is fine here: this is a dashboard page (not a service
-  // worker) and the action is genuinely destructive + user-initiated.
-  if (!window.confirm('Clear every archived tab? This cannot be undone.')) return;
-  try {
-    const { deleted } = await clearAllArchived();
-    await renderDeferredColumn();
-    showToast(`Cleared ${deleted} archived tab${deleted === 1 ? '' : 's'}`);
-  } catch (err) {
-    console.error('[tab-out] Clear all archived failed:', err);
-  }
-}
-
-function dispatchArchiveToggle(e: MouseEvent): void {
-  const toggle = (e.target as HTMLElement | null)?.closest('#archiveToggle');
-  if (!toggle) return;
-  // Ignore clicks that bubbled from the Clear all button (it sits in the
-  // same header row but is not a toggle).
-  if ((e.target as HTMLElement | null)?.closest('#archiveClearAll')) return;
-  const open = toggle.classList.toggle('open');
-  const body = document.getElementById('archiveBody');
-  if (body) body.classList.toggle('open', open);
 }
 
 async function dispatchArchiveSearch(e: Event): Promise<void> {
@@ -418,9 +416,10 @@ let attached = false;
 export function attachListeners(): void {
   if (attached) return;
   attached = true;
+  // One click listener, one input listener. Every clickable surface routes
+  // through dispatchClick via its data-action attribute (including archive
+  // toggle + clear-all, which used to carry their own listeners).
   document.addEventListener('click', dispatchClick);
-  document.addEventListener('click', dispatchArchiveClearAll);
-  document.addEventListener('click', dispatchArchiveToggle);
   document.addEventListener('input', dispatchArchiveSearch);
 }
 

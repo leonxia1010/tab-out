@@ -33,6 +33,7 @@ import { animateCardOut } from './animations.js';
 import { checkTabOutDupes } from './extension-bridge.js';
 import {
   checkAndShowEmptyState,
+  domainIdFor,
   groupTabsByDomain,
   renderDomainCard,
   renderOpenTabsHeader,
@@ -41,13 +42,6 @@ import {
 } from './renderers.js';
 import { getOpenTabs, setDomainGroups } from './state.js';
 import { getDisplayableTabs } from './utils.js';
-
-// Must match the stableId computation in renderDomainCard. Duplicated
-// here intentionally so a test can verify DOM-key stability without
-// calling the full renderer.
-function domainIdFor(domain: string): string {
-  return 'domain-' + domain.replace(/[^a-z0-9]/g, '-');
-}
 
 function sameSequence(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;

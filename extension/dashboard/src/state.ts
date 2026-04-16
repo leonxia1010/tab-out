@@ -20,9 +20,14 @@ export interface DomainGroup {
   tabs: Tab[];
 }
 
+// Getters return ReadonlyArray so callers can't reach past the setter and
+// mutate module-owned state via .push/.splice/.sort. The underlying arrays
+// are still plain Tab[] / DomainGroup[] (setters require that); we only
+// narrow the read-side contract.
+
 // --- openTabs: list of currently open browser tabs (populated by fetchOpenTabs) ---
 let openTabs: Tab[] = [];
-export function getOpenTabs(): Tab[] {
+export function getOpenTabs(): ReadonlyArray<Tab> {
   return openTabs;
 }
 export function setOpenTabs(tabs: Tab[]): void {
@@ -40,7 +45,7 @@ export function setExtensionAvailable(value: boolean): void {
 
 // --- domainGroups: populated by renderStaticDashboard(); consumed by card actions ---
 let domainGroups: DomainGroup[] = [];
-export function getDomainGroups(): DomainGroup[] {
+export function getDomainGroups(): ReadonlyArray<DomainGroup> {
   return domainGroups;
 }
 export function setDomainGroups(groups: DomainGroup[]): void {
@@ -49,7 +54,7 @@ export function setDomainGroups(groups: DomainGroup[]): void {
 
 // --- duplicateTabs: legacy slot, currently unwritten; preserved for parity ---
 let duplicateTabs: Tab[] = [];
-export function getDuplicateTabs(): Tab[] {
+export function getDuplicateTabs(): ReadonlyArray<Tab> {
   return duplicateTabs;
 }
 export function setDuplicateTabs(tabs: Tab[]): void {

@@ -24,16 +24,33 @@ const TOAST_VISIBLE_MS = 2500;
 
 type AudioContextCtor = typeof AudioContext;
 
+// Pooled across all playCloseSound calls. The previous implementation
+// created a fresh AudioContext per invocation and closed it 500ms later,
+// which worked but wasted the construct/teardown cycle on every click.
+// Chrome's autoplay policy only requires the *first* resume to follow a
+// user gesture; every playCloseSound is itself a click-driven side
+// effect, so calling ctx.resume() inside each sound is always on a valid
+// gesture stack.
+let sharedCtx: AudioContext | null = null;
+
+function getSharedAudioCtx(): AudioContext | null {
+  if (sharedCtx && sharedCtx.state !== 'closed') return sharedCtx;
+  const Ctor =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext?: AudioContextCtor }).webkitAudioContext;
+  if (!Ctor) return null;
+  sharedCtx = new Ctor();
+  return sharedCtx;
+}
+
 export function playCloseSound(): void {
   try {
-    const Ctor =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext?: AudioContextCtor }).webkitAudioContext;
-    if (!Ctor) return;
+    const ctx = getSharedAudioCtx();
+    if (!ctx) return;
+    // Click handler = valid user gesture; resume is a no-op if already running.
+    if (ctx.state === 'suspended') void ctx.resume();
 
-    const ctx = new Ctor();
     const t = ctx.currentTime;
-
     const duration = 0.25;
     const buffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -59,8 +76,8 @@ export function playCloseSound(): void {
 
     source.connect(filter).connect(gain).connect(ctx.destination);
     source.start(t);
-
-    setTimeout(() => ctx.close(), 500);
+    // Nodes (source/filter/gain) are GC-eligible once .start() finishes;
+    // the ctx itself stays alive for the next call.
   } catch {
     // Audio not supported — fail silently.
   }

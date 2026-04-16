@@ -277,6 +277,32 @@ describe('getDeferred', () => {
     await getDeferred();
     expect(local.set).not.toHaveBeenCalled();
   });
+
+  it('E2E: save now → jump 31 days → getDeferred archives it → searchDeferred finds it', async () => {
+    // End-to-end for the 30d archive flow: goes through the real save
+    // path (newId + writeArray) rather than seeding storage directly, so
+    // a regression anywhere in the pipeline surfaces here.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-01T00:00:00Z'));
+    installChromeStorage({});
+
+    const { created } = await saveDefer([{ url: 'https://x.com/old', title: 'Old Read' }]);
+    expect(created).toHaveLength(1);
+
+    // Advance past the 30-day cutoff (AGE_OUT_MS = 30 * 24h).
+    vi.setSystemTime(new Date('2026-05-02T00:00:00Z'));
+
+    const { active, archived } = await getDeferred();
+    expect(active).toHaveLength(0);
+    expect(archived).toHaveLength(1);
+    expect(archived[0].title).toBe('Old Read');
+    expect(archived[0].archived).toBe(1);
+    expect(archived[0].archived_at).toBe('2026-05-02T00:00:00.000Z');
+
+    // And the archive is searchable at that point.
+    const hit = await searchDeferred('Old');
+    expect(hit.results.map((r) => r.title)).toEqual(['Old Read']);
+  });
 });
 
 // ─── searchDeferred ─────────────────────────────────────────────────────────
@@ -547,6 +573,74 @@ describe('getDeferred auto-prune', () => {
 
     await getDeferred();
     expect(local.set).not.toHaveBeenCalled();
+  });
+});
+
+// ─── withLock — concurrent writes must not resurrect or lose rows ──────────
+//
+// Every public write goes through a module-level promise chain in api.ts.
+// Without it, `Promise.all([dismissDeferred(1), dismissDeferred(2)])` would
+// interleave: both calls read the same pre-write snapshot ([1,2,3]) and
+// each writes back its own mutation ([2,3] and [1,3]), so the "last
+// writer wins" leaves behind one of the rows we tried to drop.
+//
+// We don't assert the internal chain — that's an implementation detail.
+// We assert the observable invariant: the final storage state matches
+// what a serial execution would produce.
+
+describe('serialized writes (withLock) — concurrent clicks do not race', () => {
+  it('two rapid dismissDeferred calls both take effect', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+        { id: 2, url: 'b', title: 'B', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+        { id: 3, url: 'c', title: 'C', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+
+    // Fire both before awaiting — the classic RMW race pattern.
+    await Promise.all([dismissDeferred(1), dismissDeferred(2)]);
+
+    const rows = store.get('deferredTabs');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(3);
+  });
+
+  it('saveDefer concurrent with dismissDeferred: both effects land', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+
+    const [, saveResult] = await Promise.all([
+      dismissDeferred(1),
+      saveDefer([{ url: 'b', title: 'B' }]),
+    ]);
+
+    expect(saveResult.created).toHaveLength(1);
+    const rows = store.get('deferredTabs');
+    expect(rows.find((r) => r.id === 1)).toBeUndefined();
+    expect(rows.find((r) => r.url === 'b')).toBeDefined();
+  });
+
+  it('a rejected write does not poison later ones (chain recovers)', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+
+    // First call throws (id 99 doesn't exist); second call on a real id
+    // must still succeed and mutate storage, proving the chain head
+    // cleared the rejection.
+    const results = await Promise.allSettled([
+      dismissDeferred(99),
+      dismissDeferred(1),
+    ]);
+    expect(results[0].status).toBe('rejected');
+    expect(results[1].status).toBe('fulfilled');
+    expect(store.get('deferredTabs')).toHaveLength(0);
   });
 });
 
