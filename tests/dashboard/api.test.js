@@ -121,10 +121,11 @@ describe('saveDefer', () => {
     ]);
 
     expect(result.success).toBe(true);
-    expect(result.deferred).toHaveLength(2);
-    expect(result.deferred[0].url).toBe('https://a.test');
-    expect(typeof result.deferred[0].id).toBe('number');
-    expect(result.deferred[0].id).not.toBe(result.deferred[1].id);
+    expect(result.created).toHaveLength(2);
+    expect(result.renewed).toHaveLength(0);
+    expect(result.created[0].url).toBe('https://a.test');
+    expect(typeof result.created[0].id).toBe('number');
+    expect(result.created[0].id).not.toBe(result.created[1].id);
 
     expect(store.get('deferredTabs')).toHaveLength(2);
     expect(store.get('deferredTabs')[1].favicon_url).toBe('fav.png');
@@ -155,9 +156,70 @@ describe('saveDefer', () => {
       title: `T${i}`,
     }));
     const result = await saveDefer(inputs);
-    const ids = result.deferred.map((d) => d.id);
+    const ids = result.created.map((d) => d.id);
     expect(ids).toHaveLength(50);
     expect(new Set(ids).size).toBe(50);
+  });
+
+  it('renews deferred_at when the url is already active, does not add a new row', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-10T00:00:00Z'));
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'https://x.test', title: 'X', favicon_url: null, source_mission: null, deferred_at: '2026-04-01T00:00:00Z', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+    const result = await saveDefer([{ url: 'https://x.test', title: 'X updated' }]);
+
+    expect(result.created).toHaveLength(0);
+    expect(result.renewed).toHaveLength(1);
+    expect(result.renewed[0].id).toBe(1);
+
+    const stored = store.get('deferredTabs');
+    expect(stored).toHaveLength(1);
+    expect(stored[0].deferred_at).toBe('2026-04-10T12:00:00.000Z');
+    // Title is left alone — stale dataset must not clobber good stored data.
+    expect(stored[0].title).toBe('X');
+  });
+
+  it('treats archived rows as independent history — new save creates a fresh active row', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'https://y.test', title: 'Y-old', favicon_url: null, source_mission: null, deferred_at: '2026-03-01T00:00:00Z', checked: 1, checked_at: '2026-03-02T00:00:00Z', dismissed: 0, archived: 1, archived_at: '2026-03-02T00:00:00Z' },
+      ],
+    });
+
+    const result = await saveDefer([{ url: 'https://y.test', title: 'Y-new' }]);
+
+    expect(result.created).toHaveLength(1);
+    expect(result.renewed).toHaveLength(0);
+
+    const stored = store.get('deferredTabs');
+    expect(stored).toHaveLength(2);
+    // Archive row untouched.
+    const archived = stored.find((r) => r.archived === 1);
+    expect(archived.title).toBe('Y-old');
+    const active = stored.find((r) => r.archived === 0);
+    expect(active.title).toBe('Y-new');
+  });
+
+  it('dedupes duplicates within the same inputs batch', async () => {
+    const { store } = installChromeStorage({});
+
+    const result = await saveDefer([
+      { url: 'https://dup.test', title: 'First' },
+      { url: 'https://dup.test', title: 'Second' },
+      { url: 'https://other.test', title: 'Other' },
+    ]);
+
+    expect(result.created).toHaveLength(2);
+    expect(result.renewed).toHaveLength(1);
+    expect(store.get('deferredTabs')).toHaveLength(2);
+    // First instance wins — title from the first occurrence.
+    const dupRow = store.get('deferredTabs').find((r) => r.url === 'https://dup.test');
+    expect(dupRow.title).toBe('First');
   });
 });
 

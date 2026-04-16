@@ -117,8 +117,10 @@ async function handleDeferSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
   if (!tabUrl) return;
   const tabTitle = actionEl.dataset.tabTitle || tabUrl;
 
+  let wasRenewed = false;
   try {
-    await saveDefer([{ url: tabUrl, title: tabTitle }]);
+    const result = await saveDefer([{ url: tabUrl, title: tabTitle }]);
+    wasRenewed = result.renewed.length > 0;
   } catch (err) {
     console.error('[tab-out] Failed to defer tab:', err);
     showToast('Failed to save tab');
@@ -136,7 +138,7 @@ async function handleDeferSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
   }
 
   refreshOpenTabsCounters();
-  showToast('Saved for later');
+  showToast(wasRenewed ? 'Already saved. Moved to top.' : 'Saved for later');
   await renderDeferredColumn();
 }
 

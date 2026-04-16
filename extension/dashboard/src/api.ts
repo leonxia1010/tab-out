@@ -57,7 +57,13 @@ export interface UpdateStatus {
 
 export interface SaveDeferResult {
   success: true;
-  deferred: DeferredCreated[];
+  // Rows that did not exist in the active list before this call.
+  created: DeferredCreated[];
+  // Rows whose url already lived in the active list — we refreshed their
+  // deferred_at (so the 30d age-out resets) and left the rest untouched.
+  // Archived rows with the same url are ignored here; active/archive are
+  // independent histories.
+  renewed: DeferredCreated[];
 }
 
 export interface DeferredListResult {
@@ -159,10 +165,35 @@ export async function saveDefer(
 
   const all = await readArray<DeferredTab>('deferredTabs');
   const created: DeferredCreated[] = [];
+  const renewed: DeferredCreated[] = [];
   const now = new Date().toISOString();
+
+  // Build an index of active rows once, keyed by url. Pre-existing duplicates
+  // in storage (from the pre-dedup era) will collapse to the first match;
+  // that's acceptable — we only need one hit to decide "already saved".
+  const activeByUrl = new Map<string, DeferredTab>();
+  for (const t of all) {
+    if (t.archived === 0 && !activeByUrl.has(t.url)) activeByUrl.set(t.url, t);
+  }
 
   for (const tab of inputs) {
     if (!tab.url || !tab.title) continue;
+    const existing = activeByUrl.get(tab.url);
+    if (existing) {
+      // Refresh timestamp only. Leaving title/favicon alone avoids a fresh
+      // save-action (which may carry stale dataset attrs) from clobbering
+      // better data the row already holds.
+      existing.deferred_at = now;
+      renewed.push({
+        id: existing.id,
+        url: existing.url,
+        title: existing.title,
+        favicon_url: existing.favicon_url,
+        source_mission: existing.source_mission,
+        deferred_at: existing.deferred_at,
+      });
+      continue;
+    }
     const id = newId();
     const row: DeferredTab = {
       id,
@@ -178,6 +209,8 @@ export async function saveDefer(
       archived_at: null,
     };
     all.push(row);
+    // Register so a repeated url within the same inputs batch dedupes too.
+    activeByUrl.set(row.url, row);
     created.push({
       id,
       url: row.url,
@@ -189,7 +222,7 @@ export async function saveDefer(
   }
 
   await writeArray('deferredTabs', all);
-  return { success: true, deferred: created };
+  return { success: true, created, renewed };
 }
 
 export async function getDeferred(): Promise<DeferredListResult> {
