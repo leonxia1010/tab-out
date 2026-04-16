@@ -19,7 +19,7 @@
 // This replaces a previous attempt (PR #33, suppressRefresh + isSelf +
 // status=complete filter) that stacked three special cases and still leaked.
 
-import { renderOpenTabsOnly } from './renderers.js';
+import { applyOpenTabsDiff } from './diff.js';
 import { fetchOpenTabs } from './extension-bridge.js';
 import { getOpenTabs } from './state.js';
 import { getDisplayableTabs } from './utils.js';
@@ -39,7 +39,16 @@ let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 // i18n redirect like jiangren.com.au/ -> /en or a SPA route change within
 // github.com does not change which cards exist — signature stays and we
 // skip the render. Malformed URLs fall back to the raw string (still acts
-// as a set-identity anchor).
+// as an anchor).
+//
+// Order-sensitive (no .sort()): PR 3 adds rule 4 "card order actually
+// changed → full re-render". chrome.tabs.query returns tabs in
+// (windowId, tab.index) order, so dropping .sort() lets a user drag
+// reshuffle flow through: signature differs → applyOpenTabsDiff runs →
+// its Phase 1 check falls back to renderOpenTabsOnly. Same-hostname
+// shuffles (e.g. moving one of three github tabs) flip the signature
+// but the diff's own signatureForDomainCard sees the url set is
+// unchanged and skips — zero DOM mutation, just a wasted diff pass.
 function displayableSignature(): string {
   return getDisplayableTabs(getOpenTabs())
     .map((t) => {
@@ -48,7 +57,6 @@ function displayableSignature(): string {
       try { return new URL(raw).hostname; } catch { return raw; }
     })
     .filter(Boolean)
-    .sort()
     .join('|');
 }
 
@@ -60,7 +68,11 @@ export function scheduleRefresh(): void {
     await fetchOpenTabs();
     const after = displayableSignature();
     if (before === after) return;
-    await renderOpenTabsOnly();
+    // PR 3: incremental card-level diff replaces the full mount. Order
+    // reshuffle + empty<->non-empty transitions fall back to full mount
+    // inside applyOpenTabsDiff itself (so the initial waterfall still
+    // plays on the empty-to-populated case).
+    await applyOpenTabsDiff();
   }, REFRESH_DEBOUNCE_MS);
 }
 
@@ -74,4 +86,9 @@ export function attachTabsListeners(): void {
     // after the url event and cause a second spurious waterfall.
     if (change.url) scheduleRefresh();
   });
+  // Needed for rule 4: a user dragging a chrome tab between positions is
+  // the only real-world trigger for card-order reshuffle. Without this
+  // listener the event never fires a scheduleRefresh and rule 4 is dead
+  // code (signature+diff paths exist but are unreachable).
+  chrome.tabs.onMoved.addListener(() => scheduleRefresh());
 }
