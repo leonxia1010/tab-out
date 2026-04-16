@@ -355,12 +355,20 @@ export function renderDeferredItem(item: DeferredTab): HTMLElement {
   });
   favicon.addEventListener('error', () => { favicon.style.display = 'none'; });
 
+  // data-action + data-saved-url let handlers.ts intercept the click and
+  // go through chrome.tabs.create — chrome blocks anchor navigation to
+  // chrome:// / chrome-extension:// from an extension page, so relying on
+  // target="_blank" alone made those saved entries silently no-op (or
+  // worse, resolve href='#' back to this dashboard URL when a stale
+  // sanitizer was still in place). href stays the real URL so hover
+  // tooltip + right-click "copy link address" still show the right thing.
   const link = el('a', {
     href: item.url,
     target: '_blank',
     rel: 'noopener',
     className: 'deferred-title',
     title: item.title || '',
+    dataset: { action: 'open-saved', savedUrl: item.url },
   }, [favicon, titleText]);
 
   const meta = el('div', { className: 'deferred-meta' }, [
@@ -391,6 +399,7 @@ export function renderArchiveItem(item: DeferredTab): HTMLElement {
     className: 'archive-item-title',
     title: item.title || '',
     textContent: titleText,
+    dataset: { action: 'open-saved', savedUrl: item.url },
   });
 
   const deleteBtn = el('button', {
