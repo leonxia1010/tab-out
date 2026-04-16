@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const EXT_ID = 'EXTID';
 
 function installChrome({ queryResults = [[]] } = {}) {
-  const listeners = { onCreated: [], onRemoved: [], onUpdated: [] };
+  const listeners = { onCreated: [], onRemoved: [], onUpdated: [], onMoved: [] };
   let queryIdx = 0;
   const query = vi.fn(async () => {
     const r = queryResults[Math.min(queryIdx, queryResults.length - 1)];
@@ -27,6 +27,7 @@ function installChrome({ queryResults = [[]] } = {}) {
       onCreated: { addListener: (fn) => listeners.onCreated.push(fn) },
       onRemoved: { addListener: (fn) => listeners.onRemoved.push(fn) },
       onUpdated: { addListener: (fn) => listeners.onUpdated.push(fn) },
+      onMoved:   { addListener: (fn) => listeners.onMoved.push(fn) },
     },
   });
   return { listeners, query };
@@ -169,6 +170,29 @@ describe('scheduleRefresh — signature-based dedup', () => {
     expect(renderSpy).not.toHaveBeenCalled();
   });
 
+  it('renders when displayable order changes (user drags a chrome tab)', async () => {
+    // PR 3 rule 4: reshuffling card order must trigger a render so the
+    // diff's Phase 1 can fall back to a full mount. chrome.tabs.query
+    // returns tabs sorted by (windowId, tab.index), so a drag flips the
+    // order of entries in the result — and therefore the signature,
+    // because we deliberately dropped .sort() to preserve this signal.
+    installChrome({ queryResults: [[
+      { id: 2, url: 'https://b.com', title: 'B', index: 0 },
+      { id: 1, url: 'https://a.com', title: 'A', index: 1 },
+    ]] });
+    const renderSpy = vi.fn().mockResolvedValue(undefined);
+    const { scheduleRefresh } = await loadRefresh({
+      renderSpy,
+      initialTabs: [
+        { url: 'https://a.com', title: 'A', index: 0 },
+        { url: 'https://b.com', title: 'B', index: 1 },
+      ],
+    });
+    scheduleRefresh();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(renderSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('skips render on same-host URL change (i18n redirect / SPA nav)', async () => {
     // jiangren.com.au -> jiangren.com.au/en scenario. Pre-refresh state has
     // the tab on `/`, chrome.tabs.query returns `/en` on the next fetch.
@@ -189,7 +213,7 @@ describe('scheduleRefresh — signature-based dedup', () => {
 });
 
 describe('attachTabsListeners — event filter', () => {
-  it('subscribes to onCreated / onRemoved / onUpdated', async () => {
+  it('subscribes to onCreated / onRemoved / onUpdated / onMoved', async () => {
     const { listeners } = installChrome();
     const renderSpy = vi.fn().mockResolvedValue(undefined);
     const { attachTabsListeners } = await loadRefresh({ renderSpy });
@@ -197,6 +221,7 @@ describe('attachTabsListeners — event filter', () => {
     expect(listeners.onCreated).toHaveLength(1);
     expect(listeners.onRemoved).toHaveLength(1);
     expect(listeners.onUpdated).toHaveLength(1);
+    expect(listeners.onMoved).toHaveLength(1);
   });
 
   it('onCreated triggers schedule; render fires iff signature changes', async () => {
@@ -251,6 +276,29 @@ describe('attachTabsListeners — event filter', () => {
 
     await vi.advanceTimersByTimeAsync(500);
     expect(renderSpy).not.toHaveBeenCalled();
+  });
+
+  it('onMoved triggers schedule; render fires iff signature changes', async () => {
+    const { listeners } = installChrome({ queryResults: [[
+      { id: 2, url: 'https://b.com', title: 'B', index: 0 },
+      { id: 1, url: 'https://a.com', title: 'A', index: 1 },
+    ]] });
+    const renderSpy = vi.fn().mockResolvedValue(undefined);
+    const { attachTabsListeners } = await loadRefresh({
+      renderSpy,
+      initialTabs: [
+        { url: 'https://a.com', title: 'A', index: 0 },
+        { url: 'https://b.com', title: 'B', index: 1 },
+      ],
+    });
+    attachTabsListeners();
+
+    // onMoved payload shape: (tabId, { windowId, fromIndex, toIndex }).
+    // The handler ignores the payload and just schedules a refresh;
+    // the signature diff then decides whether to render.
+    listeners.onMoved[0](1, { windowId: 1, fromIndex: 0, toIndex: 1 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(renderSpy).toHaveBeenCalledTimes(1);
   });
 
   it('onUpdated schedules when change.url is present', async () => {
