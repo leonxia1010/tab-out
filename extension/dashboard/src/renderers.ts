@@ -223,7 +223,7 @@ export function buildOverflowChips(
   return [overflow, trigger];
 }
 
-export function renderDomainCard(group: DomainGroup, _groupIndex: number): HTMLElement {
+export function renderDomainCard(group: DomainGroup, groupIndex: number): HTMLElement {
   const tabs      = group.tabs || [];
   const tabCount  = tabs.length;
   const isLanding = group.domain === '__landing-pages__';
@@ -319,10 +319,18 @@ export function renderDomainCard(group: DomainGroup, _groupIndex: number): HTMLE
     el('div', { className: 'domain-page-label', textContent: 'tabs' }),
   ]);
 
-  return el('div', {
+  const card = el('div', {
     className: `domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}`,
     dataset: { domainId: stableId },
   }, [statusBar, domainContent, domainMeta]);
+
+  // Waterfall fade-in: each card staggers 0.05s after the one before it,
+  // starting at 0.25s. Set inline so the effect survives past the 4th card
+  // — the previous CSS hard-coded nth-child(1..4) only and left card 5+
+  // popping in instantly.
+  card.style.animationDelay = `${(0.25 + groupIndex * 0.05).toFixed(2)}s`;
+
+  return card;
 }
 
 export function renderDeferredItem(item: DeferredTab): HTMLElement {

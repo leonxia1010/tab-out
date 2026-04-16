@@ -187,6 +187,40 @@ describe('renderDomainCard — chip XSS hardening', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// renderDomainCard — waterfall animation delay
+//
+// Regression for the "5th+ card pops in instantly" bug. The CSS previously
+// hard-coded nth-child(1..4) animation rules; beyond 4 cards, the rule set
+// didn't match. Now each card gets an inline animationDelay keyed off its
+// groupIndex, so the waterfall keeps cascading past 4.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('renderDomainCard — waterfall delay', () => {
+  function singleTabGroup(domain) {
+    return { domain, tabs: [{ url: `https://${domain}/a`, title: 'x' }] };
+  }
+
+  it('first card starts at 0.25s', () => {
+    const card = renderDomainCard(singleTabGroup('a.test'), 0);
+    expect(card.style.animationDelay).toBe('0.25s');
+  });
+
+  it('second card adds 0.05s', () => {
+    const card = renderDomainCard(singleTabGroup('b.test'), 1);
+    expect(card.style.animationDelay).toBe('0.30s');
+  });
+
+  it('fifth card (the bug case) also gets a delay', () => {
+    const card = renderDomainCard(singleTabGroup('e.test'), 4);
+    expect(card.style.animationDelay).toBe('0.45s');
+  });
+
+  it('tenth card keeps cascading — no arbitrary ceiling', () => {
+    const card = renderDomainCard(singleTabGroup('j.test'), 9);
+    expect(card.style.animationDelay).toBe('0.70s');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // URL scheme sanitization — javascript:/data:/vbscript: downgrade to '#'
 // ─────────────────────────────────────────────────────────────────────────────
 describe('href scheme sanitization', () => {
