@@ -12,6 +12,7 @@
 
 import * as handlers from './handlers.js';
 import { renderDashboard } from './renderers.js';
+import { attachTabsListeners } from './refresh.js';
 import { getUpdateStatus } from './api.js';
 import { el } from './dom-utils.js';
 
@@ -74,5 +75,6 @@ async function checkForUpdates(): Promise<void> {
 }
 
 handlers.attachListeners();
+attachTabsListeners();
 void renderDashboard();
 void checkForUpdates();
