@@ -19,7 +19,7 @@
 // This replaces a previous attempt (PR #33, suppressRefresh + isSelf +
 // status=complete filter) that stacked three special cases and still leaked.
 
-import { renderStaticDashboard } from './renderers.js';
+import { renderOpenTabsOnly } from './renderers.js';
 import { fetchOpenTabs } from './extension-bridge.js';
 import { getOpenTabs } from './state.js';
 import { getDisplayableTabs } from './utils.js';
@@ -49,7 +49,7 @@ export function scheduleRefresh(): void {
     await fetchOpenTabs();
     const after = displayableSignature();
     if (before === after) return;
-    await renderStaticDashboard();
+    await renderOpenTabsOnly();
   }, REFRESH_DEBOUNCE_MS);
 }
 

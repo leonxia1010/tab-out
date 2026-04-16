@@ -37,7 +37,7 @@ function installChrome({ queryResults = [[]] } = {}) {
 // module cache instance.
 async function loadRefresh({ renderSpy, initialTabs = [] }) {
   vi.doMock('../../extension/dashboard/src/renderers.ts', () => ({
-    renderStaticDashboard: renderSpy,
+    renderOpenTabsOnly: renderSpy,
   }));
   const state = await import('../../extension/dashboard/src/state.ts');
   state.setOpenTabs(initialTabs);
