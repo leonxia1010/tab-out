@@ -7,6 +7,10 @@
 export interface Tab {
   url?: string;
   title?: string;
+  // chrome.tabs position (0-based index within its window). Preserved
+  // through fetchOpenTabs so groupTabsByDomain can sort cards by
+  // first-seen order. Optional because mock/test tabs may omit it.
+  index?: number;
   [key: string]: unknown;
 }
 

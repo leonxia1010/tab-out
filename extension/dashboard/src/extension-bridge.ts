@@ -56,6 +56,10 @@ export async function fetchOpenTabs(): Promise<void> {
     id: t.id,
     url: t.url,
     title: t.title,
+    // index is chrome's tab position within its window. Preserving it
+    // lets groupTabsByDomain sort cards by first-seen (min index per
+    // group) — a stable ordering that the PR 3 diff layer can rely on.
+    index: t.index,
     windowId: t.windowId,
     active: t.active,
     isTabOut: !!t.url && newtabUrls.includes(t.url),
