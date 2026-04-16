@@ -64,15 +64,23 @@ export function scheduleRefresh(): void {
   if (refreshTimer !== null) clearTimeout(refreshTimer);
   refreshTimer = setTimeout(async () => {
     refreshTimer = null;
-    const before = displayableSignature();
-    await fetchOpenTabs();
-    const after = displayableSignature();
-    if (before === after) return;
-    // PR 3: incremental card-level diff replaces the full mount. Order
-    // reshuffle + empty<->non-empty transitions fall back to full mount
-    // inside applyOpenTabsDiff itself (so the initial waterfall still
-    // plays on the empty-to-populated case).
-    await applyOpenTabsDiff();
+    // Wrap the async body so a rejection from fetchOpenTabs (chrome.tabs
+    // rare internal errors) or applyOpenTabsDiff doesn't surface as an
+    // unhandled rejection. refreshTimer is already cleared above, so a
+    // future event still re-schedules cleanly.
+    try {
+      const before = displayableSignature();
+      await fetchOpenTabs();
+      const after = displayableSignature();
+      if (before === after) return;
+      // PR 3: incremental card-level diff replaces the full mount. Order
+      // reshuffle + empty<->non-empty transitions fall back to full mount
+      // inside applyOpenTabsDiff itself (so the initial waterfall still
+      // plays on the empty-to-populated case).
+      await applyOpenTabsDiff();
+    } catch (err) {
+      console.warn('[tab-out] scheduled refresh failed:', err);
+    }
   }, REFRESH_DEBOUNCE_MS);
 }
 

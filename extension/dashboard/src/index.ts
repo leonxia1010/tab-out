@@ -19,6 +19,17 @@ import { el } from './dom-utils.js';
 const UPDATE_STATUS_KEY = 'tabout:updateStatus';
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
 
+// Matches the shape written by background.js#checkForUpdate. Declared
+// narrow instead of casting through Record<string, unknown>; ts-level
+// autocomplete on s.dismissedTag etc. is the main win.
+interface UpdateStatusRecord {
+  updateAvailable?: boolean;
+  latestTag?: string;
+  currentTag?: string;
+  checkedAt?: string;
+  dismissedTag?: string | null;
+}
+
 async function dismissBanner(e: Event): Promise<void> {
   const banner = (e.currentTarget as HTMLElement | null)?.closest('.update-banner');
   banner?.remove();
@@ -27,7 +38,7 @@ async function dismissBanner(e: Event): Promise<void> {
   try {
     if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
     const result = await chrome.storage.local.get(UPDATE_STATUS_KEY);
-    const s = (result as Record<string, { latestTag?: string } & Record<string, unknown>>)[UPDATE_STATUS_KEY];
+    const s = (result as Record<string, UpdateStatusRecord | undefined>)[UPDATE_STATUS_KEY];
     if (!s?.latestTag) return;
     await chrome.storage.local.set({
       [UPDATE_STATUS_KEY]: { ...s, dismissedTag: s.latestTag },

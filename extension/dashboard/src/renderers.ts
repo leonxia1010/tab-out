@@ -116,6 +116,14 @@ function effectiveDomain(hostname: string): string {
   return DOMAIN_ALIASES[hostname] ?? hostname;
 }
 
+// Stable DOM key for each domain card. diff.ts (set-diff lookup) and
+// handlers.ts (close-domain action) rebuild the same slug; exporting
+// keeps the three call sites locked together — if the sanitization rule
+// ever changes, no silent drift.
+export function domainIdFor(domain: string): string {
+  return 'domain-' + domain.replace(/[^a-z0-9]/g, '-');
+}
+
 export function checkAndShowEmptyState(): void {
   const domainsEl = document.getElementById('openTabsDomains');
   if (!domainsEl) return;
@@ -208,25 +216,27 @@ export function buildOverflowChips(
   return [overflow, trigger];
 }
 
-// Signature captures the urls-and-dupe-counts shape a card represents.
-// renderDomainCard writes it into dataset.signature; PR 3's diff.ts
-// imports this same helper and string-compares against the stored value
-// to decide whether a kept card needs rebuilding. Single source of truth
+// Signature captures the url set (with duplicates) of a card. Sorted
+// urls inherently encode duplicate counts — adjacent matching entries
+// — so a separate counts map would be redundant. JSON.stringify over a
+// plain array keeps the dataset attribute debuggable in DevTools.
+//
+// renderDomainCard writes this into dataset.signature; diff.ts imports
+// the same helper and string-compares against the stored value to
+// decide whether a kept card needs rebuilding. Single source of truth
 // keeps the two sides in lockstep. Title changes are intentionally NOT
 // in the signature: refresh.ts already filters change.url, so a kept
 // card with a stale title is the expected trade-off (same rationale as
 // PR 1's hostname-based refresh signature).
 export function signatureForDomainCard(group: DomainGroup): string {
   const urls = (group.tabs || []).map((t) => t.url || '').sort();
-  const counts: Record<string, number> = {};
-  for (const u of urls) counts[u] = (counts[u] || 0) + 1;
-  return JSON.stringify({ urls, counts });
+  return JSON.stringify(urls);
 }
 
 export function renderDomainCard(group: DomainGroup, groupIndex: number): HTMLElement {
   const tabs      = group.tabs || [];
   const tabCount  = tabs.length;
-  const stableId  = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-');
+  const stableId  = domainIdFor(group.domain);
 
   const urlCounts: Record<string, number> = {};
   for (const tab of tabs) {
@@ -535,7 +545,15 @@ export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
     }
   }
 
-  return Object.values(groupMap).sort((a, b) => {
+  const groups = Object.values(groupMap);
+  // Pre-compute first-seen indices once: sort's comparator is called
+  // O(N log N) times, and firstIndex() is a linear scan over each
+  // group's tabs — caching avoids the quadratic-ish O(N log N × k)
+  // blow-up on users with many tabs per domain.
+  const firstSeen = new Map<string, number>(
+    groups.map((g) => [g.domain, firstIndex(g)]),
+  );
+  return groups.sort((a, b) => {
     // Priority tier: hostnames in PRIORITY_HOSTNAMES pin above the rest.
     // FUTURE: insert user-configured priority set here (ROADMAP.md).
     const aIsPriority = PRIORITY_HOSTNAMES.has(a.domain);
@@ -555,7 +573,7 @@ export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
     // tab.index may be missing in tests/mocks or if chrome omits it;
     // Infinity pushes such groups to the end, which is harmless and
     // deterministic.
-    return firstIndex(a) - firstIndex(b);
+    return (firstSeen.get(a.domain) ?? Infinity) - (firstSeen.get(b.domain) ?? Infinity);
   });
 }
 
@@ -610,7 +628,7 @@ export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount
       mount(openTabsDomainsEl, sortedGroups.map((g, idx) => renderDomainCard(g, idx)));
     }
   } else {
-    if (openTabsDomainsEl) openTabsDomainsEl.innerHTML = '';
+    if (openTabsDomainsEl) openTabsDomainsEl.replaceChildren();
     checkAndShowEmptyState();
   }
 }

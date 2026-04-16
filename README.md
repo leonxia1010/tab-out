@@ -20,13 +20,13 @@ Open a new tab — you'll see Tab Out.
 
 ## Features
 
-- **Tabs grouped by domain** — homepages and feeds (Gmail, X, LinkedIn, GitHub, YouTube) pulled into a "Homepages" card you can close in one click.
+- **Tabs grouped by domain** — each hostname gets its own card. Pinned hostnames (Gmail, X, LinkedIn, GitHub, YouTube) always appear first; the rest order by when each domain was first opened.
 - **Close with style** — swoosh sound + confetti when you clean up a group.
 - **Duplicate detection** — flagged with one-click cleanup.
 - **Click any tab to jump to it** — even across windows.
 - **Save for later** — bookmark individual tabs to a checklist before closing; auto-archives after 30 days.
 - **Update banner** — appears when a new release lands; checks GitHub every 48h.
-- **100% local** — `chrome.storage.local` only. The only network call is the 48h GitHub update poll.
+- **Local-first storage** — all saved-tab data lives in `chrome.storage.local`; no cloud sync. Three network calls for presentation/updates: Google Fonts (first load), `www.google.com/s2/favicons` (per chip), and `api.github.com/repos/leonxia1010/tab-out/releases/latest` (every 48h).
 
 ---
 

@@ -277,7 +277,7 @@ export function smartTitle(
 // browser internals (about/edge/brave) and Tab Out's own newtab pages so the
 // dashboard never lists itself in the Extensions card. chrome:// and
 // chrome-extension:// (other extensions) intentionally pass through.
-export function getDisplayableTabs(tabs: Tab[]): Tab[] {
+export function getDisplayableTabs(tabs: ReadonlyArray<Tab>): Tab[] {
   return tabs.filter((t) => {
     if (t.isTabOut) return false;
     const url = t.url || '';

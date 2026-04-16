@@ -94,6 +94,48 @@ async function writeArray<T>(key: string, value: T[]): Promise<void> {
   await storage().set({ [key]: value });
 }
 
+// Reader used by every deferred-tabs endpoint. A previous v1 migration or a
+// partial write during a service-worker kill could leave a row with null
+// title/url; searchDeferred.toLowerCase() on null crashes the whole list.
+// Filter at the boundary so the rest of the code can trust the shape.
+// Only id/url/title are strictly required — other fields have safe
+// defaults downstream (archived missing ⇒ treated as 0, archived_at
+// missing ⇒ sort uses empty string fallback).
+function isDeferredRow(x: unknown): x is DeferredTab {
+  if (!x || typeof x !== 'object') return false;
+  const r = x as Partial<DeferredTab>;
+  return typeof r.id === 'number'
+    && typeof r.url === 'string'
+    && typeof r.title === 'string';
+}
+
+async function readDeferredTabs(): Promise<DeferredTab[]> {
+  const raw = await readArray<unknown>('deferredTabs');
+  return raw.filter(isDeferredRow);
+}
+
+// Serialize every read-modify-write against deferredTabs. The dashboard is a
+// single page but user clicks (e.g. rapid ✕ on two saved rows, or a
+// concurrent age-out tick during a check) can still interleave:
+//
+//   click A → readDeferredTabs() → yield event loop
+//   click B → readDeferredTabs() → yield event loop
+//   A writes back minus row A
+//   B writes back minus row B — but B's snapshot still contained row A,
+//     so A just resurrected.
+//
+// withLock chains each write onto the previous one's completion. The failure
+// path re-invokes fn on the next call (so one rejected write doesn't poison
+// the chain) while still surfacing this call's own error through the
+// returned promise. Reads that don't mutate (searchDeferred, getUpdateStatus)
+// stay lock-free.
+let pendingWrite: Promise<unknown> = Promise.resolve();
+function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = pendingWrite.then(fn, fn);
+  pendingWrite = next.catch(() => {});
+  return next;
+}
+
 // ─── ID generation (replaces SQLite AUTOINCREMENT) ─────────────────────────
 // Date.now()*1000 + random is the *candidate* for a fresh id. We then bump
 // it past the last id we handed out to guarantee strict monotonicity within
@@ -156,14 +198,15 @@ const AGE_OUT_MS = 30 * 24 * 60 * 60 * 1000;
 const ARCHIVE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 const ARCHIVE_MAX_COUNT = 500;
 
-export async function saveDefer(
+export function saveDefer(
   inputs: DeferInput[],
 ): Promise<SaveDeferResult> {
+  return withLock(async () => {
   if (!Array.isArray(inputs) || inputs.length === 0) {
     throw new Error('tabs array is required');
   }
 
-  const all = await readArray<DeferredTab>('deferredTabs');
+  const all = await readDeferredTabs();
   const created: DeferredCreated[] = [];
   const renewed: DeferredCreated[] = [];
   const now = new Date().toISOString();
@@ -223,11 +266,13 @@ export async function saveDefer(
 
   await writeArray('deferredTabs', all);
   return { success: true, created, renewed };
+  });
 }
 
-export async function getDeferred(): Promise<DeferredListResult> {
+export function getDeferred(): Promise<DeferredListResult> {
+  return withLock(async () => {
   const now = Date.now();
-  const all = await readArray<DeferredTab>('deferredTabs');
+  const all = await readDeferredTabs();
   const ageOutCutoff = now - AGE_OUT_MS;
   const archivedAt = new Date(now).toISOString();
   let changed = false;
@@ -282,13 +327,14 @@ export async function getDeferred(): Promise<DeferredListResult> {
     .sort((a, b) => (b.archived_at || '').localeCompare(a.archived_at || ''));
 
   return { active, archived };
+  });
 }
 
 export async function searchDeferred(q: string): Promise<SearchDeferredResult> {
   if (!q || q.length < 2) return { results: [] };
 
   const needle = q.toLowerCase();
-  const all = await readArray<DeferredTab>('deferredTabs');
+  const all = await readDeferredTabs();
   const results = all
     .filter((t) => t.archived === 1)
     .filter(
@@ -302,61 +348,69 @@ export async function searchDeferred(q: string): Promise<SearchDeferredResult> {
   return { results };
 }
 
-export async function checkDeferred(
+export function checkDeferred(
   id: number | string,
 ): Promise<{ success: true }> {
-  const target = String(id);
-  const all = await readArray<DeferredTab>('deferredTabs');
-  const t = all.find((row) => String(row.id) === target);
-  if (!t) throw new Error(`deferred ${id} not found`);
-  const now = new Date().toISOString();
-  t.checked = 1;
-  t.checked_at = now;
-  t.archived = 1;
-  t.archived_at = now;
-  await writeArray('deferredTabs', all);
-  return { success: true };
+  return withLock(async () => {
+    const target = String(id);
+    const all = await readDeferredTabs();
+    const t = all.find((row) => String(row.id) === target);
+    if (!t) throw new Error(`deferred ${id} not found`);
+    const now = new Date().toISOString();
+    t.checked = 1;
+    t.checked_at = now;
+    t.archived = 1;
+    t.archived_at = now;
+    await writeArray('deferredTabs', all);
+    return { success: true };
+  });
 }
 
 // ✕ button on active rows — permanent deletion, no archive trail.
 // Checkbox (checkDeferred) is the only path that produces an archive entry,
 // so archive reads as "completed/reviewed" rather than "dropped".
-export async function dismissDeferred(
+export function dismissDeferred(
   id: number | string,
 ): Promise<{ success: true }> {
-  const target = String(id);
-  const all = await readArray<DeferredTab>('deferredTabs');
-  const idx = all.findIndex((row) => String(row.id) === target);
-  if (idx === -1) throw new Error(`deferred ${id} not found`);
-  all.splice(idx, 1);
-  await writeArray('deferredTabs', all);
-  return { success: true };
+  return withLock(async () => {
+    const target = String(id);
+    const all = await readDeferredTabs();
+    const idx = all.findIndex((row) => String(row.id) === target);
+    if (idx === -1) throw new Error(`deferred ${id} not found`);
+    all.splice(idx, 1);
+    await writeArray('deferredTabs', all);
+    return { success: true };
+  });
 }
 
 // Permanent deletion of a single archived row.
-export async function deleteArchived(
+export function deleteArchived(
   id: number | string,
 ): Promise<{ success: true }> {
-  const target = String(id);
-  const all = await readArray<DeferredTab>('deferredTabs');
-  const idx = all.findIndex(
-    (row) => String(row.id) === target && row.archived === 1,
-  );
-  if (idx === -1) throw new Error(`archived ${id} not found`);
-  all.splice(idx, 1);
-  await writeArray('deferredTabs', all);
-  return { success: true };
+  return withLock(async () => {
+    const target = String(id);
+    const all = await readDeferredTabs();
+    const idx = all.findIndex(
+      (row) => String(row.id) === target && row.archived === 1,
+    );
+    if (idx === -1) throw new Error(`archived ${id} not found`);
+    all.splice(idx, 1);
+    await writeArray('deferredTabs', all);
+    return { success: true };
+  });
 }
 
 // Bulk-delete every archived row. Active rows are preserved. Returns the
 // deleted count so callers can surface "Cleared N archived tab(s)" toast.
-export async function clearAllArchived(): Promise<{
+export function clearAllArchived(): Promise<{
   success: true;
   deleted: number;
 }> {
-  const all = await readArray<DeferredTab>('deferredTabs');
-  const remaining = all.filter((t) => t.archived === 0);
-  const deleted = all.length - remaining.length;
-  if (deleted > 0) await writeArray('deferredTabs', remaining);
-  return { success: true, deleted };
+  return withLock(async () => {
+    const all = await readDeferredTabs();
+    const remaining = all.filter((t) => t.archived === 0);
+    const deleted = all.length - remaining.length;
+    if (deleted > 0) await writeArray('deferredTabs', remaining);
+    return { success: true, deleted };
+  });
 }
