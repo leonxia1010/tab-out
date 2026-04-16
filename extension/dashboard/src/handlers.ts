@@ -134,7 +134,24 @@ async function handleDeferSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
     chip.style.transition = 'opacity 0.2s, transform 0.2s';
     chip.style.opacity = '0';
     chip.style.transform = 'scale(0.8)';
-    setTimeout(() => chip.remove(), 200);
+    setTimeout(() => {
+      chip.remove();
+      // Same pattern as handleCloseSingleTab: after the chip is gone we
+      // must fly out any now-empty domain-card. Without this, the card
+      // keeps its header + "Close all N tabs" button stale on-screen,
+      // because refresh.ts sees signature parity (closeTabsByUrls already
+      // pre-synced openTabs) and correctly skips re-render.
+      const cardEmpty = document.querySelector<HTMLElement>('.domain-card:has(.domain-pages:empty)');
+      if (cardEmpty) {
+        animateCardOut(cardEmpty);
+      }
+      document.querySelectorAll<HTMLElement>('.domain-card').forEach(c => {
+        const remainingTabs = c.querySelectorAll('.page-chip[data-action="focus-tab"]');
+        if (remainingTabs.length === 0) {
+          animateCardOut(c);
+        }
+      });
+    }, 200);
   }
 
   refreshOpenTabsCounters();
