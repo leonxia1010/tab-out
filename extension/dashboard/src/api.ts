@@ -285,24 +285,22 @@ export async function checkDeferred(
   return { success: true };
 }
 
+// ✕ button on active rows — permanent deletion, no archive trail.
+// Checkbox (checkDeferred) is the only path that produces an archive entry,
+// so archive reads as "completed/reviewed" rather than "dropped".
 export async function dismissDeferred(
   id: number | string,
 ): Promise<{ success: true }> {
   const target = String(id);
   const all = await readArray<DeferredTab>('deferredTabs');
-  const t = all.find((row) => String(row.id) === target);
-  if (!t) throw new Error(`deferred ${id} not found`);
-  const now = new Date().toISOString();
-  t.dismissed = 1;
-  t.archived = 1;
-  t.archived_at = now;
+  const idx = all.findIndex((row) => String(row.id) === target);
+  if (idx === -1) throw new Error(`deferred ${id} not found`);
+  all.splice(idx, 1);
   await writeArray('deferredTabs', all);
   return { success: true };
 }
 
-// Permanent deletion of a single archived row. Throws if the id is not
-// found OR if the row is still active — callers should route unwanted
-// active rows through dismissDeferred first, which keeps the audit trail.
+// Permanent deletion of a single archived row.
 export async function deleteArchived(
   id: number | string,
 ): Promise<{ success: true }> {

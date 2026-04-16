@@ -310,16 +310,18 @@ describe('checkDeferred', () => {
 });
 
 describe('dismissDeferred', () => {
-  it('marks the row dismissed + archived', async () => {
+  it('removes the row outright (no archive trail)', async () => {
     const { store } = installChromeStorage({
       deferredTabs: [
         { id: 5, url: 'u', title: 'u', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+        { id: 6, url: 'v', title: 'v', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
       ],
     });
     await dismissDeferred(5);
-    const row = store.get('deferredTabs')[0];
-    expect(row.dismissed).toBe(1);
-    expect(row.archived).toBe(1);
+    const stored = store.get('deferredTabs');
+    expect(stored).toHaveLength(1);
+    expect(stored.find((r) => r.id === 5)).toBeUndefined();
+    expect(stored.find((r) => r.id === 6)).toBeDefined();
   });
 
   it('throws when the id does not exist', async () => {
