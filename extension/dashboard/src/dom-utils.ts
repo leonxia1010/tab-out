@@ -21,7 +21,19 @@ const PROPERTY_KEYS = new Set<string>([
   'disabled', 'checked', 'value', 'type', 'src', 'alt',
 ]);
 
-const SAFE_HREF_RE = /^(https?:|mailto:|tel:|[/?#])/i;
+// Schemes allowed to stay on href attributes after sanitization. Anything
+// outside this set (javascript:, data:, vbscript:, blob:, etc.) is
+// downgraded to '#' so a malicious saved URL cannot run code when the
+// anchor is clicked.
+//
+// chrome:, chrome-extension:, file: are intentionally allowed because
+// this bundle runs inside a chrome-extension:// page where those schemes
+// are legitimate targets: a user saving chrome://extensions/ or a
+// file:// path is a supported flow. Click-to-open still goes through
+// handlers.ts#handleOpenSaved (chrome.tabs.create), which bypasses the
+// anchor navigation path entirely — keeping the href accurate matters
+// for hover tooltips and right-click "copy link address".
+const SAFE_HREF_RE = /^(https?:|mailto:|tel:|chrome:|chrome-extension:|file:|[/?#])/i;
 
 export function sanitizeHref(raw: unknown): string {
   const val = String(raw == null ? '' : raw).trim();

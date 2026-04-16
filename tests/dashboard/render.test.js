@@ -266,6 +266,56 @@ describe('href scheme sanitization', () => {
     const link = container.querySelector('.deferred-title');
     expect(link.getAttribute('href')).toBe('https://example.com/path?q=1#hash');
   });
+
+  it('preserves chrome:// URL (saved chrome internals must round-trip)', () => {
+    // Regression: the sanitizer previously dropped chrome:// to '#', which
+    // then resolved to the dashboard's own URL + '#' at click time, so
+    // clicking a saved chrome://extensions entry re-opened the dashboard.
+    const container = makeContainer();
+    const item = {
+      id: 61,
+      url: 'chrome://extensions/',
+      title: 'Extensions',
+      deferred_at: NOW_SECONDS,
+    };
+    mountResult(container, renderDeferredItem(item));
+
+    const link = container.querySelector('.deferred-title');
+    expect(link.getAttribute('href')).toBe('chrome://extensions/');
+    expect(link.dataset.action).toBe('open-saved');
+    expect(link.dataset.savedUrl).toBe('chrome://extensions/');
+  });
+
+  it('preserves chrome-extension:// URL for saved other-extension pages', () => {
+    const container = makeContainer();
+    const item = {
+      id: 62,
+      url: 'chrome-extension://abcdef1234567890abcdef1234567890/options.html',
+      title: 'Other Extension Options',
+      archived_at: NOW_SECONDS - 7200,
+    };
+    mountResult(container, renderArchiveItem(item));
+
+    const link = container.querySelector('.archive-item-title');
+    expect(link.getAttribute('href')).toBe(
+      'chrome-extension://abcdef1234567890abcdef1234567890/options.html',
+    );
+    expect(link.dataset.action).toBe('open-saved');
+  });
+
+  it('preserves file:// URL for saved local files', () => {
+    const container = makeContainer();
+    const item = {
+      id: 63,
+      url: 'file:///Users/someone/notes.md',
+      title: 'notes.md',
+      deferred_at: NOW_SECONDS,
+    };
+    mountResult(container, renderDeferredItem(item));
+
+    const link = container.querySelector('.deferred-title');
+    expect(link.getAttribute('href')).toBe('file:///Users/someone/notes.md');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

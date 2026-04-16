@@ -222,6 +222,24 @@ async function handleDeleteArchived(actionEl: HTMLElement): Promise<void> {
   showToast('Deleted from archive');
 }
 
+async function handleOpenSaved(e: Event, actionEl: HTMLElement): Promise<void> {
+  const url = actionEl.dataset.savedUrl;
+  if (!url) return;
+  // Take over anchor navigation. Chrome blocks <a href="chrome://..."> from
+  // an extension page — the fallback used to be an accidental navigation
+  // to '#' (the sanitizer's downgrade target), which resolved against this
+  // dashboard URL and re-opened the dashboard itself. Routing through
+  // chrome.tabs.create avoids every layer of that.
+  e.preventDefault();
+  if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+    try {
+      await chrome.tabs.create({ url });
+    } catch (err) {
+      console.warn('[tab-out] Failed to open saved tab:', err);
+    }
+  }
+}
+
 async function handleCloseDomainTabs(actionEl: HTMLElement, card: HTMLElement | null): Promise<void> {
   const domainId = actionEl.dataset.domainId;
   const groups = getDomainGroups();
@@ -325,6 +343,7 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'defer-single-tab':   return handleDeferSingleTab(e, actionEl);
     case 'check-deferred':     return handleCheckDeferred(actionEl);
     case 'dismiss-deferred':   return handleDismissDeferred(actionEl);
+    case 'open-saved':         return handleOpenSaved(e, actionEl);
     case 'close-domain-tabs':  return handleCloseDomainTabs(actionEl, card);
     case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card);
     case 'close-all-open-tabs':return handleCloseAllOpenTabs();
