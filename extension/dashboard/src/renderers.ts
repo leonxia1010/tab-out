@@ -208,6 +208,21 @@ export function buildOverflowChips(
   return [overflow, trigger];
 }
 
+// Signature captures the urls-and-dupe-counts shape a card represents.
+// renderDomainCard writes it into dataset.signature; PR 3's diff.ts
+// imports this same helper and string-compares against the stored value
+// to decide whether a kept card needs rebuilding. Single source of truth
+// keeps the two sides in lockstep. Title changes are intentionally NOT
+// in the signature: refresh.ts already filters change.url, so a kept
+// card with a stale title is the expected trade-off (same rationale as
+// PR 1's hostname-based refresh signature).
+export function signatureForDomainCard(group: DomainGroup): string {
+  const urls = (group.tabs || []).map((t) => t.url || '').sort();
+  const counts: Record<string, number> = {};
+  for (const u of urls) counts[u] = (counts[u] || 0) + 1;
+  return JSON.stringify({ urls, counts });
+}
+
 export function renderDomainCard(group: DomainGroup, groupIndex: number): HTMLElement {
   const tabs      = group.tabs || [];
   const tabCount  = tabs.length;
@@ -305,7 +320,10 @@ export function renderDomainCard(group: DomainGroup, groupIndex: number): HTMLEl
 
   const card = el('div', {
     className: `domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}`,
-    dataset: { domainId: stableId },
+    dataset: {
+      domainId: stableId,
+      signature: signatureForDomainCard(group),
+    },
   }, [statusBar, domainContent, domainMeta]);
 
   // Waterfall fade-in: each card staggers 0.05s after the one before it,
@@ -544,7 +562,7 @@ function firstIndex(group: DomainGroup): number {
 // Header = section title + "X domains · Close all N tabs". Split out so
 // handlers can refresh the counters after a close action without wiping
 // the domains grid (and clobbering in-flight card animations).
-function renderOpenTabsHeader(sortedGroups: DomainGroup[], realTabsCount: number): void {
+export function renderOpenTabsHeader(sortedGroups: DomainGroup[], realTabsCount: number): void {
   const openTabsSectionTitle = document.getElementById('openTabsSectionTitle');
   const openTabsSectionCount = document.getElementById('openTabsSectionCount');
 

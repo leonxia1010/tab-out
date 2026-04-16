@@ -19,7 +19,7 @@
 // This replaces a previous attempt (PR #33, suppressRefresh + isSelf +
 // status=complete filter) that stacked three special cases and still leaked.
 
-import { renderOpenTabsOnly } from './renderers.js';
+import { applyOpenTabsDiff } from './diff.js';
 import { fetchOpenTabs } from './extension-bridge.js';
 import { getOpenTabs } from './state.js';
 import { getDisplayableTabs } from './utils.js';
@@ -60,7 +60,11 @@ export function scheduleRefresh(): void {
     await fetchOpenTabs();
     const after = displayableSignature();
     if (before === after) return;
-    await renderOpenTabsOnly();
+    // PR 3: incremental card-level diff replaces the full mount. Order
+    // reshuffle + empty<->non-empty transitions fall back to full mount
+    // inside applyOpenTabsDiff itself (so the initial waterfall still
+    // plays on the empty-to-populated case).
+    await applyOpenTabsDiff();
   }, REFRESH_DEBOUNCE_MS);
 }
 

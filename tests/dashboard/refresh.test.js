@@ -34,10 +34,11 @@ function installChrome({ queryResults = [[]] } = {}) {
 
 // Loads a fresh refresh.ts (after vi.resetModules) and seeds the state
 // module that refresh.ts / extension-bridge.ts will share via the same
-// module cache instance.
+// module cache instance. PR 3 swapped refresh.ts's target from
+// renderOpenTabsOnly to applyOpenTabsDiff, so we mock diff.ts instead.
 async function loadRefresh({ renderSpy, initialTabs = [] }) {
-  vi.doMock('../../extension/dashboard/src/renderers.ts', () => ({
-    renderOpenTabsOnly: renderSpy,
+  vi.doMock('../../extension/dashboard/src/diff.ts', () => ({
+    applyOpenTabsDiff: renderSpy,
   }));
   const state = await import('../../extension/dashboard/src/state.ts');
   state.setOpenTabs(initialTabs);
@@ -52,7 +53,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
-  vi.doUnmock('../../extension/dashboard/src/renderers.ts');
+  vi.doUnmock('../../extension/dashboard/src/diff.ts');
   vi.restoreAllMocks();
 });
 
