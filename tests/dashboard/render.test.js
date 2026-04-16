@@ -443,6 +443,54 @@ describe('groupTabsByDomain', () => {
     expect(bucket(groups, '__chrome-internal__').tabs.length).toBe(3);
   });
 
+  // ──────────────────────────────────────────────────────────────────────
+  // Sort order (PR 2 — first-seen leaf tier).
+  // ──────────────────────────────────────────────────────────────────────
+  it('leaf tier: cards sort by first-seen (min tab.index per group)', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://reddit.com/r/a',    index: 2 },
+      { url: 'https://news.ycombinator.com/', index: 0 },
+      { url: 'https://jiangren.com.au/',  index: 1 },
+    ]);
+    expect(groups.map((g) => g.domain)).toEqual([
+      'news.ycombinator.com',
+      'jiangren.com.au',
+      'reddit.com',
+    ]);
+  });
+
+  it('a group anchors to its earliest-opened tab even after later tabs join it', () => {
+    // reddit's first tab opened at index 0; another reddit tab opened at
+    // index 5 must not drag the card down below later-opened domains.
+    const groups = groupTabsByDomain([
+      { url: 'https://reddit.com/r/a',    index: 0 },
+      { url: 'https://jiangren.com.au/',  index: 1 },
+      { url: 'https://reddit.com/r/b',    index: 5 },
+    ]);
+    expect(groups.map((g) => g.domain)).toEqual([
+      'reddit.com',
+      'jiangren.com.au',
+    ]);
+  });
+
+  it('priority tier: pinned hostnames rank above non-priority regardless of tab.index', () => {
+    const groups = groupTabsByDomain([
+      { url: 'https://reddit.com/r/a',    index: 0 },
+      { url: 'https://github.com/owner/repo', index: 1 },
+      { url: 'https://jiangren.com.au/',  index: 2 },
+      { url: 'https://mail.google.com/u/0/#inbox/xyz', index: 3 },
+    ]);
+    // github + mail.google.com are priority — both come before reddit and
+    // jiangren, and among themselves the earlier-opened (github at 1)
+    // wins over mail (at 3).
+    expect(groups.map((g) => g.domain)).toEqual([
+      'github.com',
+      'mail.google.com',
+      'reddit.com',
+      'jiangren.com.au',
+    ]);
+  });
+
   it('groups all chrome-extension:// pages into __extensions__', () => {
     const groups = groupTabsByDomain([
       { url: 'chrome-extension://abc/popup.html' },

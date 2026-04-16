@@ -514,9 +514,31 @@ export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
     const aIsPriority = PRIORITY_HOSTNAMES.has(a.domain);
     const bIsPriority = PRIORITY_HOSTNAMES.has(b.domain);
     if (aIsPriority !== bIsPriority) return aIsPriority ? -1 : 1;
-    // Leaf tier: tab count (PR 2 switches this to first-seen via tab.index).
-    return b.tabs.length - a.tabs.length;
+    // FUTURE: drag-to-reorder lands here — read user-custom order from
+    // chrome.storage.local['tabout:cardOrder'] and sort matched domains
+    // by their index in it, falling through to first-seen for the rest.
+    // See ROADMAP.md "Drag-to-reorder domain cards".
+    //
+    // Leaf tier: first-seen. A group's position is anchored to its
+    // earliest-opened tab's chrome-tab index, so opening/closing tabs
+    // on other domains doesn't reshuffle this card. This stability is
+    // the precondition for PR 3's card-level diff — "order changed →
+    // full re-render" (rule 4) would otherwise fire on every tab add.
+    //
+    // tab.index may be missing in tests/mocks or if chrome omits it;
+    // Infinity pushes such groups to the end, which is harmless and
+    // deterministic.
+    return firstIndex(a) - firstIndex(b);
   });
+}
+
+function firstIndex(group: DomainGroup): number {
+  let min = Infinity;
+  for (const t of group.tabs) {
+    const idx = typeof t.index === 'number' ? t.index : Infinity;
+    if (idx < min) min = idx;
+  }
+  return min;
 }
 
 // Header = section title + "X domains · Close all N tabs". Split out so
