@@ -33,9 +33,20 @@ let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 // fetchOpenTabs, so onCreated(url="") for a fresh cmd+t tab does NOT shift
 // signature until the user navigates — no spurious waterfall for empty
 // new-tab pages.
+//
+// Hostname-based (not full URL): the left grid groups cards by domain, so
+// the visible-UI-change invariant is about hostname identity, not path. An
+// i18n redirect like jiangren.com.au/ -> /en or a SPA route change within
+// github.com does not change which cards exist — signature stays and we
+// skip the render. Malformed URLs fall back to the raw string (still acts
+// as a set-identity anchor).
 function displayableSignature(): string {
   return getDisplayableTabs(getOpenTabs())
-    .map((t) => t.url || '')
+    .map((t) => {
+      const raw = t.url || '';
+      if (!raw) return '';
+      try { return new URL(raw).hostname; } catch { return raw; }
+    })
     .filter(Boolean)
     .sort()
     .join('|');

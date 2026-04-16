@@ -167,6 +167,24 @@ describe('scheduleRefresh — signature-based dedup', () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(renderSpy).not.toHaveBeenCalled();
   });
+
+  it('skips render on same-host URL change (i18n redirect / SPA nav)', async () => {
+    // jiangren.com.au -> jiangren.com.au/en scenario. Pre-refresh state has
+    // the tab on `/`, chrome.tabs.query returns `/en` on the next fetch.
+    // URL-based signature would differ; hostname-based (this PR) sees both
+    // as `jiangren.com.au` and skips render.
+    installChrome({ queryResults: [[
+      { id: 1, url: 'https://jiangren.com.au/en', title: 'JR Academy (EN)' },
+    ]] });
+    const renderSpy = vi.fn().mockResolvedValue(undefined);
+    const { scheduleRefresh } = await loadRefresh({
+      renderSpy,
+      initialTabs: [{ url: 'https://jiangren.com.au/', title: 'JR Academy' }],
+    });
+    scheduleRefresh();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(renderSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe('attachTabsListeners — event filter', () => {
