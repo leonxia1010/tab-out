@@ -347,6 +347,36 @@ describe('closeTabOutDupes', () => {
     await closeTabOutDupes();
     expect(tabsApi.remove).not.toHaveBeenCalled();
   });
+
+  it('keeps the current-window Tab Out even when another window has an active dashboard', async () => {
+    // Multi-window bug: without the windowId check, an active Tab Out tab in
+    // another window wins the `keep` selection and every Tab Out tab in the
+    // window the user is actually in gets closed — their current view
+    // disappears.
+    const { tabsApi } = installChrome({
+      currentWindowId: 2,
+      tabs: [
+        { id: 1, url: NEWTAB_URL, active: true, windowId: 1 },
+        { id: 2, url: NEWTAB_URL, active: true, windowId: 2 },
+        { id: 3, url: NEWTAB_URL, active: false, windowId: 2 },
+      ],
+    });
+    await closeTabOutDupes();
+    // Must keep id 2 (active in current window 2) and close 1 and 3.
+    expect(tabsApi.remove).toHaveBeenCalledWith([1, 3]);
+  });
+
+  it('falls back to any-window active when no current-window Tab Out is active', async () => {
+    const { tabsApi } = installChrome({
+      currentWindowId: 2,
+      tabs: [
+        { id: 1, url: NEWTAB_URL, active: true, windowId: 1 },
+        { id: 2, url: NEWTAB_URL, active: false, windowId: 2 },
+      ],
+    });
+    await closeTabOutDupes();
+    expect(tabsApi.remove).toHaveBeenCalledWith([2]);
+  });
 });
 
 // ─── closeTabsByUrls skipSelf guard ─────────────────────────────────────────

@@ -156,12 +156,20 @@ export async function closeTabOutDupes(): Promise<void> {
 
   const newtabUrls = tabOutNewtabUrls();
   const allTabs = await chrome.tabs.query({});
+  const currentWindow = await chrome.windows.getCurrent();
   const tabOutTabs = allTabs.filter(
     (t) => !!t.url && newtabUrls.includes(t.url),
   );
   if (tabOutTabs.length <= 1) return;
 
-  const keep = tabOutTabs.find((t) => t.active) || tabOutTabs[0];
+  // Prefer the active Tab Out tab in the current window so the user's
+  // current view survives. Without the windowId check, a cross-window
+  // active match can close every Tab Out tab in the window they're
+  // actually looking at.
+  const keep =
+    tabOutTabs.find((t) => t.active && t.windowId === currentWindow.id) ||
+    tabOutTabs.find((t) => t.active) ||
+    tabOutTabs[0];
   const ids = tabOutTabs
     .filter((t) => t.id !== keep.id)
     .map((t) => t.id)
