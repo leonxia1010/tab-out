@@ -38,34 +38,18 @@ const CHIP_SAVE_SVG  = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" view
 const CHIP_CLOSE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>';
 const DEFERRED_DISMISS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>';
 
-interface LandingPagePattern {
-  hostname: string;
-  test?: (pathname: string, fullUrl: string) => boolean;
-  pathPrefix?: string;
-  pathExact?: string[];
-}
-
-const LANDING_PAGE_PATTERNS: LandingPagePattern[] = [
-  { hostname: 'mail.google.com', test: (_p, h) =>
-      !h.includes('#inbox/') && !h.includes('#sent/') && !h.includes('#search/') },
-  { hostname: 'x.com',            pathExact: ['/home'] },
-  { hostname: 'twitter.com',      pathExact: ['/home'] },
-  { hostname: 'www.linkedin.com', pathExact: ['/'] },
-  { hostname: 'github.com',       pathExact: ['/'] },
-];
-
-function isLandingPage(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return LANDING_PAGE_PATTERNS.some(p => {
-      if (parsed.hostname !== p.hostname) return false;
-      if (p.test)       return p.test(parsed.pathname, url);
-      if (p.pathPrefix) return parsed.pathname.startsWith(p.pathPrefix);
-      if (p.pathExact)  return p.pathExact.includes(parsed.pathname);
-      return parsed.pathname === '/';
-    });
-  } catch { return false; }
-}
+// Hostnames whose card stays pinned above non-priority cards regardless of
+// open-order. User-facing rationale: these are the "always-available"
+// entry points (mail, social, code host) that a user treats as ambient
+// and expects on the left. Currently hardcoded; FUTURE: expose via the
+// options page so each user picks their own priority set (see ROADMAP.md).
+const PRIORITY_HOSTNAMES = new Set<string>([
+  'mail.google.com',
+  'x.com',
+  'twitter.com',
+  'www.linkedin.com',
+  'github.com',
+]);
 
 // Explicit hostname → card-key aliases. Replaces the old endsWith('.' + root)
 // logic for two reasons: (1) cross-TLD short links like b23.tv aren't
@@ -92,7 +76,8 @@ const DOMAIN_ALIASES: Record<string, string> = {
   'youtu.be':            'youtube.com',
 
   // Twitter / X — Musk rename left both domains live; collapse to x.com (current
-  // official name). twitter.com/home still lands in Homepages via LANDING_PAGE_PATTERNS.
+  // official name). Both twitter.com and x.com are in PRIORITY_HOSTNAMES so
+  // either way a tab on them pins above normal cards.
   'www.x.com':           'x.com',
   'twitter.com':         'x.com',
   'www.twitter.com':     'x.com',
@@ -226,7 +211,6 @@ export function buildOverflowChips(
 export function renderDomainCard(group: DomainGroup, groupIndex: number): HTMLElement {
   const tabs      = group.tabs || [];
   const tabCount  = tabs.length;
-  const isLanding = group.domain === '__landing-pages__';
   const stableId  = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-');
 
   const urlCounts: Record<string, number> = {};
@@ -302,7 +286,7 @@ export function renderDomainCard(group: DomainGroup, groupIndex: number): HTMLEl
   const domainTopChildren: Array<Node | string | null | false | undefined> = [
     el('span', {
       className: 'domain-name',
-      textContent: isLanding ? 'Homepages' : friendlyDomain(group.domain),
+      textContent: friendlyDomain(group.domain),
     }),
     tabBadge,
   ];
@@ -500,14 +484,9 @@ export async function renderDeferredColumn(
 
 export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
   const groupMap: Record<string, DomainGroup> = {};
-  const landingTabs: Tab[] = [];
 
   for (const tab of realTabs) {
     try {
-      if (isLandingPage(tab.url || '')) {
-        landingTabs.push(tab);
-        continue;
-      }
       const url = tab.url || '';
       let hostname: string;
       if (url.startsWith('file://')) {
@@ -529,18 +508,13 @@ export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
     }
   }
 
-  if (landingTabs.length > 0) {
-    groupMap['__landing-pages__'] = { domain: '__landing-pages__', tabs: landingTabs };
-  }
-
-  const landingHostnames = new Set(LANDING_PAGE_PATTERNS.map(p => p.hostname));
   return Object.values(groupMap).sort((a, b) => {
-    const aIsLanding = a.domain === '__landing-pages__';
-    const bIsLanding = b.domain === '__landing-pages__';
-    if (aIsLanding !== bIsLanding) return aIsLanding ? -1 : 1;
-    const aIsPriority = landingHostnames.has(a.domain);
-    const bIsPriority = landingHostnames.has(b.domain);
+    // Priority tier: hostnames in PRIORITY_HOSTNAMES pin above the rest.
+    // FUTURE: insert user-configured priority set here (ROADMAP.md).
+    const aIsPriority = PRIORITY_HOSTNAMES.has(a.domain);
+    const bIsPriority = PRIORITY_HOSTNAMES.has(b.domain);
     if (aIsPriority !== bIsPriority) return aIsPriority ? -1 : 1;
+    // Leaf tier: tab count (PR 2 switches this to first-seen via tab.index).
     return b.tabs.length - a.tabs.length;
   });
 }
