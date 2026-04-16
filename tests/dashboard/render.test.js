@@ -276,7 +276,11 @@ describe('groupTabsByDomain', () => {
     return groups.find((g) => g.domain === domain);
   }
 
-  it('youtube root no longer becomes a Homepages tab', () => {
+  it('youtube tabs all land under youtube.com card', () => {
+    // Historical note: before the Homepages removal, a youtube root tab
+    // would have been bucketed into __landing-pages__; now every tab just
+    // goes to its hostname card, with DOMAIN_ALIASES collapsing
+    // www.youtube.com into youtube.com.
     const groups = groupTabsByDomain([
       { url: 'https://www.youtube.com/' },
       { url: 'https://www.youtube.com/watch?v=abc' },
@@ -309,13 +313,14 @@ describe('groupTabsByDomain', () => {
     expect(bucket(groups, '__landing-pages__')).toBeUndefined();
   });
 
-  it('twitter.com/home lands in Homepages just like x.com/home', () => {
+  it('twitter.com/home collapses into x.com card (no Homepages bucket)', () => {
     const groups = groupTabsByDomain([
       { url: 'https://twitter.com/home' },
       { url: 'https://x.com/home' },
     ]);
-    expect(bucket(groups, '__landing-pages__').tabs.length).toBe(2);
-    expect(bucket(groups, 'x.com')).toBeUndefined();
+    expect(bucket(groups, '__landing-pages__')).toBeUndefined();
+    expect(bucket(groups, 'x.com').tabs.length).toBe(2);
+    expect(bucket(groups, 'twitter.com')).toBeUndefined();
   });
 
   it('collapses tmall.com + taobao subdomains into taobao.com (Alibaba ecommerce)', () => {
@@ -385,13 +390,13 @@ describe('groupTabsByDomain', () => {
     expect(bucket(groups, 'taobao.com').tabs.length).toBe(1);
   });
 
-  it('still treats github root as a Homepages tab', () => {
+  it('github root shares the github.com card with repo pages (no Homepages)', () => {
     const groups = groupTabsByDomain([
       { url: 'https://github.com/' },
       { url: 'https://github.com/owner/repo' },
     ]);
-    expect(bucket(groups, '__landing-pages__').tabs.length).toBe(1);
-    expect(bucket(groups, 'github.com').tabs.length).toBe(1);
+    expect(bucket(groups, '__landing-pages__')).toBeUndefined();
+    expect(bucket(groups, 'github.com').tabs.length).toBe(2);
   });
 
   it('collapses bilibili subdomains + b23.tv short link into one card', () => {

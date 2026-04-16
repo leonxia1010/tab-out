@@ -229,8 +229,11 @@ async function handleCloseDomainTabs(actionEl: HTMLElement, card: HTMLElement | 
   if (!group) return;
 
   const urls = group.tabs.map(t => t.url || '').filter(Boolean);
-  const useExact = group.domain === '__landing-pages__';
-  await closeTabsByUrls(urls, useExact);
+  // Every card now represents a single hostname — hostname-mode match is
+  // correct for closing all its tabs. The old Homepages card held tabs
+  // across multiple hostnames and needed exact-URL match; that code path
+  // is gone now.
+  await closeTabsByUrls(urls);
 
   if (card) {
     playCloseSound();
@@ -239,8 +242,7 @@ async function handleCloseDomainTabs(actionEl: HTMLElement, card: HTMLElement | 
 
   refreshOpenTabsCounters();
 
-  const groupLabel = group.domain === '__landing-pages__' ? 'Homepages' : friendlyDomain(group.domain);
-  showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${groupLabel}`);
+  showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${friendlyDomain(group.domain)}`);
 }
 
 async function handleDedupKeepOne(actionEl: HTMLElement, card: HTMLElement | null): Promise<void> {
