@@ -138,7 +138,7 @@ async function handleDeferSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
   }
 
   refreshOpenTabsCounters();
-  showToast(wasRenewed ? 'Already saved — time refreshed' : 'Saved for later');
+  showToast(wasRenewed ? 'Already saved. Moved to top.' : 'Saved for later');
   await renderDeferredColumn();
 }
 
