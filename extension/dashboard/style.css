@@ -624,14 +624,26 @@ header { animation: fadeUp 0.5s ease both; }
 .active-section .domains .domain-card { animation: fadeUp 0.4s ease both; }
 footer { animation: fadeUp 0.5s ease 0.65s both; }
 
-.deferred-list .deferred-item:nth-child(1) { animation-delay: 0.05s; }
-.deferred-list .deferred-item:nth-child(2) { animation-delay: 0.1s; }
-.deferred-list .deferred-item:nth-child(3) { animation-delay: 0.15s; }
-.deferred-list .deferred-item:nth-child(4) { animation-delay: 0.2s; }
-.deferred-list .deferred-item:nth-child(5) { animation-delay: 0.25s; }
+/* Right column entrance: waterfall only on page-load (gated by
+   .deferred-list.animate-in class which renderDeferredColumn() sets via
+   the `waterfall` option). Event-driven re-renders (save / check / dismiss
+   / delete / clear) don't set the class, so mount() replaces the list
+   silently and the section header doesn't re-flash. Per-row .removing
+   still drives the delete fade-out. */
 .deferred-column .section-header { animation: fadeUp 0.5s ease 0.2s both; }
 .deferred-empty    { animation: fadeUp 0.5s ease 0.2s both; }
 .deferred-archive  { animation: fadeUp 0.5s ease 0.3s both; }
+
+/* Sync to the left column: renderDomainCard sets inline
+   `animationDelay = 0.25 + groupIndex * 0.05s`, so card #1 fires at 0.25s
+   with 0.05s per step. Match that here — first saved item lands with the
+   first domain card, same cadence after. */
+.deferred-list.animate-in .deferred-item { animation: fadeUp 0.3s ease both; }
+.deferred-list.animate-in .deferred-item:nth-child(1) { animation-delay: 0.25s; }
+.deferred-list.animate-in .deferred-item:nth-child(2) { animation-delay: 0.30s; }
+.deferred-list.animate-in .deferred-item:nth-child(3) { animation-delay: 0.35s; }
+.deferred-list.animate-in .deferred-item:nth-child(4) { animation-delay: 0.40s; }
+.deferred-list.animate-in .deferred-item:nth-child(5) { animation-delay: 0.45s; }
 
 
 /* ================================================================
@@ -872,13 +884,19 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 /* ---- Checklist items ---- */
+/* No entrance animation on the item itself. mount() replaceChildren()s the
+   whole list on every mutation — a per-item fadeUp would make the entire
+   column flash each time. Delete animation lives on the .removing class.
+   min-width:0 is the flex-shrink unlock: without it, a long nowrap title
+   inside .deferred-title prevents the flex row from shrinking and the
+   dismiss button gets pushed past the 300px column. */
 .deferred-item {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 10px 0;
   border-bottom: 1px solid rgba(154, 145, 138, 0.12);
-  animation: fadeUp 0.3s ease both;
+  min-width: 0;
 }
 
 .deferred-item:last-child {
@@ -933,6 +951,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   color: var(--ink);
   text-decoration: none;
   display: block;
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1087,6 +1107,9 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 .archive-body-inner {
   min-height: 0; /* Required for the 0fr → 1fr transition to collapse the row. */
+  min-width: 0;  /* Grid items default to min-width:auto; without this a long
+                    nowrap .archive-item-title blows the grid column past the
+                    300px .deferred-column and the × + ellipsis never trigger. */
   padding-top: 12px;
 }
 
@@ -1119,6 +1142,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   gap: 8px;
   padding: 6px 0;
   border-bottom: 1px solid rgba(154, 145, 138, 0.08);
+  min-width: 0;
 }
 
 .archive-item:last-child {
@@ -1129,6 +1153,11 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   font-size: 12px;
   color: var(--muted);
   text-decoration: none;
+  /* display:block + max-width:100% mirror .deferred-title. Without them
+     the `<a>`'s inline default lets the nowrap text escape its flex
+     allotment — the × button gets shoved off the 300px column. */
+  display: block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1148,8 +1177,9 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   flex-shrink: 0;
 }
 
-/* Per-row × delete button. Fades in on row hover so the archive list still
- * reads like a dense index when untouched. */
+/* Per-row × delete button. Kept always visible at low opacity so users can
+ * see the affordance on a narrow column (where hover-reveal hid it behind
+ * the right edge) and on touch input where hover doesn't fire. */
 .archive-item-delete {
   background: transparent;
   border: none;
@@ -1158,14 +1188,14 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   font-size: 14px;
   line-height: 1;
   padding: 2px 6px;
-  opacity: 0;
+  opacity: 0.35;
   flex-shrink: 0;
   transition: opacity 0.15s, color 0.15s;
 }
 
 .archive-item:hover .archive-item-delete,
 .archive-item-delete:focus {
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 .archive-item-delete:hover,

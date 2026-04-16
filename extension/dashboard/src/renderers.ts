@@ -422,7 +422,13 @@ function restartAnim(elem: HTMLElement | null): void {
   elem.style.animation = '';
 }
 
-export async function renderDeferredColumn(): Promise<void> {
+// Waterfall on page-load only. Event-driven re-renders (save / check /
+// dismiss / delete / clear all) must NOT stagger — the column would flash
+// each time. Callers opt in via { waterfall: true } and the list has a
+// single .animate-in class that scopes the CSS keyframes + nth-child delays.
+export async function renderDeferredColumn(
+  options: { waterfall?: boolean } = {},
+): Promise<void> {
   const column    = document.getElementById('deferredColumn');
   const list      = document.getElementById('deferredList');
   const empty     = document.getElementById('deferredEmpty');
@@ -436,7 +442,8 @@ export async function renderDeferredColumn(): Promise<void> {
 
   // Column + Archive header stay mounted even when both lists are empty so
   // the layout doesn't collapse on a fresh install / after Clear all. Empty
-  // states fill the inner slots instead.
+  // states fill the inner slots instead. Keep display manipulation here
+  // but never replay the entrance animation — CSS covers page-load.
   column.style.display = 'block';
   if (archiveEl) archiveEl.style.display = 'block';
 
@@ -448,6 +455,10 @@ export async function renderDeferredColumn(): Promise<void> {
 
     if (active.length > 0 && list && empty && countEl) {
       countEl.textContent = `${active.length} item${active.length !== 1 ? 's' : ''}`;
+      // Toggle the waterfall class BEFORE mount so the new DOM nodes pick
+      // up the keyframes on first paint. Without waterfall we clear it so
+      // a save-after-load doesn't re-fire the stagger.
+      list.classList.toggle('animate-in', Boolean(options.waterfall));
       mount(list, active.map(renderDeferredItem));
       list.style.display = 'block';
       empty.style.display = 'none';
@@ -475,7 +486,10 @@ export async function renderDeferredColumn(): Promise<void> {
         if (archiveClearEl) archiveClearEl.style.display = 'none';
       }
     }
-    restartAnim(archiveEl);
+    // Do NOT restart the archive container animation here. Every save /
+    // check / dismiss triggers renderDeferredColumn; replaying the outer
+    // fadeUp each time makes the right column flash on every mutation.
+    // The page-load entrance is covered by the CSS rule on .deferred-archive.
   } catch (err) {
     console.warn('[tab-out] Could not load deferred tabs:', err);
     // Leave the column visible; swallowing state on storage errors is what
@@ -591,13 +605,12 @@ export function refreshOpenTabsCounters(): void {
   if (statTabs) statTabs.textContent = String(getOpenTabs().length);
 }
 
-export async function renderStaticDashboard(): Promise<void> {
-  const greetingEl = document.getElementById('greeting');
-  const dateEl     = document.getElementById('dateDisplay');
-  if (greetingEl) greetingEl.textContent = getGreeting();
-  if (dateEl)     dateEl.textContent     = getDateDisplay();
-
-  await fetchOpenTabs();
+// Re-render only the open-tabs grid. Assumes openTabs is already in sync
+// (refresh.ts awaits fetchOpenTabs before calling). No Save-for-later
+// touch, no greeting/date rewrite — scoped to what chrome.tabs events can
+// actually invalidate. Keeps external tab changes from flashing the right
+// column.
+export async function renderOpenTabsOnly(): Promise<void> {
   const realTabs = getDisplayableTabs(getOpenTabs());
   const sortedGroups = groupTabsByDomain(realTabs);
   setDomainGroups(sortedGroups);
@@ -607,7 +620,20 @@ export async function renderStaticDashboard(): Promise<void> {
   if (statTabs) statTabs.textContent = String(getOpenTabs().length);
 
   checkTabOutDupes();
-  await renderDeferredColumn();
+}
+
+export async function renderStaticDashboard(): Promise<void> {
+  const greetingEl = document.getElementById('greeting');
+  const dateEl     = document.getElementById('dateDisplay');
+  if (greetingEl) greetingEl.textContent = getGreeting();
+  if (dateEl)     dateEl.textContent     = getDateDisplay();
+
+  await fetchOpenTabs();
+  await renderOpenTabsOnly();
+  // Page-load entry — this is the only path that opts into the right-column
+  // waterfall. Handler-driven re-renders call renderDeferredColumn() directly
+  // without options, so they stay silent.
+  await renderDeferredColumn({ waterfall: true });
 }
 
 export async function renderDashboard(): Promise<void> {
