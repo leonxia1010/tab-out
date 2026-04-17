@@ -652,13 +652,12 @@ footer {
 }
 
 header { animation: fadeUp 0.5s ease both; }
-/* Middle section (search widget today) sits between header and the
-   cleanup banner — slot its fade in at 0.05s so the waterfall stays
-   monotonic: header → middle → banners → section headers → cards. */
-.middle-section { animation: fadeUp 0.5s ease 0.05s both; }
-.tab-cleanup-banner { animation: fadeUp 0.5s ease 0.1s both; }
-.nudge-banner { animation: fadeUp 0.5s ease 0.15s both; }
-.active-section .section-header { animation: fadeUp 0.5s ease 0.2s both; }
+/* Waterfall stepping: 30ms per level (was 50ms — felt too long).
+   Middle section sits between header and cleanup banner. */
+.middle-section { animation: fadeUp 0.5s ease 0.03s both; }
+.tab-cleanup-banner { animation: fadeUp 0.5s ease 0.06s both; }
+.nudge-banner { animation: fadeUp 0.5s ease 0.09s both; }
+.active-section .section-header { animation: fadeUp 0.5s ease 0.12s both; }
 /* Card fade-in base rule. Per-card stagger comes from inline
    `animationDelay` set in renderDomainCard — this makes the waterfall work
    regardless of how many cards exist. Previously nth-child(1..4) was
@@ -672,20 +671,20 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
    / delete / clear) don't set the class, so mount() replaces the list
    silently and the section header doesn't re-flash. Per-row .removing
    still drives the delete fade-out. */
-.deferred-column .section-header { animation: fadeUp 0.5s ease 0.2s both; }
-.deferred-empty    { animation: fadeUp 0.5s ease 0.2s both; }
-.deferred-archive  { animation: fadeUp 0.5s ease 0.3s both; }
+.deferred-column .section-header { animation: fadeUp 0.5s ease 0.12s both; }
+.deferred-empty    { animation: fadeUp 0.5s ease 0.12s both; }
+.deferred-archive  { animation: fadeUp 0.5s ease 0.18s both; }
 
 /* Sync to the left column: renderDomainCard sets inline
-   `animationDelay = 0.25 + groupIndex * 0.05s`, so card #1 fires at 0.25s
-   with 0.05s per step. Match that here — first saved item lands with the
+   `animationDelay = 0.15 + groupIndex * 0.03s`, so card #1 fires at 0.15s
+   with 0.03s per step. Match that here — first saved item lands with the
    first domain card, same cadence after. */
 .deferred-list.animate-in .deferred-item { animation: fadeUp 0.3s ease both; }
-.deferred-list.animate-in .deferred-item:nth-child(1) { animation-delay: 0.25s; }
-.deferred-list.animate-in .deferred-item:nth-child(2) { animation-delay: 0.30s; }
-.deferred-list.animate-in .deferred-item:nth-child(3) { animation-delay: 0.35s; }
-.deferred-list.animate-in .deferred-item:nth-child(4) { animation-delay: 0.40s; }
-.deferred-list.animate-in .deferred-item:nth-child(5) { animation-delay: 0.45s; }
+.deferred-list.animate-in .deferred-item:nth-child(1) { animation-delay: 0.15s; }
+.deferred-list.animate-in .deferred-item:nth-child(2) { animation-delay: 0.18s; }
+.deferred-list.animate-in .deferred-item:nth-child(3) { animation-delay: 0.21s; }
+.deferred-list.animate-in .deferred-item:nth-child(4) { animation-delay: 0.24s; }
+.deferred-list.animate-in .deferred-item:nth-child(5) { animation-delay: 0.27s; }
 
 
 /* ================================================================

@@ -338,11 +338,11 @@ export function renderDomainCard(group: DomainGroup, groupIndex: number): HTMLEl
     },
   }, [statusBar, domainContent, domainMeta]);
 
-  // Waterfall fade-in: each card staggers 0.05s after the one before it,
-  // starting at 0.25s. Set inline so the effect survives past the 4th card
-  // — the previous CSS hard-coded nth-child(1..4) only and left card 5+
-  // popping in instantly.
-  card.style.animationDelay = `${(0.25 + groupIndex * 0.05).toFixed(2)}s`;
+  // Waterfall fade-in: each card staggers 0.03s after the one before it,
+  // starting at 0.15s (30ms stepping — was 50ms). Set inline so the
+  // effect survives past the 4th card; the previous CSS hard-coded
+  // nth-child(1..4) only and left card 5+ popping in instantly.
+  card.style.animationDelay = `${(0.15 + groupIndex * 0.03).toFixed(2)}s`;
 
   return card;
 }
