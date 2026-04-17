@@ -117,25 +117,45 @@ export async function getSettings(): Promise<ToutSettings> {
   }
 }
 
-export async function setSettings(patch: Partial<ToutSettings>): Promise<ToutSettings> {
-  const current = await getSettings();
-  const next: ToutSettings = {
-    theme: patch.theme ?? current.theme,
-    clock: { format: patch.clock?.format ?? current.clock.format },
-    layout: patch.layout ?? current.layout,
-    // Arrays: normalize the patch so callers can pass raw input
-    // without bypassing the defensive shape check.
-    shortcutPins: patch.shortcutPins
-      ? normalizeShortcutPins(patch.shortcutPins)
-      : current.shortcutPins,
-    shortcutHides: patch.shortcutHides
-      ? normalizeShortcutHides(patch.shortcutHides)
-      : current.shortcutHides,
-  };
-  await storage().set({ [SETTINGS_KEY]: next });
-  syncThemeCache(next.theme);
-  syncLayoutCache(next.layout);
+// Serialize every read-modify-write against tabout:settings. dashboard and
+// options can run concurrently and both call setSettings (pin toggles,
+// hide toggles, theme / layout radios). Without a lock:
+//
+//   dashboard pin → getSettings (snapshot A) → yield
+//   options unhide → getSettings (snapshot A too) → yield
+//   dashboard set  ← snapshot A + pin
+//   options set    ← snapshot A + unhide — wipes the pin
+//
+// Same race api.ts#withLock solves for deferredTabs; same fix here.
+// Reads (getSettings) stay lock-free.
+let pendingWrite: Promise<unknown> = Promise.resolve();
+function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const next = pendingWrite.then(fn, fn);
+  pendingWrite = next.catch(() => {});
   return next;
+}
+
+export function setSettings(patch: Partial<ToutSettings>): Promise<ToutSettings> {
+  return withLock(async () => {
+    const current = await getSettings();
+    const next: ToutSettings = {
+      theme: patch.theme ?? current.theme,
+      clock: { format: patch.clock?.format ?? current.clock.format },
+      layout: patch.layout ?? current.layout,
+      // Arrays: normalize the patch so callers can pass raw input
+      // without bypassing the defensive shape check.
+      shortcutPins: patch.shortcutPins
+        ? normalizeShortcutPins(patch.shortcutPins)
+        : current.shortcutPins,
+      shortcutHides: patch.shortcutHides
+        ? normalizeShortcutHides(patch.shortcutHides)
+        : current.shortcutHides,
+    };
+    await storage().set({ [SETTINGS_KEY]: next });
+    syncThemeCache(next.theme);
+    syncLayoutCache(next.layout);
+    return next;
+  });
 }
 
 // Mirror of settings.theme in localStorage so theme-bootstrap.js can
