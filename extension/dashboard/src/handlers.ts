@@ -41,6 +41,8 @@ import {
   renderArchiveItem,
   renderDeferredColumn,
 } from './renderers.js';
+import { setSettings, type ThemeMode } from '../../shared/dist/settings.js';
+import { applyTheme } from './widgets/theme.js';
 
 function animateCardOut(card: HTMLElement | null | undefined): void {
   animateCardOutRaw(card, checkAndShowEmptyState);
@@ -336,6 +338,19 @@ async function handleArchiveClearAll(): Promise<void> {
   }
 }
 
+// Apply the DOM change immediately, then persist. chrome.storage.onChanged
+// will fire and the listener in index.ts re-applies — idempotent, so no
+// jitter. Storage write failure logs but the visual state still holds (same
+// silent-degrade pattern as the update-banner dismiss in index.ts).
+async function handleSetTheme(theme: ThemeMode): Promise<void> {
+  applyTheme(theme);
+  try {
+    await setSettings({ theme });
+  } catch (err) {
+    console.warn('[tab-out] Failed to save theme:', err);
+  }
+}
+
 function handleArchiveToggle(toggle: HTMLElement): void {
   // actionEl comes from closest('[data-action]'), so the clearAll vs toggle
   // disambiguation the old id-based dispatcher needed is a non-issue now —
@@ -372,6 +387,9 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'delete-archived':    return handleDeleteArchived(actionEl);
     case 'archive-toggle':     return handleArchiveToggle(actionEl);
     case 'archive-clear-all':  return handleArchiveClearAll();
+    case 'set-theme-system':   return handleSetTheme('system');
+    case 'set-theme-light':    return handleSetTheme('light');
+    case 'set-theme-dark':     return handleSetTheme('dark');
     default:                   return;
   }
 }

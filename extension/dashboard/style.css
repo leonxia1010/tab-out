@@ -1231,3 +1231,138 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
     animation-iteration-count: 1 !important;
   }
 }
+
+/* ============================================================
+   Header widget grid — right side of header.
+   12px gap locks spacing for v2.2 weather + countdown widgets.
+   ============================================================ */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Clock widget slot reserved for Phase 4. */
+.clock-widget {
+  font-family: 'Newsreader', serif;
+  font-weight: 300;
+  font-size: 22px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+
+/* Theme toggle — moon button + native popover menu. */
+.theme-toggle-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--warm-gray);
+  background: var(--card-bg);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  color: var(--ink);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.theme-toggle-btn:hover {
+  border-color: var(--muted);
+  background: var(--paper);
+}
+
+.theme-popover {
+  position: absolute;
+  margin: 0;
+  padding: 6px;
+  min-width: 180px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 8px 32px var(--shadow);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  /* :popover-open positions via browser top layer; remove default inset. */
+  inset: unset;
+}
+
+.theme-popover::backdrop {
+  background: transparent;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.theme-option:hover {
+  background: var(--paper);
+}
+
+.theme-option-icon {
+  font-size: 16px;
+  line-height: 1;
+  width: 20px;
+  text-align: center;
+}
+
+/* ============================================================
+   Dark theme palette (v2.1.0).
+   Applies when:
+     (a) html[data-theme="dark"] is set explicitly, OR
+     (b) no explicit data-theme AND OS prefers dark.
+   syncThemeCache() in shared/settings.ts removes the localStorage
+   cache key on 'system', so the FOUC bootstrap only writes
+   data-theme for explicit light/dark. Absent attribute + dark OS
+   routes through the @media block below.
+
+   Keep both selector lists (:root[data-theme="dark"] AND the
+   @media block) in sync — CSS can't union them without losing
+   specificity clarity.
+   ============================================================ */
+html[data-theme="dark"] {
+  --ink: #ebe8e3;
+  --paper: #1a1714;
+  --warm-gray: #3a332c;
+  --muted: #8a847d;
+  --card-bg: #241f1a;
+  --shadow: rgba(0, 0, 0, 0.4);
+  --accent-amber: #d4895f;
+  --accent-sage: #7a9584;
+  --accent-slate: #7a8d9e;
+  --accent-rose: #c47c7c;
+  --status-active: #6a9a6e;
+  --status-cooling: #d4a558;
+  --status-abandoned: #c47c7c;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    --ink: #ebe8e3;
+    --paper: #1a1714;
+    --warm-gray: #3a332c;
+    --muted: #8a847d;
+    --card-bg: #241f1a;
+    --shadow: rgba(0, 0, 0, 0.4);
+    --accent-amber: #d4895f;
+    --accent-sage: #7a9584;
+    --accent-slate: #7a8d9e;
+    --accent-rose: #c47c7c;
+    --status-active: #6a9a6e;
+    --status-cooling: #d4a558;
+    --status-abandoned: #c47c7c;
+  }
+}

@@ -66,6 +66,9 @@ async function loadHandlersWithMocks() {
     renderArchiveItem: vi.fn(() => document.createElement('div')),
     renderDeferredColumn: vi.fn().mockResolvedValue(undefined),
   };
+  const settingsSpies = {
+    setSettings: vi.fn().mockResolvedValue({ theme: 'dark', clock: { format: '24h' } }),
+  };
 
   vi.doMock('../../extension/dashboard/src/api.ts', () => apiSpies);
   vi.doMock('../../extension/dashboard/src/extension-bridge.ts', () => bridgeSpies);
@@ -74,10 +77,15 @@ async function loadHandlersWithMocks() {
     const actual = await vi.importActual('../../extension/dashboard/src/renderers.ts');
     return { ...actual, ...renderSpies };
   });
+  vi.doMock('../../extension/shared/dist/settings.js', () => settingsSpies);
 
   const state = await import('../../extension/dashboard/src/state.ts');
   const handlers = await import('../../extension/dashboard/src/handlers.ts');
-  return { state, handlers, api: apiSpies, bridge: bridgeSpies, anim: animSpies, render: renderSpies };
+  return {
+    state, handlers,
+    api: apiSpies, bridge: bridgeSpies, anim: animSpies,
+    render: renderSpies, settings: settingsSpies,
+  };
 }
 
 function click(el) {
@@ -124,6 +132,8 @@ afterEach(() => {
   vi.doUnmock('../../extension/dashboard/src/extension-bridge.ts');
   vi.doUnmock('../../extension/dashboard/src/animations.ts');
   vi.doUnmock('../../extension/dashboard/src/renderers.ts');
+  vi.doUnmock('../../extension/shared/dist/settings.js');
+  document.documentElement.removeAttribute('data-theme');
   vi.restoreAllMocks();
 });
 
@@ -553,5 +563,76 @@ describe('handleCloseTabOutDupes — hides banner and refreshes counters', () =>
     expect(bridge.closeTabOutDupes).toHaveBeenCalledTimes(1);
     expect(banner.style.display).toBe('none');
     expect(render.refreshOpenTabsCounters).toHaveBeenCalled();
+  });
+});
+
+describe('handleSetTheme — header popover + options page radios', () => {
+  // applyTheme is the real module (a pure DOM mutation — no need to mock
+  // to assert html[data-theme]). Only setSettings is stubbed because the
+  // real one hits chrome.storage.local.
+  it('set-theme-dark sets data-theme="dark" + calls setSettings', async () => {
+    const { handlers, settings } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'set-theme-dark';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(settings.setSettings).toHaveBeenCalledWith({ theme: 'dark' });
+  });
+
+  it('set-theme-light sets data-theme="light" + calls setSettings', async () => {
+    const { handlers, settings } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'set-theme-light';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(settings.setSettings).toHaveBeenCalledWith({ theme: 'light' });
+  });
+
+  it('set-theme-system removes data-theme + calls setSettings', async () => {
+    const { handlers, settings } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+
+    // Pre-populate with an explicit theme to make sure the handler clears it.
+    document.documentElement.dataset.theme = 'dark';
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'set-theme-system';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+    expect(settings.setSettings).toHaveBeenCalledWith({ theme: 'system' });
+  });
+
+  it('keeps visual theme even when setSettings rejects (silent degrade)', async () => {
+    const { handlers, settings } = await loadHandlersWithMocks();
+    settings.setSettings.mockRejectedValueOnce(new Error('storage down'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'set-theme-dark';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(settings.setSettings).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalled();
   });
 });

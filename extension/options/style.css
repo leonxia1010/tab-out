@@ -1,5 +1,9 @@
-/* Options page — Phase 2 scaffold. Dark palette arrives in Phase 3
-   (full :root + html[data-theme="dark"] override set). */
+/* Options page styling. Shares the dashboard's dark-theme strategy:
+   html[data-theme="dark"] is set by theme-bootstrap.js before this
+   stylesheet parses, OR the @media (prefers-color-scheme: dark) block
+   catches the 'system' case (no data-theme attribute). Keep the two
+   dark selector lists in sync — same reasoning as dashboard/style.css.
+*/
 
 :root {
   --paper: #f8f5f0;
@@ -7,6 +11,24 @@
   --ink: #1a1613;
   --muted: #9a918a;
   --border: rgba(26, 22, 19, 0.08);
+}
+
+html[data-theme="dark"] {
+  --paper: #1a1714;
+  --card-bg: #241f1a;
+  --ink: #ebe8e3;
+  --muted: #8a847d;
+  --border: rgba(235, 232, 227, 0.10);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    --paper: #1a1714;
+    --card-bg: #241f1a;
+    --ink: #ebe8e3;
+    --muted: #8a847d;
+    --border: rgba(235, 232, 227, 0.10);
+  }
 }
 
 * { box-sizing: border-box; }

@@ -15,6 +15,8 @@ import { renderDashboard } from './renderers.js';
 import { attachTabsListeners } from './refresh.js';
 import { getUpdateStatus } from './api.js';
 import { el } from './dom-utils.js';
+import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
+import { applyTheme, mountThemeToggle } from './widgets/theme.js';
 
 const UPDATE_STATUS_KEY = 'tabout:updateStatus';
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
@@ -85,7 +87,26 @@ async function checkForUpdates(): Promise<void> {
   }
 }
 
+// Settings bootstrap. theme-bootstrap.js has already set html[data-theme]
+// from the localStorage cache before any paint; this call reconciles
+// against the chrome.storage source of truth (handles stale/missing
+// cache) and registers the onChanged listener so changes from the
+// options page update the dashboard without a reload.
+async function bootstrapSettings(): Promise<void> {
+  const slot = document.getElementById('headerRight');
+  if (slot) mountThemeToggle(slot);
+
+  try {
+    const settings = await getSettings();
+    applyTheme(settings.theme);
+  } catch {
+    // Storage unavailable — leave whatever theme-bootstrap.js set.
+  }
+  onSettingsChange((next) => applyTheme(next.theme));
+}
+
 handlers.attachListeners();
 attachTabsListeners();
+void bootstrapSettings();
 void renderDashboard();
 void checkForUpdates();
