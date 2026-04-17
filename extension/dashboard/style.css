@@ -1312,26 +1312,20 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  /* color-mix keeps one rule for both themes: 6% of the foreground
-     ink on top of nothing = subtle translucent disc that reads
-     correctly on paper (light) AND panel (dark). Mirrors the
-     rgba(0,0,0,0.06) / rgba(255,255,255,0.1) split Chrome NTP uses,
-     but driven by the theme's own --ink so it stays in tune if we
-     ever retune the palette. */
-  background: color-mix(in oklab, var(--ink) 6%, transparent);
-  border: none;
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
   display: flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  transition: background 0.15s ease;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
   overflow: hidden;
   flex-shrink: 0;
 }
 
-.shortcut-tile:hover,
-.shortcut-tile:focus-visible {
-  background: color-mix(in oklab, var(--ink) 12%, transparent);
+.shortcut-tile:hover {
+  box-shadow: 0 4px 20px var(--shadow);
+  transform: translateY(-1px);
 }
 
 .shortcut-favicon {
