@@ -56,6 +56,12 @@ jobs:
 
       - name: Extract release notes from CHANGELOG
         id: notes
+        # awk matches `## [tag]` exactly. If someone tags a version
+        # without a matching CHANGELOG section (or writes `## 2.3.0`
+        # instead of `## [2.3.0]`), we used to fall back to GitHub's
+        # auto-generated notes — meaning the release page would silently
+        # disagree with CHANGELOG.md. Fail the workflow instead so the
+        # missing/malformed section is obvious before the release ships.
         run: |
           tag="${GITHUB_REF_NAME#v}"
           body=$(awk -v tag="$tag" '
@@ -64,21 +70,22 @@ jobs:
             flag                   { print }
           ' CHANGELOG.md)
           if [ -z "$(echo "$body" | tr -d '[:space:]')" ]; then
-            echo "no CHANGELOG section for $tag; will fall back to auto-generated notes"
-            echo "has_body=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_body=true" >> "$GITHUB_OUTPUT"
-            {
-              echo 'body<<EOF'
-              echo "$body"
-              echo 'EOF'
-            } >> "$GITHUB_OUTPUT"
+            echo "::error::no CHANGELOG section for $tag — add '## [$tag]' before tagging"
+            exit 1
           fi
+          {
+            echo 'body<<EOF'
+            echo "$body"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        # Pinned to the commit SHA of the v2 tag (as of 2026-04-18) so a
+        # compromised/retargeted branch can't hand our release workflow
+        # arbitrary code. Dependabot can bump this in place; bump the
+        # comment when that happens.
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: tab-out-*.zip
           body: ${{ steps.notes.outputs.body }}
-          generate_release_notes: ${{ steps.notes.outputs.has_body != 'true' }}
           fail_on_unmatched_files: true
