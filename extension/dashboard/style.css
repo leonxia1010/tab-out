@@ -1139,8 +1139,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 /* Archive items are simpler — just title + domain + date */
 .archive-item {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
   padding: 6px 0;
   border-bottom: 1px solid rgba(154, 145, 138, 0.08);
   min-width: 0;
@@ -1150,15 +1150,28 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   border-bottom: none;
 }
 
+/* Row 1: title + action buttons. Title takes remaining space via flex:1
+ * and ellipsizes before it can push the buttons off the column. */
+.archive-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Button cluster — tight 2px gap mirrors .chip-actions inside domain cards. */
+.archive-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .archive-item-title {
   font-size: 12px;
   color: var(--muted);
   text-decoration: none;
-  /* display:block + max-width:100% mirror .deferred-title. Without them
-     the `<a>`'s inline default lets the nowrap text escape its flex
-     allotment — the × button gets shoved off the 300px column. */
   display: block;
-  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1171,38 +1184,54 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   color: var(--ink);
 }
 
+/* Row 2: timestamp only. */
 .archive-item-date {
   font-size: 10px;
   color: var(--muted);
   opacity: 0.6;
-  flex-shrink: 0;
 }
 
-/* Per-row × delete button. Kept always visible at low opacity so users can
- * see the affordance on a narrow column (where hover-reveal hid it behind
- * the right edge) and on touch input where hover doesn't fire. */
+/* Archive-row action buttons. Same family as .deferred-dismiss:
+ * each button reacts only to its OWN :hover/:focus — no parent-hover
+ * rule, so moving onto one button doesn't light the other. */
+.archive-item-restore,
 .archive-item-delete {
-  background: transparent;
+  background: none;
   border: none;
   color: var(--muted);
   cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  padding: 2px 6px;
-  opacity: 0.35;
+  padding: 2px;
+  opacity: 0.3;
   flex-shrink: 0;
+  line-height: 0;
   transition: opacity 0.15s, color 0.15s;
 }
 
-.archive-item:hover .archive-item-delete,
-.archive-item-delete:focus {
-  opacity: 0.7;
+.archive-item-restore svg,
+.archive-item-delete svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+/* Optical-center nudge: x-mark's path only spans y 6-18 of the 24-viewBox
+ * while arrow-uturn-left spans y 3-21, so the X reads 1px high against its
+ * neighbor even though both boxes are centered. Push it down a hair. */
+.archive-item-delete svg {
+  transform: translateY(1px);
+}
+
+.archive-item-restore:hover,
+.archive-item-restore:focus {
+  opacity: 1;
+  color: var(--accent-sage);
+  outline: none;
 }
 
 .archive-item-delete:hover,
 .archive-item-delete:focus {
   opacity: 1;
-  color: var(--accent-rose, #b35a5a);
+  color: var(--status-abandoned);
   outline: none;
 }
 
@@ -1259,17 +1288,23 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 /* Theme toggle — moon button + native popover menu. */
 .theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 36px;
   height: 36px;
   border: 1px solid var(--warm-gray);
   background: var(--card-bg);
   border-radius: 50%;
   cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
   padding: 0;
   color: var(--ink);
   transition: border-color 0.2s, background 0.2s;
+}
+
+.theme-toggle-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .theme-toggle-btn:hover {
@@ -1322,10 +1357,16 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .theme-option-icon {
-  font-size: 16px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 20px;
-  text-align: center;
+  color: var(--muted);
+}
+
+.theme-option-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ============================================================

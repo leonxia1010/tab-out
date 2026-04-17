@@ -4,6 +4,40 @@ All notable changes to this fork land here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] — 2026-04-17
+
+Archive gets a way out. The ✕ button next to an archived saved-for-later
+row used to be the only action; now a restore button sits beside it and
+moves the row back to the active list.
+
+### Added
+
+- Restore button on every archive row — Heroicons `arrow-uturn-left`
+  outline glyph, placed left of the delete ✕. Click resets the row's
+  archive/check flags, refreshes `deferred_at` to now (so the 30-day
+  age-out doesn't immediately re-archive it), and the row reappears at
+  the top of the active saved-for-later column. Toast confirms with
+  "Restored".
+- URL-collision merge semantics — if the restored row's URL already
+  exists in the active list, the active row's `deferred_at` refreshes
+  instead of creating a duplicate; the archived entry is dropped and
+  the toast reads "Already in saved for later". Preserves the
+  `activeByUrl` invariant `saveDefer` relies on.
+
+### Changed
+
+- Theme toggle widget icons now render as Heroicons v2 outline SVG
+  (sun / moon / computer) instead of the previous emoji (☀️ / 🌙 / 🖥️).
+  Matches the icon family already used by the cleanup banner and fixes
+  OS-dependent emoji glyph rendering on dark backgrounds.
+- Archive semantics widened — archive now means "completed, reviewed,
+  or paused" instead of strictly "completed/reviewed". The explanatory
+  comment above `dismissDeferred` in `api.ts` reflects the new round-trip.
+
+### Security
+
+- No CSP, permission, or host-permission changes.
+
 ## [2.1.1] — 2026-04-17
 
 Hotfix for three header UI regressions shipped in 2.1.0.
@@ -177,6 +211,7 @@ extension — no server, no AI — with all state in `chrome.storage.local`.
 
 ---
 
+[2.2.0]: https://github.com/leonxia1010/tab-out/releases/tag/v2.2.0
 [2.1.1]: https://github.com/leonxia1010/tab-out/releases/tag/v2.1.1
 [2.1.0]: https://github.com/leonxia1010/tab-out/releases/tag/v2.1.0
 [2.0.0]: https://github.com/leonxia1010/tab-out/releases/tag/v2.0.0

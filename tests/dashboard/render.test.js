@@ -132,6 +132,48 @@ describe('renderArchiveItem — XSS hardening', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// renderArchiveItem — restore button (v2.2.0)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('renderArchiveItem — restore button', () => {
+  it('renders a restore button with data-action="restore-archived"', () => {
+    const container = makeContainer();
+    const item = {
+      id: 42,
+      url: 'https://example.com',
+      title: 'Example',
+      archived_at: NOW_SECONDS - 3600,
+    };
+    mountResult(container, renderArchiveItem(item));
+
+    const btn = container.querySelector('button.archive-item-restore');
+    expect(btn).not.toBeNull();
+    expect(btn.dataset.action).toBe('restore-archived');
+    expect(btn.dataset.deferredId).toBe('42');
+    expect(btn.querySelector('svg')).not.toBeNull();
+  });
+
+  it('positions the restore button before the delete button', () => {
+    const container = makeContainer();
+    const item = {
+      id: 7,
+      url: 'https://example.com',
+      title: 'Example',
+      archived_at: NOW_SECONDS - 3600,
+    };
+    mountResult(container, renderArchiveItem(item));
+
+    const row = container.querySelector('.archive-item');
+    const restoreBtn = row.querySelector('.archive-item-restore');
+    const deleteBtn = row.querySelector('.archive-item-delete');
+    expect(restoreBtn).not.toBeNull();
+    expect(deleteBtn).not.toBeNull();
+    const pos = restoreBtn.compareDocumentPosition(deleteBtn);
+    // DOCUMENT_POSITION_FOLLOWING = 4 — deleteBtn follows restoreBtn.
+    expect(pos & 4).toBe(4);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // renderDomainCard / page chips
 // ─────────────────────────────────────────────────────────────────────────────
 describe('renderDomainCard — chip XSS hardening', () => {

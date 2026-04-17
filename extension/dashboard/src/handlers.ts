@@ -23,6 +23,7 @@ import {
   checkDeferred as apiCheckDeferred,
   clearAllArchived,
   deleteArchived,
+  restoreArchived,
   dismissDeferred as apiDismissDeferred,
   getDeferred,
   saveDefer,
@@ -200,6 +201,30 @@ async function handleDismissDeferred(actionEl: HTMLElement): Promise<void> {
       void renderDeferredColumn();
     }, 300);
   }
+}
+
+async function handleRestoreArchived(actionEl: HTMLElement): Promise<void> {
+  const id = actionEl.dataset.deferredId;
+  if (!id) return;
+  let merged = false;
+  try {
+    const result = await restoreArchived(id);
+    merged = result.merged;
+  } catch (err) {
+    console.error('[tab-out] Failed to restore archived tab:', err);
+    return;
+  }
+  const row = actionEl.closest<HTMLElement>('.archive-item');
+  if (row) {
+    row.classList.add('removing');
+    setTimeout(() => {
+      row.remove();
+      void renderDeferredColumn();
+    }, 200);
+  } else {
+    void renderDeferredColumn();
+  }
+  showToast(merged ? 'Already in saved for later' : 'Restored');
 }
 
 async function handleDeleteArchived(actionEl: HTMLElement): Promise<void> {
@@ -385,6 +410,7 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card);
     case 'close-all-open-tabs':return handleCloseAllOpenTabs();
     case 'delete-archived':    return handleDeleteArchived(actionEl);
+    case 'restore-archived':   return handleRestoreArchived(actionEl);
     case 'archive-toggle':     return handleArchiveToggle(actionEl);
     case 'archive-clear-all':  return handleArchiveClearAll();
     case 'set-theme-system':   return handleSetTheme('system');

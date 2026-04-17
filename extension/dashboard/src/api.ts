@@ -367,8 +367,10 @@ export function checkDeferred(
 }
 
 // ✕ button on active rows — permanent deletion, no archive trail.
-// Checkbox (checkDeferred) is the only path that produces an archive entry,
-// so archive reads as "completed/reviewed" rather than "dropped".
+// Archive population paths: (1) checkbox via checkDeferred, (2) 30-day age-out
+// in getDeferred. v2.2.0 adds a third path back: restoreArchived moves a row
+// from archived to active, so archive semantics widened from "completed" to
+// "completed, reviewed, or paused".
 export function dismissDeferred(
   id: number | string,
 ): Promise<{ success: true }> {
@@ -397,6 +399,44 @@ export function deleteArchived(
     all.splice(idx, 1);
     await writeArray('deferredTabs', all);
     return { success: true };
+  });
+}
+
+// Move an archived row back to active. If an active row with the same URL
+// already exists, merge by refreshing that row's deferred_at and dropping
+// the archived entry; otherwise clear archive/check flags and reset
+// deferred_at to now (so getDeferred's 30-day age-out doesn't immediately
+// re-archive it).
+export function restoreArchived(
+  id: number | string,
+): Promise<{ success: true; merged: boolean }> {
+  return withLock(async () => {
+    const target = String(id);
+    const all = await readDeferredTabs();
+    const archivedIdx = all.findIndex(
+      (row) => String(row.id) === target && row.archived === 1,
+    );
+    if (archivedIdx === -1) throw new Error(`archived ${id} not found`);
+    const row = all[archivedIdx];
+    const now = new Date().toISOString();
+
+    const activeDupe = all.find(
+      (r) => r.url === row.url && r.archived === 0,
+    );
+    if (activeDupe) {
+      activeDupe.deferred_at = now;
+      all.splice(archivedIdx, 1);
+      await writeArray('deferredTabs', all);
+      return { success: true, merged: true };
+    }
+
+    row.archived = 0;
+    row.archived_at = null;
+    row.checked = 0;
+    row.checked_at = null;
+    row.deferred_at = now;
+    await writeArray('deferredTabs', all);
+    return { success: true, merged: false };
   });
 }
 

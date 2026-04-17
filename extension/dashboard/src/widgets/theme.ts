@@ -7,6 +7,12 @@
 // Chromium 114+ ships the attribute; MV3 floor guarantees we're well
 // above that.
 //
+// Icons are Heroicons v2 outline (MIT, tailwindlabs/heroicons). Inline
+// SVG so they inherit `currentColor` and swap cleanly between dark and
+// light palettes without an image request or emoji-font dependency.
+// Each SVG carries `data-icon="sun|moon|system"` so tests can assert
+// which glyph is mounted without poking at path data.
+//
 // The click handlers (data-action="set-theme-*") live in handlers.ts —
 // kept inside the single document-level dispatcher so we don't grow a
 // second listener. handleSetTheme there calls setSettings(); the
@@ -25,25 +31,30 @@
 // bounding rect each time it opens, so the menu stays anchored under
 // the button (right-aligned).
 
-import { el } from '../dom-utils.js';
+import { el, svg } from '../dom-utils.js';
 import type { ThemeMode } from '../../../shared/dist/settings.js';
 
 const POPOVER_ID = 'taboutThemePopover';
-const ICON_SUN = '\u2600\u{FE0F}';   // ☀️
-const ICON_MOON = '\u{1F319}';        // 🌙
 const POPOVER_GAP_PX = 8;
+
+// Heroicons v2 outline — stroke-width 1.5, 24x24 viewBox, currentColor.
+// Source: https://github.com/tailwindlabs/heroicons (MIT).
+const SVG_BASE = 'xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"';
+const SVG_SUN = `<svg ${SVG_BASE} data-icon="sun"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"/></svg>`;
+const SVG_MOON = `<svg ${SVG_BASE} data-icon="moon"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z"/></svg>`;
+const SVG_SYSTEM = `<svg ${SVG_BASE} data-icon="system"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25"/></svg>`;
 
 interface Option {
   theme: ThemeMode;
-  icon: string;
+  iconSvg: string;
   label: string;
   action: string;
 }
 
 const OPTIONS: Option[] = [
-  { theme: 'system', icon: '\u{1F5A5}\u{FE0F}', label: 'Follow system', action: 'set-theme-system' },
-  { theme: 'light',  icon: ICON_SUN,             label: 'Light',         action: 'set-theme-light'  },
-  { theme: 'dark',   icon: ICON_MOON,            label: 'Dark',          action: 'set-theme-dark'   },
+  { theme: 'system', iconSvg: SVG_SYSTEM, label: 'Follow system', action: 'set-theme-system' },
+  { theme: 'light',  iconSvg: SVG_SUN,    label: 'Light',         action: 'set-theme-light'  },
+  { theme: 'dark',   iconSvg: SVG_MOON,   label: 'Dark',          action: 'set-theme-dark'   },
 ];
 
 export interface ThemeToggleHandle {
@@ -70,8 +81,16 @@ function effectiveTheme(theme: ThemeMode): 'light' | 'dark' {
   return 'light';
 }
 
-function iconFor(theme: ThemeMode): string {
-  return effectiveTheme(theme) === 'dark' ? ICON_MOON : ICON_SUN;
+// Trigger shows the currently-visible theme (sun or moon), never the
+// system glyph — that glyph only appears inside the dropdown.
+function triggerIconSvg(theme: ThemeMode): string {
+  return effectiveTheme(theme) === 'dark' ? SVG_MOON : SVG_SUN;
+}
+
+function iconNode(svgString: string): Element {
+  const node = svg(svgString);
+  if (!node) throw new Error('theme widget: failed to parse icon SVG');
+  return node;
 }
 
 function optionButton(opt: Option): HTMLButtonElement {
@@ -82,7 +101,7 @@ function optionButton(opt: Option): HTMLButtonElement {
     popovertarget: POPOVER_ID,
     popovertargetaction: 'hide',
   }, [
-    el('span', { className: 'theme-option-icon', 'aria-hidden': 'true' }, [opt.icon]),
+    el('span', { className: 'theme-option-icon', 'aria-hidden': 'true' }, [iconNode(opt.iconSvg)]),
     el('span', { className: 'theme-option-label' }, [opt.label]),
   ]) as HTMLButtonElement;
 }
@@ -96,7 +115,7 @@ export function mountThemeToggle(
     className: 'theme-toggle-btn',
     'aria-label': 'Change theme',
     popovertarget: POPOVER_ID,
-  }, [iconFor(initialTheme)]) as HTMLButtonElement;
+  }, [iconNode(triggerIconSvg(initialTheme))]) as HTMLButtonElement;
 
   const popover = el('div', {
     id: POPOVER_ID,
@@ -134,14 +153,16 @@ export function mountThemeToggle(
     ? window.matchMedia('(prefers-color-scheme: dark)')
     : null;
   const onMediaChange = (): void => {
-    if (current === 'system') trigger.textContent = iconFor(current);
+    if (current === 'system') {
+      trigger.replaceChildren(iconNode(triggerIconSvg(current)));
+    }
   };
   mql?.addEventListener?.('change', onMediaChange);
 
   return {
     syncIcon(theme: ThemeMode): void {
       current = theme;
-      trigger.textContent = iconFor(theme);
+      trigger.replaceChildren(iconNode(triggerIconSvg(theme)));
     },
   };
 }

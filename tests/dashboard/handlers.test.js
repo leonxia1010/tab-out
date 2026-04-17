@@ -46,6 +46,7 @@ async function loadHandlersWithMocks() {
     getDeferred: vi.fn().mockResolvedValue({ active: [], archived: [] }),
     searchDeferred: vi.fn().mockResolvedValue({ results: [] }),
     deleteArchived: vi.fn().mockResolvedValue({ success: true }),
+    restoreArchived: vi.fn().mockResolvedValue({ success: true, merged: false }),
     clearAllArchived: vi.fn().mockResolvedValue({ success: true, deleted: 0 }),
   };
   const bridgeSpies = {
@@ -303,6 +304,58 @@ describe('handleCheckDeferred / handleDismissDeferred', () => {
 
     expect(api.dismissDeferred).toHaveBeenCalledWith('7');
     expect(render.renderDeferredColumn).toHaveBeenCalled();
+  });
+});
+
+describe('handleRestoreArchived — v2.2.0 archive → active round-trip', () => {
+  function buildArchiveRow(id) {
+    const row = document.createElement('div');
+    row.className = 'archive-item';
+    const btn = document.createElement('button');
+    btn.dataset.action = 'restore-archived';
+    btn.dataset.deferredId = String(id);
+    row.appendChild(btn);
+    document.body.appendChild(row);
+    return { row, btn };
+  }
+
+  it('calls api.restoreArchived, removes the row, re-renders, and shows "Restored" toast on clean restore', async () => {
+    const { handlers, api, anim, render } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+
+    const { btn } = buildArchiveRow(42);
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(api.restoreArchived).toHaveBeenCalledWith('42');
+    expect(render.renderDeferredColumn).toHaveBeenCalled();
+    expect(anim.showToast).toHaveBeenCalledWith('Restored');
+  });
+
+  it('shows "Already in saved for later" toast when the API reports a merge', async () => {
+    const { handlers, api, anim } = await loadHandlersWithMocks();
+    api.restoreArchived.mockResolvedValueOnce({ success: true, merged: true });
+    handlers.attachListeners();
+
+    const { btn } = buildArchiveRow(7);
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(anim.showToast).toHaveBeenCalledWith('Already in saved for later');
+  });
+
+  it('no-ops when data-deferred-id is missing', async () => {
+    const { handlers, api } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'restore-archived';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(api.restoreArchived).not.toHaveBeenCalled();
   });
 });
 
