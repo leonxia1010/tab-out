@@ -46,6 +46,16 @@ next to short lists without the old grid's wasted whitespace.
 - Grid layout explicitly collapses to a single column (`1fr`) at every
   viewport, restoring the pre-v2.3.0 visual for users who opt out of
   masonry.
+- Update banner relocated from the dashboard footer to a top strip
+  above the header; dismiss control switched from a text × to a
+  Heroicons x-mark SVG; clicking "See on GitHub" now counts as
+  acknowledgement and auto-dismisses the banner (convention match with
+  VSCode / Slack / GitHub).
+- Shortcut bar filters loopback hosts out of the `chrome.topSites`
+  feed — `localhost`, `*.localhost`, `127.0.0.0/8`, `0.0.0.0`, and
+  IPv6 `::1` no longer occupy tile slots so a week of `npm run dev`
+  doesn't take over the shortcut row. Pinning a loopback URL
+  explicitly still works (pins bypass the filter).
 
 ## [2.2.0] — 2026-04-17
 
