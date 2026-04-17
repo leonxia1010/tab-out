@@ -1321,7 +1321,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   gap: 12px;
   /* Lift the cluster toward the h1's optical top without fully snapping to
    * the raw flex-start baseline (which read too high pre-v2.1.1). */
-  margin-top: -6px;
+  margin-top: -8px;
 }
 
 /* Clock widget slot reserved for Phase 4. */
