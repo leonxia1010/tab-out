@@ -92,14 +92,14 @@ describe('mountThemeToggle', () => {
   });
 });
 
-// ─── Trigger icon tracking (v2.1.1 fix) ──────────────────────────────────────
+// ─── Trigger icon tracking (v2.1.1 fix, v2.1.2 Heroicons SVG) ────────────────
 // The trigger glyph reflects the *effective* theme, not the selected mode.
 // Explicit light/dark pass through; 'system' folds through
 // prefers-color-scheme. syncIcon() is called by index.ts whenever settings
 // change so the glyph stays in sync.
-
-const ICON_SUN = '\u2600\u{FE0F}';
-const ICON_MOON = '\u{1F319}';
+//
+// Icons are inline Heroicons v2 outline SVG, tagged with data-icon so the
+// tests can assert *which* glyph is mounted without poking at path data.
 
 function mockPrefersDark(matches) {
   const listeners = new Set();
@@ -112,42 +112,61 @@ function mockPrefersDark(matches) {
   });
 }
 
+function triggerIconName(slot) {
+  const svg = slot.querySelector('button.theme-toggle-btn svg');
+  return svg?.getAttribute('data-icon');
+}
+
 describe('trigger icon reflects effective theme', () => {
   it('explicit light mounts the sun glyph', () => {
     mockPrefersDark(true);
     const slot = document.getElementById('slot');
     mountThemeToggle(slot, 'light');
-    expect(slot.querySelector('button.theme-toggle-btn').textContent).toBe(ICON_SUN);
+    expect(triggerIconName(slot)).toBe('sun');
   });
 
   it('explicit dark mounts the moon glyph', () => {
     mockPrefersDark(false);
     const slot = document.getElementById('slot');
     mountThemeToggle(slot, 'dark');
-    expect(slot.querySelector('button.theme-toggle-btn').textContent).toBe(ICON_MOON);
+    expect(triggerIconName(slot)).toBe('moon');
   });
 
   it('system + OS dark resolves to the moon glyph', () => {
     mockPrefersDark(true);
     const slot = document.getElementById('slot');
     mountThemeToggle(slot, 'system');
-    expect(slot.querySelector('button.theme-toggle-btn').textContent).toBe(ICON_MOON);
+    expect(triggerIconName(slot)).toBe('moon');
   });
 
   it('system + OS light resolves to the sun glyph', () => {
     mockPrefersDark(false);
     const slot = document.getElementById('slot');
     mountThemeToggle(slot, 'system');
-    expect(slot.querySelector('button.theme-toggle-btn').textContent).toBe(ICON_SUN);
+    expect(triggerIconName(slot)).toBe('sun');
   });
 
   it('syncIcon swaps the glyph after a theme change', () => {
     mockPrefersDark(false);
     const slot = document.getElementById('slot');
     const handle = mountThemeToggle(slot, 'light');
-    expect(slot.querySelector('button.theme-toggle-btn').textContent).toBe(ICON_SUN);
+    expect(triggerIconName(slot)).toBe('sun');
     handle.syncIcon('dark');
-    expect(slot.querySelector('button.theme-toggle-btn').textContent).toBe(ICON_MOON);
+    expect(triggerIconName(slot)).toBe('moon');
+  });
+});
+
+describe('dropdown uses Heroicons outline SVG', () => {
+  it('each of the three options mounts its own SVG icon', () => {
+    mockPrefersDark(false);
+    const slot = document.getElementById('slot');
+    mountThemeToggle(slot);
+
+    const icons = Array.from(
+      slot.querySelectorAll('button.theme-option .theme-option-icon svg'),
+    ).map((s) => s.getAttribute('data-icon'));
+
+    expect(icons).toEqual(['system', 'sun', 'moon']);
   });
 });
 

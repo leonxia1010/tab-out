@@ -1259,17 +1259,23 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 /* Theme toggle — moon button + native popover menu. */
 .theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 36px;
   height: 36px;
   border: 1px solid var(--warm-gray);
   background: var(--card-bg);
   border-radius: 50%;
   cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
   padding: 0;
   color: var(--ink);
   transition: border-color 0.2s, background 0.2s;
+}
+
+.theme-toggle-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .theme-toggle-btn:hover {
@@ -1322,10 +1328,16 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .theme-option-icon {
-  font-size: 16px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 20px;
-  text-align: center;
+  color: var(--muted);
+}
+
+.theme-option-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* ============================================================
