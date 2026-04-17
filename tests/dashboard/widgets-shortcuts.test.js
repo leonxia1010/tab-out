@@ -111,6 +111,31 @@ describe('buildList — merge semantics', () => {
     expect(merged[1].url).toBe('https://x/');
   });
 
+  it('dedups trailing-slash variants via canonical URL', () => {
+    // pin stored without trailing slash (chrome.tabs source),
+    // chrome.topSites returns the canonical form with slash. Byte-
+    // compare would show two tiles; canonicalUrl collapses them.
+    const pins = [{ url: 'https://example.com', title: 'P' }];
+    const topSites = [
+      { url: 'https://example.com/', title: 'T' },
+      { url: 'https://other.test/', title: 'O' },
+    ];
+    const merged = buildList(pins, topSites, []);
+    expect(merged).toHaveLength(2);
+    expect(merged[0].title).toBe('P');
+    expect(merged[1].url).toBe('https://other.test/');
+  });
+
+  it('hide entry in trailing-slash variant still filters topSites', () => {
+    const topSites = [
+      { url: 'https://example.com/', title: 'E' },
+      { url: 'https://keep.test/', title: 'K' },
+    ];
+    const hides = ['https://example.com'];
+    const merged = buildList([], topSites, hides);
+    expect(merged).toEqual([{ url: 'https://keep.test/', title: 'K' }]);
+  });
+
   it('caps the list at 10 entries', () => {
     const topSites = Array.from({ length: 20 }, (_, i) => ({
       url: `https://site${i}/`,

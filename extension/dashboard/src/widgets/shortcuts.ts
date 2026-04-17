@@ -30,6 +30,7 @@
 
 import { el, svg } from '../dom-utils.js';
 import { faviconUrl } from '../favicon.js';
+import { canonicalUrl } from '../../../shared/dist/url.js';
 import type { ToutSettings, ShortcutPin } from '../../../shared/dist/settings.js';
 
 const MAX_TILES = 10;
@@ -102,10 +103,17 @@ function buildList(
   topSites: TopSite[],
   hides: string[],
 ): ShortcutPin[] {
-  const hideSet = new Set(hides);
-  const pinSet = new Set(pins.map((p) => p.url));
+  // Dedup by canonical URL: pins stored from chrome.tabs may omit the
+  // trailing "/" while chrome.topSites fills it in (and vice versa).
+  // Byte-compare would let both variants occupy tiles; canonicalUrl
+  // collapses them through the WHATWG URL parser.
+  const hideSet = new Set(hides.map(canonicalUrl));
+  const pinSet = new Set(pins.map((p) => canonicalUrl(p.url)));
   const filler = topSites
-    .filter((s) => !pinSet.has(s.url) && !hideSet.has(s.url))
+    .filter((s) => {
+      const c = canonicalUrl(s.url);
+      return !pinSet.has(c) && !hideSet.has(c);
+    })
     .map((s) => ({ url: s.url, title: s.title }));
   return [...pins, ...filler].slice(0, MAX_TILES);
 }
