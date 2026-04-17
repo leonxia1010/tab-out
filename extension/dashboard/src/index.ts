@@ -15,6 +15,9 @@ import { renderDashboard } from './renderers.js';
 import { attachTabsListeners } from './refresh.js';
 import { getUpdateStatus } from './api.js';
 import { el } from './dom-utils.js';
+import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
+import { applyTheme, mountThemeToggle } from './widgets/theme.js';
+import { mountClock, type ClockHandle } from './widgets/clock.js';
 
 const UPDATE_STATUS_KEY = 'tabout:updateStatus';
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
@@ -85,7 +88,34 @@ async function checkForUpdates(): Promise<void> {
   }
 }
 
+// Settings bootstrap. theme-bootstrap.js has already set html[data-theme]
+// from the localStorage cache before any paint; this call reconciles
+// against the chrome.storage source of truth (handles stale/missing
+// cache) and registers the onChanged listener so changes from the
+// options page update the dashboard without a reload.
+//
+// getSettings() swallows chrome.storage errors and returns defaults,
+// so no try/catch needed here. Mount order: clock on the left, theme
+// toggle on the right (header reads left-to-right).
+async function bootstrapSettings(): Promise<void> {
+  const slot = document.getElementById('headerRight');
+  const settings = await getSettings();
+  applyTheme(settings.theme);
+
+  let clock: ClockHandle | null = null;
+  if (slot) {
+    clock = mountClock(slot, settings.clock.format);
+    mountThemeToggle(slot);
+  }
+
+  onSettingsChange((next) => {
+    applyTheme(next.theme);
+    clock?.applyFormat(next.clock.format);
+  });
+}
+
 handlers.attachListeners();
 attachTabsListeners();
+void bootstrapSettings();
 void renderDashboard();
 void checkForUpdates();

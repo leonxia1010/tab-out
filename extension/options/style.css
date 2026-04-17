@@ -1,0 +1,108 @@
+/* Options page styling. Shares the dashboard's dark-theme strategy:
+   html[data-theme="dark"] is set by theme-bootstrap.js before this
+   stylesheet parses, OR the @media (prefers-color-scheme: dark) block
+   catches the 'system' case (no data-theme attribute). Keep the two
+   dark selector lists in sync — same reasoning as dashboard/style.css.
+*/
+
+:root {
+  color-scheme: light;
+  --paper: #f8f5f0;
+  --card-bg: #fffdf9;
+  --ink: #1a1613;
+  --muted: #9a918a;
+  --border: rgba(26, 22, 19, 0.08);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #1a1714;
+  --card-bg: #241f1a;
+  --ink: #ebe8e3;
+  --muted: #8a847d;
+  --border: rgba(235, 232, 227, 0.10);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #1a1714;
+    --card-bg: #241f1a;
+    --ink: #ebe8e3;
+    --muted: #8a847d;
+    --border: rgba(235, 232, 227, 0.10);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 48px 24px;
+  min-height: 100vh;
+}
+
+.settings-container {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.settings-header h1 {
+  font-family: 'Newsreader', serif;
+  font-weight: 400;
+  font-size: 32px;
+  margin: 0 0 8px;
+}
+
+.settings-subtitle {
+  color: var(--muted);
+  margin: 0 0 40px;
+  font-size: 14px;
+}
+
+.settings-section {
+  margin-bottom: 24px;
+  padding: 24px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.settings-section h2 {
+  font-family: 'Newsreader', serif;
+  font-weight: 400;
+  font-size: 20px;
+  margin: 0 0 16px;
+}
+
+.settings-field {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.settings-field legend {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.settings-field label {
+  display: block;
+  padding: 8px 0;
+  cursor: pointer;
+  font-size: 14px;
+  user-select: none;
+}
+
+.settings-field input[type="radio"] {
+  margin-right: 8px;
+  vertical-align: middle;
+  cursor: pointer;
+}

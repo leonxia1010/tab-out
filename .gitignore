@@ -9,3 +9,6 @@ claudedocs/
 .serena/
 coverage/
 extension/dashboard/dist/
+extension/options/dist/
+extension/shared/dist/
+*.tsbuildinfo

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tab Out — Settings</title>
+  <script src="theme-bootstrap.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="settings-container">
+    <header class="settings-header">
+      <h1>Tab Out</h1>
+      <p class="settings-subtitle">Settings save automatically.</p>
+    </header>
+
+    <section class="settings-section" aria-labelledby="appearance-heading">
+      <h2 id="appearance-heading">Appearance</h2>
+      <fieldset class="settings-field">
+        <legend>Theme</legend>
+        <label><input type="radio" name="theme" value="system"> Follow system</label>
+        <label><input type="radio" name="theme" value="light"> Light</label>
+        <label><input type="radio" name="theme" value="dark"> Dark</label>
+      </fieldset>
+    </section>
+
+    <section class="settings-section" aria-labelledby="clock-heading">
+      <h2 id="clock-heading">Clock</h2>
+      <fieldset class="settings-field">
+        <legend>Format</legend>
+        <label><input type="radio" name="clockFormat" value="12h"> 12-hour (1:30 PM)</label>
+        <label><input type="radio" name="clockFormat" value="24h"> 24-hour (13:30)</label>
+      </fieldset>
+    </section>
+  </main>
+  <script type="module" src="dist/index.js"></script>
+</body>
+</html>
