@@ -50,6 +50,7 @@ jobs:
             -x 'extension/shared/src/*' \
             -x '*.map' \
             -x '*.d.ts' \
+            -x '*.tsbuildinfo' \
             -x '*/.DS_Store'
           ls -la tab-out-*.zip
 
