@@ -5,6 +5,7 @@
    ============================================================ */
 
 :root {
+  color-scheme: light;
   --ink: #1a1613;
   --paper: #f8f5f0;
   --warm-gray: #e8e2da;
@@ -1334,6 +1335,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
    specificity clarity.
    ============================================================ */
 html[data-theme="dark"] {
+  color-scheme: dark;
   --ink: #ebe8e3;
   --paper: #1a1714;
   --warm-gray: #3a332c;
@@ -1351,6 +1353,7 @@ html[data-theme="dark"] {
 
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) {
+    color-scheme: dark;
     --ink: #ebe8e3;
     --paper: #1a1714;
     --warm-gray: #3a332c;

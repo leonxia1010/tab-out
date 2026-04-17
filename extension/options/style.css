@@ -6,6 +6,7 @@
 */
 
 :root {
+  color-scheme: light;
   --paper: #f8f5f0;
   --card-bg: #fffdf9;
   --ink: #1a1613;
@@ -14,6 +15,7 @@
 }
 
 html[data-theme="dark"] {
+  color-scheme: dark;
   --paper: #1a1714;
   --card-bg: #241f1a;
   --ink: #ebe8e3;
@@ -23,6 +25,7 @@ html[data-theme="dark"] {
 
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) {
+    color-scheme: dark;
     --paper: #1a1714;
     --card-bg: #241f1a;
     --ink: #ebe8e3;
