@@ -26,6 +26,33 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('isLoopbackHost', () => {
+  const { isLoopbackHost } = __internal;
+
+  it('matches localhost and *.localhost', () => {
+    expect(isLoopbackHost('localhost')).toBe(true);
+    expect(isLoopbackHost('api.localhost')).toBe(true);
+  });
+
+  it('matches 127.0.0.0/8', () => {
+    expect(isLoopbackHost('127.0.0.1')).toBe(true);
+    expect(isLoopbackHost('127.1.2.3')).toBe(true);
+  });
+
+  it('matches 0.0.0.0 and IPv6 loopback', () => {
+    expect(isLoopbackHost('0.0.0.0')).toBe(true);
+    expect(isLoopbackHost('::1')).toBe(true);
+    expect(isLoopbackHost('[::1]')).toBe(true);
+  });
+
+  it('does not match public hosts or generic LAN addresses', () => {
+    expect(isLoopbackHost('example.com')).toBe(false);
+    expect(isLoopbackHost('192.168.1.1')).toBe(false);
+    expect(isLoopbackHost('my-nas.local')).toBe(false);
+    expect(isLoopbackHost('')).toBe(false);
+  });
+});
+
 describe('buildList — merge semantics', () => {
   const { buildList } = __internal;
 
@@ -253,6 +280,40 @@ describe('mountShortcuts — render + API', () => {
       const bar = slot.querySelector('.shortcuts-bar');
       expect(bar).not.toBeNull();
       expect(bar.classList.contains('is-empty')).toBe(true);
+    });
+  });
+
+  it('filters localhost / 127.*.* / ::1 entries out of topSites', async () => {
+    installTopSites([
+      { url: 'http://localhost:3000/', title: 'dev' },
+      { url: 'http://127.0.0.1:8080/', title: 'api' },
+      { url: 'http://[::1]/', title: 'ipv6' },
+      { url: 'https://example.com/', title: 'Example' },
+    ]);
+    const slot = document.getElementById('slot');
+    mountShortcuts(slot, baseSettings);
+
+    await vi.waitFor(() => {
+      const tiles = slot.querySelectorAll('.shortcut-tile');
+      expect(tiles.length).toBe(1);
+      const href = tiles[0].querySelector('a.shortcut-link')?.getAttribute('href');
+      expect(href).toBe('https://example.com/');
+    });
+  });
+
+  it('still shows a pinned localhost entry — pins override the loopback filter', async () => {
+    installTopSites([{ url: 'http://localhost/', title: 'dev' }]);
+    const slot = document.getElementById('slot');
+    mountShortcuts(slot, {
+      ...baseSettings,
+      shortcutPins: [{ url: 'http://localhost:3000/', title: 'My dev' }],
+    });
+
+    await vi.waitFor(() => {
+      const tiles = slot.querySelectorAll('.shortcut-tile');
+      expect(tiles.length).toBe(1);
+      const href = tiles[0].querySelector('a.shortcut-link')?.getAttribute('href');
+      expect(href).toBe('http://localhost:3000/');
     });
   });
 });

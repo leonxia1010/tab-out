@@ -59,6 +59,22 @@ function hostOf(rawUrl: string): string {
   }
 }
 
+// Loopback/local-dev hosts — filtered out of topSites at the source so
+// a week of `npm run dev` doesn't take over the shortcut bar. A user
+// who *wants* localhost in their bar can still pin it explicitly
+// (pins are stored separately and never pass through this filter).
+// Scope kept narrow on purpose: strict loopback only, NOT every .local
+// or LAN IP, since those can legitimately be a home-lab user's
+// intranet services they'd expect to see.
+function isLoopbackHost(host: string): boolean {
+  if (!host) return false;
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host === '0.0.0.0') return true;
+  if (host === '::1' || host === '[::1]') return true;
+  if (/^127\./.test(host)) return true;
+  return false;
+}
+
 function faviconUrl(rawUrl: string): string {
   const host = hostOf(rawUrl);
   if (!host) return '';
@@ -77,6 +93,7 @@ async function fetchTopSites(): Promise<TopSite[]> {
     return sites
       .filter((s): s is TopSite =>
         !!s && typeof s.url === 'string' && typeof s.title === 'string')
+      .filter((s) => !isLoopbackHost(hostOf(s.url)))
       .map((s) => ({ url: s.url, title: s.title }));
   } catch {
     return [];
@@ -281,5 +298,5 @@ export function mountShortcuts(
   };
 }
 
-// Exposed for unit tests — pure function with no DOM or chrome API.
-export const __internal = { buildList };
+// Exposed for unit tests — pure functions with no DOM or chrome API.
+export const __internal = { buildList, isLoopbackHost };
