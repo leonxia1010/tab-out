@@ -18,6 +18,7 @@ import { el, svg } from './dom-utils.js';
 import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
 import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
 import { mountClock, type ClockHandle } from './widgets/clock.js';
+import { mountSearch } from './widgets/search.js';
 
 const UPDATE_STATUS_KEY = 'tabout:updateStatus';
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
@@ -115,6 +116,7 @@ function applyLayout(layout: 'masonry' | 'grid'): void {
 
 async function bootstrapSettings(): Promise<void> {
   const slot = document.getElementById('headerRight');
+  const middleSlot = document.getElementById('middleSection');
   const settings = await getSettings();
   applyTheme(settings.theme);
   applyLayout(settings.layout);
@@ -125,6 +127,7 @@ async function bootstrapSettings(): Promise<void> {
     clock = mountClock(slot, settings.clock.format);
     themeToggle = mountThemeToggle(slot, settings.theme);
   }
+  if (middleSlot) mountSearch(middleSlot);
 
   onSettingsChange((next) => {
     applyTheme(next.theme);

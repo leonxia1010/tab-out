@@ -241,24 +241,24 @@ describe('renderDomainCard — waterfall delay', () => {
     return { domain, tabs: [{ url: `https://${domain}/a`, title: 'x' }] };
   }
 
-  it('first card starts at 0.25s', () => {
+  it('first card starts at 0.15s', () => {
     const card = renderDomainCard(singleTabGroup('a.test'), 0);
-    expect(card.style.animationDelay).toBe('0.25s');
+    expect(card.style.animationDelay).toBe('0.15s');
   });
 
-  it('second card adds 0.05s', () => {
+  it('second card adds 0.03s', () => {
     const card = renderDomainCard(singleTabGroup('b.test'), 1);
-    expect(card.style.animationDelay).toBe('0.30s');
+    expect(card.style.animationDelay).toBe('0.18s');
   });
 
   it('fifth card (the bug case) also gets a delay', () => {
     const card = renderDomainCard(singleTabGroup('e.test'), 4);
-    expect(card.style.animationDelay).toBe('0.45s');
+    expect(card.style.animationDelay).toBe('0.27s');
   });
 
   it('tenth card keeps cascading — no arbitrary ceiling', () => {
     const card = renderDomainCard(singleTabGroup('j.test'), 9);
-    expect(card.style.animationDelay).toBe('0.70s');
+    expect(card.style.animationDelay).toBe('0.42s');
   });
 });
 

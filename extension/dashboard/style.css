@@ -652,9 +652,12 @@ footer {
 }
 
 header { animation: fadeUp 0.5s ease both; }
-.tab-cleanup-banner { animation: fadeUp 0.5s ease 0.1s both; }
-.nudge-banner { animation: fadeUp 0.5s ease 0.15s both; }
-.active-section .section-header { animation: fadeUp 0.5s ease 0.2s both; }
+/* Waterfall stepping: 30ms per level (was 50ms — felt too long).
+   Middle section sits between header and cleanup banner. */
+.middle-section { animation: fadeUp 0.5s ease 0.03s both; }
+.tab-cleanup-banner { animation: fadeUp 0.5s ease 0.06s both; }
+.nudge-banner { animation: fadeUp 0.5s ease 0.09s both; }
+.active-section .section-header { animation: fadeUp 0.5s ease 0.12s both; }
 /* Card fade-in base rule. Per-card stagger comes from inline
    `animationDelay` set in renderDomainCard — this makes the waterfall work
    regardless of how many cards exist. Previously nth-child(1..4) was
@@ -668,20 +671,20 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
    / delete / clear) don't set the class, so mount() replaces the list
    silently and the section header doesn't re-flash. Per-row .removing
    still drives the delete fade-out. */
-.deferred-column .section-header { animation: fadeUp 0.5s ease 0.2s both; }
-.deferred-empty    { animation: fadeUp 0.5s ease 0.2s both; }
-.deferred-archive  { animation: fadeUp 0.5s ease 0.3s both; }
+.deferred-column .section-header { animation: fadeUp 0.5s ease 0.12s both; }
+.deferred-empty    { animation: fadeUp 0.5s ease 0.12s both; }
+.deferred-archive  { animation: fadeUp 0.5s ease 0.18s both; }
 
 /* Sync to the left column: renderDomainCard sets inline
-   `animationDelay = 0.25 + groupIndex * 0.05s`, so card #1 fires at 0.25s
-   with 0.05s per step. Match that here — first saved item lands with the
+   `animationDelay = 0.15 + groupIndex * 0.03s`, so card #1 fires at 0.15s
+   with 0.03s per step. Match that here — first saved item lands with the
    first domain card, same cadence after. */
 .deferred-list.animate-in .deferred-item { animation: fadeUp 0.3s ease both; }
-.deferred-list.animate-in .deferred-item:nth-child(1) { animation-delay: 0.25s; }
-.deferred-list.animate-in .deferred-item:nth-child(2) { animation-delay: 0.30s; }
-.deferred-list.animate-in .deferred-item:nth-child(3) { animation-delay: 0.35s; }
-.deferred-list.animate-in .deferred-item:nth-child(4) { animation-delay: 0.40s; }
-.deferred-list.animate-in .deferred-item:nth-child(5) { animation-delay: 0.45s; }
+.deferred-list.animate-in .deferred-item:nth-child(1) { animation-delay: 0.15s; }
+.deferred-list.animate-in .deferred-item:nth-child(2) { animation-delay: 0.18s; }
+.deferred-list.animate-in .deferred-item:nth-child(3) { animation-delay: 0.21s; }
+.deferred-list.animate-in .deferred-item:nth-child(4) { animation-delay: 0.24s; }
+.deferred-list.animate-in .deferred-item:nth-child(5) { animation-delay: 0.27s; }
 
 
 /* ================================================================
@@ -700,8 +703,17 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
    ================================================================ */
 
 .domains-empty-state {
-  /* Takes the full grid width — span all columns */
+  /* Span all columns in both layouts:
+     - Grid mode:    `grid-column: 1 / -1` takes full width.
+     - Masonry mode: `column-span: all` breaks out of CSS columns so
+       the message sits centered across the whole `.domains` row
+       instead of being trapped inside column 1.
+     Each property is a no-op in the other layout, so keeping both
+     is harmless. Override the break-inside:avoid inherited from
+     `.domains > *` too — column-span needs the box to break. */
   grid-column: 1 / -1;
+  column-span: all;
+  break-inside: auto;
 
   display: flex;
   flex-direction: column;
@@ -1175,6 +1187,93 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   outline: none;
   transition: border-color 0.2s;
   margin-bottom: 12px;
+}
+
+/* ============================================================
+   Middle section (v2.3.0) — full-width widgets under the header.
+   Hosts the search widget today; shortcut bar appends after it
+   in a later PR. Gap gives vertical rhythm between siblings.
+   ============================================================ */
+.middle-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.middle-section:empty {
+  display: none;
+}
+
+.search-widget {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* The field is the visual control and deliberately mirrors the
+   `.domain-card` tokens so the search bar reads as part of the same
+   waterfall family instead of a foreign pill: same border color,
+   radius, background, and the same hover/focus lift. Flex puts the
+   icon on the left; input.flex:1 fills the remainder. Border + radius
+   live on the field so the focus ring wraps icon + input together. */
+.search-widget-field {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 22px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  background: var(--card-bg);
+  /* Mirror .domain-card hover/focus treatment so the field reads as
+     part of the same waterfall family. Radius stays at the card's
+     8px (not 14px) for the same reason — consistent card vocabulary. */
+  transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.2s;
+}
+
+.search-widget-field:hover {
+  box-shadow: 0 4px 20px var(--shadow);
+  transform: translateY(-1px);
+}
+
+.search-widget-field:focus-within {
+  border-color: var(--accent-amber);
+  box-shadow: 0 4px 20px var(--shadow);
+}
+
+.search-widget-field svg {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+  flex-shrink: 0;
+  /* Icon is decoration; clicks should pass through to the input so
+     the whole box feels like one affordance. */
+  pointer-events: none;
+}
+
+.search-widget-input {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  outline: none;
+}
+
+.search-widget-input::placeholder {
+  color: var(--muted);
+}
+
+/* Chromium's default search-cancel button clashes with the flat input
+   aesthetic (a tiny grey X aligned right). Hide it — Esc still clears
+   the field natively. */
+.search-widget-input::-webkit-search-cancel-button {
+  appearance: none;
 }
 
 .archive-search:focus {
