@@ -1195,6 +1195,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 .search-widget {
   width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
 }
 
 /* The field is the visual control: soft-rounded pill with a leading
