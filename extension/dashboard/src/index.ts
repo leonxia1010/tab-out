@@ -102,10 +102,22 @@ async function checkForUpdates(): Promise<void> {
 // getSettings() swallows chrome.storage errors and returns defaults,
 // so no try/catch needed here. Mount order: clock on the left, theme
 // toggle on the right (header reads left-to-right).
+function applyLayout(layout: 'masonry' | 'grid'): void {
+  // 'masonry' is the default — clear the attribute so the base .domains
+  // rule applies. Only 'grid' needs the explicit override selector.
+  const root = document.documentElement;
+  if (layout === 'grid') {
+    root.dataset.layout = 'grid';
+  } else {
+    delete root.dataset.layout;
+  }
+}
+
 async function bootstrapSettings(): Promise<void> {
   const slot = document.getElementById('headerRight');
   const settings = await getSettings();
   applyTheme(settings.theme);
+  applyLayout(settings.layout);
 
   let clock: ClockHandle | null = null;
   let themeToggle: ThemeToggleHandle | null = null;
@@ -116,6 +128,7 @@ async function bootstrapSettings(): Promise<void> {
 
   onSettingsChange((next) => {
     applyTheme(next.theme);
+    applyLayout(next.layout);
     themeToggle?.syncIcon(next.theme);
     clock?.applyFormat(next.clock.format);
   });

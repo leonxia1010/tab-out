@@ -1,23 +1,31 @@
 // Shared settings module — imported by both dashboard and options page.
 //
 // Storage shape (chrome.storage.local['tabout:settings']):
-//   { theme: 'system' | 'light' | 'dark', clock: { format: '12h' | '24h' } }
+//   { theme, clock: { format }, layout }
 //
 // Theme FOUC invariant: localStorage['tabout:theme-cache'] mirrors the
 // resolved explicit theme ('light' or 'dark' only; 'system' clears the
 // key so CSS prefers-color-scheme takes over). theme-bootstrap.js reads
 // localStorage synchronously before the stylesheet parses.
+//
+// Layout FOUC invariant (v2.3.0): localStorage['tabout:layout-cache']
+// mirrors layout. 'masonry' is the default — the cache key is cleared
+// so absent key ≡ masonry, and the stylesheet's base rule handles it.
+// Only 'grid' writes to the cache.
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ClockFormat = '12h' | '24h';
+export type Layout = 'masonry' | 'grid';
 
 export interface ToutSettings {
   theme: ThemeMode;
   clock: { format: ClockFormat };
+  layout: Layout;
 }
 
 export const SETTINGS_KEY = 'tabout:settings';
 export const THEME_CACHE_KEY = 'tabout:theme-cache';
+export const LAYOUT_CACHE_KEY = 'tabout:layout-cache';
 
 function inferClockFormat(): ClockFormat {
   try {
@@ -28,7 +36,11 @@ function inferClockFormat(): ClockFormat {
 }
 
 export function defaultSettings(): ToutSettings {
-  return { theme: 'system', clock: { format: inferClockFormat() } };
+  return {
+    theme: 'system',
+    clock: { format: inferClockFormat() },
+    layout: 'masonry',
+  };
 }
 
 function storage(): chrome.storage.StorageArea {
@@ -46,6 +58,10 @@ function isClockFormat(v: unknown): v is ClockFormat {
   return v === '12h' || v === '24h';
 }
 
+function isLayout(v: unknown): v is Layout {
+  return v === 'masonry' || v === 'grid';
+}
+
 // Defensive parse: missing or malformed fields fall back to defaults.
 // Mirrors api.ts#isDeferredRow discipline — normalize at the boundary
 // so downstream code can trust the shape.
@@ -58,6 +74,7 @@ export function normalizeSettings(raw: unknown): ToutSettings {
     clock: {
       format: r.clock && isClockFormat(r.clock.format) ? r.clock.format : d.clock.format,
     },
+    layout: isLayout(r.layout) ? r.layout : d.layout,
   };
 }
 
@@ -75,9 +92,11 @@ export async function setSettings(patch: Partial<ToutSettings>): Promise<ToutSet
   const next: ToutSettings = {
     theme: patch.theme ?? current.theme,
     clock: { format: patch.clock?.format ?? current.clock.format },
+    layout: patch.layout ?? current.layout,
   };
   await storage().set({ [SETTINGS_KEY]: next });
   syncThemeCache(next.theme);
+  syncLayoutCache(next.layout);
   return next;
 }
 
@@ -97,6 +116,22 @@ export function syncThemeCache(theme: ThemeMode): void {
   }
 }
 
+// Mirror of settings.layout. 'masonry' is the default — clear the key
+// so the base stylesheet rule handles it without needing data-layout.
+// Only 'grid' writes, and only then does theme-bootstrap.js set the
+// data-layout attribute pre-paint.
+export function syncLayoutCache(layout: Layout): void {
+  try {
+    if (layout === 'masonry') {
+      localStorage.removeItem(LAYOUT_CACHE_KEY);
+    } else {
+      localStorage.setItem(LAYOUT_CACHE_KEY, layout);
+    }
+  } catch {
+    // Silent degrade — stylesheet default (masonry) applies.
+  }
+}
+
 export function onSettingsChange(cb: (next: ToutSettings) => void): () => void {
   const listener = (
     changes: Record<string, chrome.storage.StorageChange>,
@@ -105,6 +140,7 @@ export function onSettingsChange(cb: (next: ToutSettings) => void): () => void {
     if (area !== 'local' || !(SETTINGS_KEY in changes)) return;
     const next = normalizeSettings(changes[SETTINGS_KEY].newValue);
     syncThemeCache(next.theme);
+    syncLayoutCache(next.layout);
     cb(next);
   };
   chrome.storage.onChanged.addListener(listener);

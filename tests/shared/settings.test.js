@@ -12,8 +12,10 @@ import {
   getSettings,
   setSettings,
   syncThemeCache,
+  syncLayoutCache,
   SETTINGS_KEY,
   THEME_CACHE_KEY,
+  LAYOUT_CACHE_KEY,
 } from '../../extension/shared/src/settings.ts';
 
 function installMocks(initialStorage = {}, initialLocal = {}) {
@@ -58,6 +60,11 @@ describe('defaultSettings', () => {
     expect(d.clock.format === '12h' || d.clock.format === '24h').toBe(true);
   });
 
+  it('defaults layout to masonry (v2.3.0)', () => {
+    installMocks();
+    expect(defaultSettings().layout).toBe('masonry');
+  });
+
   it('picks 12h when navigator.language is en-US', () => {
     vi.stubGlobal('navigator', { language: 'en-US' });
     expect(defaultSettings().clock.format).toBe('12h');
@@ -94,8 +101,8 @@ describe('normalizeSettings', () => {
 
   it('preserves valid values', () => {
     installMocks();
-    const r = normalizeSettings({ theme: 'dark', clock: { format: '24h' } });
-    expect(r).toEqual({ theme: 'dark', clock: { format: '24h' } });
+    const r = normalizeSettings({ theme: 'dark', clock: { format: '24h' }, layout: 'grid' });
+    expect(r).toEqual({ theme: 'dark', clock: { format: '24h' }, layout: 'grid' });
   });
 
   it('fills missing fields with defaults (partial object)', () => {
@@ -103,6 +110,13 @@ describe('normalizeSettings', () => {
     const r = normalizeSettings({ theme: 'light' });
     expect(r.theme).toBe('light');
     expect(r.clock.format === '12h' || r.clock.format === '24h').toBe(true);
+    expect(r.layout).toBe('masonry');
+  });
+
+  it('rejects invalid layout values and falls back to masonry', () => {
+    installMocks();
+    expect(normalizeSettings({ layout: 'staircase' }).layout).toBe('masonry');
+    expect(normalizeSettings({ layout: 42 }).layout).toBe('masonry');
   });
 });
 
@@ -114,8 +128,8 @@ describe('getSettings', () => {
   });
 
   it('returns normalized stored settings', async () => {
-    installMocks({ [SETTINGS_KEY]: { theme: 'dark', clock: { format: '24h' } } });
-    expect(await getSettings()).toEqual({ theme: 'dark', clock: { format: '24h' } });
+    installMocks({ [SETTINGS_KEY]: { theme: 'dark', clock: { format: '24h' }, layout: 'grid' } });
+    expect(await getSettings()).toEqual({ theme: 'dark', clock: { format: '24h' }, layout: 'grid' });
   });
 
   it('drops garbage fields from storage and defaults them', async () => {
@@ -128,9 +142,9 @@ describe('getSettings', () => {
 
 describe('setSettings', () => {
   it('writes the merged shape back to chrome.storage.local', async () => {
-    const { store } = installMocks({ [SETTINGS_KEY]: { theme: 'light', clock: { format: '12h' } } });
+    const { store } = installMocks({ [SETTINGS_KEY]: { theme: 'light', clock: { format: '12h' }, layout: 'masonry' } });
     await setSettings({ theme: 'dark' });
-    expect(store.get(SETTINGS_KEY)).toEqual({ theme: 'dark', clock: { format: '12h' } });
+    expect(store.get(SETTINGS_KEY)).toEqual({ theme: 'dark', clock: { format: '12h' }, layout: 'masonry' });
   });
 
   it('updates localStorage theme cache on explicit light/dark', async () => {
@@ -149,6 +163,19 @@ describe('setSettings', () => {
     installMocks({});
     const result = await setSettings({ theme: 'light' });
     expect(result.theme).toBe('light');
+  });
+
+  it('persists layout and writes the layout cache on grid', async () => {
+    const { store, local } = installMocks({});
+    await setSettings({ layout: 'grid' });
+    expect(store.get(SETTINGS_KEY).layout).toBe('grid');
+    expect(local.get(LAYOUT_CACHE_KEY)).toBe('grid');
+  });
+
+  it('clears layout cache when setting layout back to masonry', async () => {
+    const { local } = installMocks({}, { [LAYOUT_CACHE_KEY]: 'grid' });
+    await setSettings({ layout: 'masonry' });
+    expect(local.has(LAYOUT_CACHE_KEY)).toBe(false);
   });
 });
 
@@ -178,5 +205,29 @@ describe('syncThemeCache', () => {
       removeItem: () => { throw new Error('blocked'); },
     });
     expect(() => syncThemeCache('dark')).not.toThrow();
+  });
+});
+
+describe('syncLayoutCache', () => {
+  it('writes "grid" to localStorage', () => {
+    const { local } = installMocks();
+    syncLayoutCache('grid');
+    expect(local.get(LAYOUT_CACHE_KEY)).toBe('grid');
+  });
+
+  it('removes the key on "masonry" so default stylesheet rule applies', () => {
+    const { local } = installMocks({}, { [LAYOUT_CACHE_KEY]: 'grid' });
+    syncLayoutCache('masonry');
+    expect(local.has(LAYOUT_CACHE_KEY)).toBe(false);
+  });
+
+  it('swallows localStorage failures silently', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => { throw new Error('blocked'); },
+      setItem: () => { throw new Error('blocked'); },
+      removeItem: () => { throw new Error('blocked'); },
+    });
+    expect(() => syncLayoutCache('grid')).not.toThrow();
+    expect(() => syncLayoutCache('masonry')).not.toThrow();
   });
 });
