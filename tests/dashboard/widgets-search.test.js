@@ -36,10 +36,16 @@ describe('mountSearch', () => {
     expect(form).not.toBeNull();
     expect(form.getAttribute('role')).toBe('search');
 
-    const input = form.querySelector('input.search-widget-input');
+    const field = form.querySelector('.search-widget-field');
+    expect(field).not.toBeNull();
+
+    const icon = field.querySelector('svg[data-icon="search"]');
+    expect(icon).not.toBeNull();
+
+    const input = field.querySelector('input.search-widget-input');
     expect(input).not.toBeNull();
     expect(input.getAttribute('type')).toBe('search');
-    expect(input.getAttribute('placeholder')).toBe('Search the web');
+    expect(input.getAttribute('placeholder')).toBe('Search Google...');
   });
 
   it('focuses the input on mount', () => {

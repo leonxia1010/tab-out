@@ -1195,28 +1195,49 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 .search-widget {
   width: 100%;
-  max-width: 560px;
-  margin: 0 auto;
+}
+
+/* The field is the visual control: soft-rounded pill with a leading
+   icon and the input sharing the same box. Flexbox puts the icon on
+   the left; input.flex:1 fills the remainder. We keep border + radius
+   on the field, never on the input, so the focus ring wraps both. */
+.search-widget-field {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 22px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 14px;
+  background: var(--card-bg);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-widget-field:focus-within {
+  border-color: var(--accent-amber);
+}
+
+.search-widget-field svg {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+  flex-shrink: 0;
+  /* Icon is decoration; clicks should pass through to the input so
+     the whole box feels like one affordance. */
+  pointer-events: none;
 }
 
 .search-widget-input {
-  /* Scaled-up clone of .archive-search tokens: larger font + padding
-     because this is the top-level action on the page, not a nested
-     filter inside a collapsible panel. */
   font-family: 'DM Sans', sans-serif;
-  font-size: 15px;
-  width: 100%;
-  padding: 10px 16px;
-  border: 1px solid var(--warm-gray);
-  border-radius: 6px;
-  background: var(--card-bg);
+  font-size: 16px;
+  font-weight: 400;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--ink);
   outline: none;
-  transition: border-color 0.2s;
-}
-
-.search-widget-input:focus {
-  border-color: var(--accent-amber);
 }
 
 .search-widget-input::placeholder {
@@ -1224,8 +1245,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 /* Chromium's default search-cancel button clashes with the flat input
-   aesthetic (a tiny grey X aligned right). We hide it and let the
-   user clear via Cmd/Ctrl+A + Delete or by submitting. */
+   aesthetic (a tiny grey X aligned right). Hide it — Esc still clears
+   the field natively. */
 .search-widget-input::-webkit-search-cancel-button {
   appearance: none;
 }

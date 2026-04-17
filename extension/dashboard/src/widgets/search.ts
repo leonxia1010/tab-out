@@ -13,26 +13,39 @@
 // symmetric shape keeps widget wiring uniform and lets tests assert
 // cleanup without special-casing.
 
-import { el } from '../dom-utils.js';
+import { el, svg } from '../dom-utils.js';
 
 export interface SearchHandle {
   destroy(): void;
 }
 
+// Heroicons v2 outline magnifying-glass (MIT, tailwindlabs/heroicons),
+// stroke-width 1.5 to match the rest of the dashboard icon family.
+const SVG_SEARCH = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" data-icon="search"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>`;
+
 export function mountSearch(container: HTMLElement): SearchHandle {
   const input = el('input', {
     type: 'search',
     className: 'search-widget-input',
-    placeholder: 'Search the web',
+    // Placeholder reads "Search Google..." per UI spec. Submission
+    // still routes through chrome.search.query which uses the user's
+    // Chrome-configured default engine — it's not actually hard-wired
+    // to Google. The string is a visual label, not an engine pick.
+    placeholder: 'Search Google...',
     'aria-label': 'Search the web',
     autocomplete: 'off',
     spellcheck: 'false',
   }) as HTMLInputElement;
 
+  const iconNode = svg(SVG_SEARCH);
+  const field = el('div', {
+    className: 'search-widget-field',
+  }, iconNode ? [iconNode, input] : [input]) as HTMLElement;
+
   const form = el('form', {
     className: 'search-widget',
     role: 'search',
-  }, [input]) as HTMLFormElement;
+  }, [field]) as HTMLFormElement;
 
   const onSubmit = (e: Event): void => {
     e.preventDefault();
