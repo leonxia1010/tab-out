@@ -8,11 +8,13 @@
 // overrides an earlier hide). No padding when fewer than 10 available;
 // blank slots would look broken.
 //
-// Favicon source: `https://www.google.com/s2/favicons?domain=${host}
-// &sz=64`. Matches the domain-card pattern used in renderers.ts. sz=64
-// lets us render a crisp 28px favicon on retina. If the image 404s we
-// let the broken-image glyph show — simpler than a lettermark fallback
-// and lets the user hide the tile themselves.
+// Favicon source: Chrome's native `_favicon/` API via chrome.runtime
+// .getURL (needs the "favicon" manifest permission, Chrome 104+). Zero
+// network requests, zero third-party exposure — Chrome serves the same
+// cached icon the address bar uses. sz=64 lets us render a crisp 28px
+// favicon on retina. If the image 404s we let the broken-image glyph
+// show — simpler than a lettermark fallback and lets the user hide the
+// tile themselves.
 //
 // Interaction: click tile → navigate in the same tab (no target=_blank;
 // the dashboard IS the new tab, so a fresh tab would leave an empty
@@ -27,6 +29,7 @@
 // applySettings from onSettingsChange so pin/hide actions reflect live.
 
 import { el, svg } from '../dom-utils.js';
+import { faviconUrl } from '../favicon.js';
 import type { ToutSettings, ShortcutPin } from '../../../shared/dist/settings.js';
 
 const MAX_TILES = 10;
@@ -73,12 +76,6 @@ function isLoopbackHost(host: string): boolean {
   if (host === '::1' || host === '[::1]') return true;
   if (/^127\./.test(host)) return true;
   return false;
-}
-
-function faviconUrl(rawUrl: string): string {
-  const host = hostOf(rawUrl);
-  if (!host) return '';
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=${FAVICON_SIZE}`;
 }
 
 // Bridge to chrome.topSites. Returns [] if the API is missing (jsdom
@@ -128,7 +125,7 @@ let popoverCounter = 0;
 function renderTile(entry: ShortcutPin, isPinned: boolean): HTMLElement {
   const host = hostOf(entry.url);
   const label = entry.title || host || entry.url;
-  const src = faviconUrl(entry.url);
+  const src = faviconUrl(entry.url, FAVICON_SIZE);
   const popoverId = `taboutShortcutMenu-${popoverCounter++}`;
 
   const faviconImg = el('img', {
@@ -253,6 +250,19 @@ function renderTile(entry: ShortcutPin, isPinned: boolean): HTMLElement {
 }
 
 function renderInto(bar: HTMLElement, list: ShortcutPin[], pins: ShortcutPin[]): void {
+  // Force-close any open popover before replaceChildren tears the DOM
+  // down. The popover's `toggle → closed` handler is what removes the
+  // window scroll/resize listeners; removing the popover node directly
+  // (without hidePopover first) skips that cleanup path and the
+  // listeners stay attached to window forever. Real trigger: user opens
+  // a tile menu, then options page pin/hide fires onSettingsChange →
+  // applySettings → renderInto.
+  bar.querySelectorAll<HTMLElement>('.shortcut-menu').forEach((p) => {
+    if (typeof p.hidePopover === 'function' && p.matches(':popover-open')) {
+      p.hidePopover();
+    }
+  });
+
   if (list.length === 0) {
     bar.replaceChildren();
     bar.classList.add('is-empty');
