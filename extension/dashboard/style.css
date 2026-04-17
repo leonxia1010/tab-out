@@ -1308,9 +1308,9 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 */
 .shortcut-tile {
   position: relative;
-  width: 64px;
-  height: 64px;
-  border-radius: 12px;
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
