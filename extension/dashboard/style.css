@@ -1287,9 +1287,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   display: flex;
   justify-content: center;
   flex-wrap: nowrap;
-  /* Chrome NTP spaces tiles ~16px apart; copy that cadence so the row
-     feels familiar. */
-  gap: 16px;
+  gap: 12px;
   width: 100%;
 }
 
@@ -1300,32 +1298,31 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   display: none;
 }
 
-/* Chrome NTP visual language:
-   - 48px circular tile with a subtle translucent background (no
-     visible border), favicon centered at 24px.
-   - Hover/focus deepens the background by one step instead of the
-     card-shadow lift we use on domain cards — keeps the tile row
-     reading as compact "quick-launch" chrome, not cards.
+/* Chrome NTP layout: two concentric shapes per entry.
+   - Outer `.shortcut-tile`: 64px rounded-square hover target. Default
+     transparent; on hover / when the popover is open, a subtle tinted
+     background appears. This is where the ⋮ menu trigger anchors.
+   - Inner `.shortcut-link`: 48px circle with card-bg + border — the
+     visible "logo chip" that always reads the same whether the user
+     is hovering or not.
 */
 .shortcut-tile {
   position: relative;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--card-bg);
-  border: 1px solid var(--warm-gray);
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  text-decoration: none;
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
-  overflow: hidden;
+  background: transparent;
+  transition: background 0.15s ease;
   flex-shrink: 0;
 }
 
-.shortcut-tile:hover {
-  box-shadow: 0 4px 20px var(--shadow);
-  transform: translateY(-1px);
+.shortcut-tile:hover,
+.shortcut-tile:focus-within,
+.shortcut-tile:has(.shortcut-menu:popover-open) {
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
 }
 
 .shortcut-favicon {
@@ -1337,42 +1334,45 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
      width/height are set — no tile collapse. */
 }
 
-/* Link fills the tile so clicks on the favicon navigate, but the
-   corner 3-dot button is a sibling (not wrapped by the anchor) so
-   its click doesn't bubble into navigation. */
+/* Inner circle — the actual "logo chip" the user sees always. The
+   outer `.shortcut-tile` handles the hover tint; this one stays
+   steady so the row doesn't flicker during hover transitions. */
 .shortcut-link {
-  position: absolute;
-  inset: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
   display: flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  border-radius: inherit;
+  overflow: hidden;
 }
 
-/* Chrome-NTP-style corner menu trigger. Invisible until hover (or
-   while the popover is open — :has handles that without JS). Tiny
-   glyph-only button, anchored at the top-right with slight outside
-   overlap so it doesn't obscure the favicon.
+/* Chrome-NTP corner menu trigger. Lives at the top-right of the OUTER
+   tile (the 64px rounded-square), not on the circle — so it reads as
+   a control of the whole hover target, not a badge on the logo.
+   Invisible until hover / focus-within / popover-open (`:has` drives
+   the third case without JS).
 */
 .shortcut-menu-trigger {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: 2px;
+  right: 2px;
   width: 18px;
   height: 18px;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: var(--card-bg);
+  background: transparent;
   color: var(--muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   opacity: 0;
-  transition: opacity 0.15s ease, color 0.15s ease;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
   z-index: 1;
 }
 
@@ -1384,6 +1384,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 .shortcut-menu-trigger:hover {
   color: var(--ink);
+  background: color-mix(in oklab, var(--ink) 10%, transparent);
 }
 
 .shortcut-menu-trigger svg {
