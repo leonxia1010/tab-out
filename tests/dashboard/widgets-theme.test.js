@@ -156,6 +156,111 @@ describe('trigger icon reflects effective theme', () => {
   });
 });
 
+describe('current-theme marker inside popover', () => {
+  it('flags the initial theme with aria-checked and .is-current', () => {
+    mockPrefersDark(false);
+    const slot = document.getElementById('slot');
+    mountThemeToggle(slot, 'dark');
+
+    const options = slot.querySelectorAll('button.theme-option');
+    const byTheme = Object.fromEntries(
+      Array.from(options).map((b) => [b.dataset.theme, b]),
+    );
+
+    expect(byTheme.dark.getAttribute('aria-checked')).toBe('true');
+    expect(byTheme.dark.classList.contains('is-current')).toBe(true);
+    expect(byTheme.light.getAttribute('aria-checked')).toBe('false');
+    expect(byTheme.system.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('syncIcon moves the marker to the new theme', () => {
+    mockPrefersDark(false);
+    const slot = document.getElementById('slot');
+    const handle = mountThemeToggle(slot, 'system');
+
+    handle.syncIcon('light');
+
+    const byTheme = Object.fromEntries(
+      Array.from(slot.querySelectorAll('button.theme-option'))
+        .map((b) => [b.dataset.theme, b]),
+    );
+    expect(byTheme.light.getAttribute('aria-checked')).toBe('true');
+    expect(byTheme.light.classList.contains('is-current')).toBe(true);
+    expect(byTheme.system.classList.contains('is-current')).toBe(false);
+    expect(byTheme.dark.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('each option exposes role="menuitemradio"', () => {
+    mockPrefersDark(false);
+    const slot = document.getElementById('slot');
+    mountThemeToggle(slot, 'system');
+
+    for (const btn of slot.querySelectorAll('button.theme-option')) {
+      expect(btn.getAttribute('role')).toBe('menuitemradio');
+    }
+  });
+});
+
+describe('popover dismisses on scroll / resize', () => {
+  function openPopover(popover) {
+    const openEv = new Event('toggle');
+    openEv.oldState = 'closed';
+    openEv.newState = 'open';
+    popover.dispatchEvent(openEv);
+  }
+
+  it('hides the popover when the window scrolls while open', () => {
+    mockPrefersDark(false);
+    const slot = document.getElementById('slot');
+    mountThemeToggle(slot, 'light');
+
+    const popover = document.getElementById('taboutThemePopover');
+    let hideCalls = 0;
+    popover.hidePopover = () => { hideCalls += 1; };
+
+    openPopover(popover);
+    window.dispatchEvent(new Event('scroll'));
+
+    expect(hideCalls).toBeGreaterThan(0);
+  });
+
+  it('hides the popover when the window resizes while open', () => {
+    mockPrefersDark(false);
+    const slot = document.getElementById('slot');
+    mountThemeToggle(slot, 'light');
+
+    const popover = document.getElementById('taboutThemePopover');
+    let hideCalls = 0;
+    popover.hidePopover = () => { hideCalls += 1; };
+
+    openPopover(popover);
+    window.dispatchEvent(new Event('resize'));
+
+    expect(hideCalls).toBeGreaterThan(0);
+  });
+
+  it('does not hide when scroll fires while popover is closed', () => {
+    mockPrefersDark(false);
+    const slot = document.getElementById('slot');
+    mountThemeToggle(slot, 'light');
+
+    const popover = document.getElementById('taboutThemePopover');
+    let hideCalls = 0;
+    popover.hidePopover = () => { hideCalls += 1; };
+
+    // Open then close so listener is detached.
+    openPopover(popover);
+    const closeEv = new Event('toggle');
+    closeEv.oldState = 'open';
+    closeEv.newState = 'closed';
+    popover.dispatchEvent(closeEv);
+
+    window.dispatchEvent(new Event('scroll'));
+
+    expect(hideCalls).toBe(0);
+  });
+});
+
 describe('dropdown uses Heroicons outline SVG', () => {
   it('each of the three options mounts its own SVG icon', () => {
     mockPrefersDark(false);
