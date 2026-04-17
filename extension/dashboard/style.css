@@ -736,22 +736,24 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
    ================================================================ */
 
 .update-banner {
-  /* Thin bar — sits above the header, below the container's top padding */
+  /* Pre-header announcement strip — prepended to .container so it sits
+   * above everything else. Flush to the content column width (no side
+   * bleed into the viewport), thin vertical padding, no rounding — reads
+   * as a page-level announcement rather than a floating card. */
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 
-  /* Sage green tint — matches accent-sage but very light */
   background: linear-gradient(135deg, rgba(90, 122, 98, 0.05), rgba(90, 122, 98, 0.10));
   border: 1px solid rgba(90, 122, 98, 0.22);
-  border-radius: 8px;
-  padding: 10px 16px;
+  border-radius: 6px;
+  padding: 8px 14px;
 
-  /* Push the header down slightly */
-  margin-bottom: 24px;
+  /* Offset container's 48px top padding so the strip hugs the viewport
+   * edge; push header down so the layout below shifts only a little. */
+  margin: -24px 0 32px;
 
-  /* Slide in from above when it appears */
   animation: bannerSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -841,8 +843,9 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .update-banner-dismiss svg {
-  width: 14px;
-  height: 14px;
+  display: block;
+  width: 12px;
+  height: 12px;
 }
 
 
@@ -1270,6 +1273,9 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   display: flex;
   align-items: center;
   gap: 12px;
+  /* Lift the cluster toward the h1's optical top without fully snapping to
+   * the raw flex-start baseline (which read too high pre-v2.1.1). */
+  margin-top: -6px;
 }
 
 /* Clock widget slot reserved for Phase 4. */
