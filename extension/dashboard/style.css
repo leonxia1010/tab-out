@@ -652,6 +652,10 @@ footer {
 }
 
 header { animation: fadeUp 0.5s ease both; }
+/* Middle section (search widget today) sits between header and the
+   cleanup banner — slot its fade in at 0.05s so the waterfall stays
+   monotonic: header → middle → banners → section headers → cards. */
+.middle-section { animation: fadeUp 0.5s ease 0.05s both; }
 .tab-cleanup-banner { animation: fadeUp 0.5s ease 0.1s both; }
 .nudge-banner { animation: fadeUp 0.5s ease 0.15s both; }
 .active-section .section-header { animation: fadeUp 0.5s ease 0.2s both; }
@@ -1208,10 +1212,12 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   margin: 0 auto;
 }
 
-/* The field is the visual control: soft-rounded pill with a leading
-   icon and the input sharing the same box. Flexbox puts the icon on
-   the left; input.flex:1 fills the remainder. We keep border + radius
-   on the field, never on the input, so the focus ring wraps both. */
+/* The field is the visual control and deliberately mirrors the
+   `.domain-card` tokens so the search bar reads as part of the same
+   waterfall family instead of a foreign pill: same border color,
+   radius, background, and the same hover/focus lift. Flex puts the
+   icon on the left; input.flex:1 fills the remainder. Border + radius
+   live on the field so the focus ring wraps icon + input together. */
 .search-widget-field {
   display: flex;
   align-items: center;
@@ -1219,13 +1225,22 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   width: 100%;
   padding: 16px 22px;
   border: 1px solid var(--warm-gray);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--card-bg);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  /* Mirror .domain-card hover/focus treatment so the field reads as
+     part of the same waterfall family. Radius stays at the card's
+     8px (not 14px) for the same reason — consistent card vocabulary. */
+  transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.2s;
+}
+
+.search-widget-field:hover {
+  box-shadow: 0 4px 20px var(--shadow);
+  transform: translateY(-1px);
 }
 
 .search-widget-field:focus-within {
   border-color: var(--accent-amber);
+  box-shadow: 0 4px 20px var(--shadow);
 }
 
 .search-widget-field svg {
