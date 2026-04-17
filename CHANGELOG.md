@@ -4,6 +4,26 @@ All notable changes to this fork land here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Masonry layout** is now the default dashboard arrangement — domain
+  cards pack as CSS columns instead of a grid that matches the tallest
+  card, reclaiming the whitespace next to short lists. Grid (single
+  column list) is still available as an opt-in toggle under
+  Options → Layout, and the choice persists via `tabout:settings.layout`.
+  Layout preference hydrates pre-paint through a new
+  `tabout:layout-cache` localStorage key so switches never flash.
+- **Theme popover** now marks the active mode with `aria-checked`
+  and a trailing Heroicons check glyph, and dismisses on window
+  scroll / resize to match native `<select>` behavior.
+- **Search widget** sits under the header in a new middle section —
+  full-width input, autofocus on new-tab open, Enter fires
+  `chrome.search.query` against the user's Chrome-configured default
+  engine (no per-engine picker, by design). Adds the `search`
+  permission.
+
 ## [2.2.0] — 2026-04-17
 
 Archive gets a way out. The ✕ button next to an archived saved-for-later

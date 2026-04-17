@@ -3,7 +3,7 @@
   "name": "Tab Out",
   "version": "2.2.0",
   "description": "Keep tabs on your tabs. New tab page that groups your open tabs by domain and lets you close them with style.",
-  "permissions": ["tabs", "storage", "alarms"],
+  "permissions": ["tabs", "storage", "alarms", "search"],
   "host_permissions": ["https://api.github.com/*"],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"

@@ -1177,6 +1177,59 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   margin-bottom: 12px;
 }
 
+/* ============================================================
+   Middle section (v2.3.0) — full-width widgets under the header.
+   Hosts the search widget today; shortcut bar appends after it
+   in a later PR. Gap gives vertical rhythm between siblings.
+   ============================================================ */
+.middle-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.middle-section:empty {
+  display: none;
+}
+
+.search-widget {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.search-widget-input {
+  /* Scaled-up clone of .archive-search tokens: larger font + padding
+     because this is the top-level action on the page, not a nested
+     filter inside a collapsible panel. */
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-widget-input:focus {
+  border-color: var(--accent-amber);
+}
+
+.search-widget-input::placeholder {
+  color: var(--muted);
+}
+
+/* Chromium's default search-cancel button clashes with the flat input
+   aesthetic (a tiny grey X aligned right). We hide it and let the
+   user clear via Cmd/Ctrl+A + Delete or by submitting. */
+.search-widget-input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
 .archive-search:focus {
   border-color: var(--accent-amber);
 }
