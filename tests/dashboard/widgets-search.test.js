@@ -48,13 +48,16 @@ describe('mountSearch', () => {
     expect(input.getAttribute('placeholder')).toBe('Search Google...');
   });
 
-  it('focuses the input on mount', () => {
+  it('does NOT steal focus on mount', () => {
+    // Per v2.3.0 UX decision: the search widget is opt-in, so it must
+    // not grab focus when the new tab opens. Keyboard caret stays
+    // wherever the browser put it (typically <body>).
     installChromeSearch();
     const slot = document.getElementById('slot');
     mountSearch(slot);
 
     const input = slot.querySelector('input.search-widget-input');
-    expect(document.activeElement).toBe(input);
+    expect(document.activeElement).not.toBe(input);
   });
 
   it('dispatches chrome.search.query with trimmed value + CURRENT_TAB on submit', () => {

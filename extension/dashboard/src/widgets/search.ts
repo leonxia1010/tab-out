@@ -64,11 +64,6 @@ export function mountSearch(container: HTMLElement): SearchHandle {
   form.addEventListener('submit', onSubmit);
   container.appendChild(form);
 
-  // Autofocus matches Chrome's default new-tab behavior. `input.focus()`
-  // over the `autofocus` attribute because the attribute only fires
-  // once per document load and loses to later imperative focus calls.
-  input.focus();
-
   return {
     destroy(): void {
       form.removeEventListener('submit', onSubmit);

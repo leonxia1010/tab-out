@@ -700,8 +700,17 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
    ================================================================ */
 
 .domains-empty-state {
-  /* Takes the full grid width — span all columns */
+  /* Span all columns in both layouts:
+     - Grid mode:    `grid-column: 1 / -1` takes full width.
+     - Masonry mode: `column-span: all` breaks out of CSS columns so
+       the message sits centered across the whole `.domains` row
+       instead of being trapped inside column 1.
+     Each property is a no-op in the other layout, so keeping both
+     is harmless. Override the break-inside:avoid inherited from
+     `.domains > *` too — column-span needs the box to break. */
   grid-column: 1 / -1;
+  column-span: all;
+  break-inside: auto;
 
   display: flex;
   flex-direction: column;
