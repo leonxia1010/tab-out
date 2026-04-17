@@ -1697,12 +1697,12 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--paper);
 }
 
-.theme-option.is-current {
+.theme-option[aria-checked="true"] {
   color: var(--accent);
   font-weight: 600;
 }
 
-.theme-option.is-current .theme-option-icon {
+.theme-option[aria-checked="true"] .theme-option-icon {
   color: var(--accent);
 }
 

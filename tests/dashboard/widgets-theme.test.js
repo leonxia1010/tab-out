@@ -101,15 +101,26 @@ describe('mountThemeToggle', () => {
 // Icons are inline Heroicons v2 outline SVG, tagged with data-icon so the
 // tests can assert *which* glyph is mounted without poking at path data.
 
-function mockPrefersDark(matches) {
+function mockPrefersDark(initialMatches) {
+  const state = { matches: initialMatches };
   const listeners = new Set();
   window.matchMedia = (q) => ({
-    matches: q === '(prefers-color-scheme: dark)' ? matches : false,
+    get matches() { return q === '(prefers-color-scheme: dark)' ? state.matches : false; },
     media: q,
     addEventListener: (_t, cb) => listeners.add(cb),
     removeEventListener: (_t, cb) => listeners.delete(cb),
     dispatchEvent: () => true,
   });
+  return {
+    // Simulate an OS-level prefers-color-scheme flip. The theme widget
+    // subscribes via mql.addEventListener('change', onMediaChange);
+    // calling setMatches fires those callbacks so the test exercises
+    // the real path (previously listeners were attached but never run).
+    setMatches(v) {
+      state.matches = v;
+      for (const cb of listeners) cb({ matches: v });
+    },
+  };
 }
 
 function triggerIconName(slot) {
@@ -154,10 +165,33 @@ describe('trigger icon reflects effective theme', () => {
     handle.syncIcon('dark');
     expect(triggerIconName(slot)).toBe('moon');
   });
+
+  it('onMediaChange repaints the icon when OS flips under system', () => {
+    const mql = mockPrefersDark(false);
+    const slot = document.getElementById('slot');
+    mountThemeToggle(slot, 'system');
+    expect(triggerIconName(slot)).toBe('sun');
+
+    // OS-level prefers-color-scheme flip while widget is on 'system'.
+    mql.setMatches(true);
+    expect(triggerIconName(slot)).toBe('moon');
+  });
+
+  it('onMediaChange leaves the icon alone when user picked light/dark explicitly', () => {
+    const mql = mockPrefersDark(false);
+    const slot = document.getElementById('slot');
+    mountThemeToggle(slot, 'light');
+    expect(triggerIconName(slot)).toBe('sun');
+
+    // User is on explicit 'light', OS flipping has no business touching
+    // the glyph — only 'system' mode listens to the OS.
+    mql.setMatches(true);
+    expect(triggerIconName(slot)).toBe('sun');
+  });
 });
 
 describe('current-theme marker inside popover', () => {
-  it('flags the initial theme with aria-checked and .is-current', () => {
+  it('flags the initial theme with aria-checked (single source of truth)', () => {
     mockPrefersDark(false);
     const slot = document.getElementById('slot');
     mountThemeToggle(slot, 'dark');
@@ -168,12 +202,11 @@ describe('current-theme marker inside popover', () => {
     );
 
     expect(byTheme.dark.getAttribute('aria-checked')).toBe('true');
-    expect(byTheme.dark.classList.contains('is-current')).toBe(true);
     expect(byTheme.light.getAttribute('aria-checked')).toBe('false');
     expect(byTheme.system.getAttribute('aria-checked')).toBe('false');
   });
 
-  it('syncIcon moves the marker to the new theme', () => {
+  it('syncIcon moves the aria-checked marker to the new theme', () => {
     mockPrefersDark(false);
     const slot = document.getElementById('slot');
     const handle = mountThemeToggle(slot, 'system');
@@ -185,8 +218,7 @@ describe('current-theme marker inside popover', () => {
         .map((b) => [b.dataset.theme, b]),
     );
     expect(byTheme.light.getAttribute('aria-checked')).toBe('true');
-    expect(byTheme.light.classList.contains('is-current')).toBe(true);
-    expect(byTheme.system.classList.contains('is-current')).toBe(false);
+    expect(byTheme.system.getAttribute('aria-checked')).toBe('false');
     expect(byTheme.dark.getAttribute('aria-checked')).toBe('false');
   });
 

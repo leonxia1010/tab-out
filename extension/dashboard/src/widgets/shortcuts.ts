@@ -75,7 +75,10 @@ function isLoopbackHost(host: string): boolean {
   if (host === 'localhost' || host.endsWith('.localhost')) return true;
   if (host === '0.0.0.0') return true;
   if (host === '::1' || host === '[::1]') return true;
-  if (/^127\./.test(host)) return true;
+  // Strict IPv4 127.0.0.0/8 — four octets anchored end-to-end. Old regex
+  // `/^127\./` would misclassify `127.example.com` (legal DNS label) as
+  // loopback, filtering a real user's topSites entry by accident.
+  if (/^127\.\d+\.\d+\.\d+$/.test(host)) return true;
   return false;
 }
 
