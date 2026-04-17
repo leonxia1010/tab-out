@@ -14,7 +14,7 @@ import * as handlers from './handlers.js';
 import { renderDashboard } from './renderers.js';
 import { attachTabsListeners } from './refresh.js';
 import { getUpdateStatus } from './api.js';
-import { el } from './dom-utils.js';
+import { el, svg } from './dom-utils.js';
 import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
 import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
 import { mountClock, type ClockHandle } from './widgets/clock.js';
@@ -56,14 +56,27 @@ async function checkForUpdates(): Promise<void> {
     const body = await getUpdateStatus();
     if (!body.updateAvailable) return;
 
-    const footer = document.querySelector('footer');
-    if (!footer) return;
+    const container = document.querySelector('.container');
+    if (!container) return;
 
+    // Heroicons x-mark at stroke-width 1.5 — thinner than the archive/theme
+    // family's 2, so it reads quieter inside the announcement strip.
     const dismissBtn = el('button', {
       className: 'update-banner-dismiss',
       'aria-label': 'Dismiss',
-    }, ['\u00d7']);
+    }, [svg('<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>')]);
     dismissBtn.addEventListener('click', dismissBanner);
+
+    // CTA dismissal: clicking "See on GitHub" also counts as acknowledgement
+    // (VSCode / Slack / GitHub convention). Without this the banner returns
+    // on every new-tab open until the user explicitly clicks the X.
+    const ctaLink = el('a', {
+      className: 'update-banner-btn',
+      href: RELEASE_URL,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    }, ['See on GitHub']);
+    ctaLink.addEventListener('click', dismissBanner);
 
     const banner = el('div', { className: 'update-banner' }, [
       el('div', { className: 'update-banner-left' }, [
@@ -72,17 +85,9 @@ async function checkForUpdates(): Promise<void> {
           'A new version of Tab Out is available.',
         ]),
       ]),
-      el('div', { className: 'update-banner-right' }, [
-        el('a', {
-          className: 'update-banner-btn',
-          href: RELEASE_URL,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-        }, ['See on GitHub']),
-        dismissBtn,
-      ]),
+      el('div', { className: 'update-banner-right' }, [ctaLink, dismissBtn]),
     ]);
-    footer.after(banner);
+    container.prepend(banner);
   } catch {
     // Storage read failed — silently skip the banner.
   }
