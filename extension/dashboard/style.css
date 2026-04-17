@@ -1336,8 +1336,10 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 /* Inner circle — the actual "logo chip" the user sees always. The
    outer `.shortcut-tile` handles the hover tint; this one stays
-   steady so the row doesn't flicker during hover transitions. */
+   steady so the row doesn't flicker during hover transitions.
+   position: relative so the pin-badge can absolute-anchor inside. */
 .shortcut-link {
+  position: relative;
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -1347,7 +1349,32 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  overflow: hidden;
+  overflow: visible;
+}
+
+/* Pin badge — tiny amber bookmark glyph in the circle's top-left.
+   Only rendered on pinned tiles (shortcuts.ts conditional). Slight
+   outside overlap (-2px inset) so it reads as a corner accent,
+   mirroring how Chrome tags pinned shortcuts. */
+.shortcut-pin-badge {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+.shortcut-pin-badge svg {
+  width: 8px;
+  height: 8px;
 }
 
 /* Chrome-NTP corner menu trigger. Lives at the top-right of the OUTER

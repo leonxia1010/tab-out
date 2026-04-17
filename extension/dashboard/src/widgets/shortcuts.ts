@@ -36,6 +36,9 @@ const FAVICON_SIZE = 64;
 // so three filled dots read clearly at 14px. Chrome NTP uses the same
 // three-dot glyph; matching it keeps the interaction recognizable.
 const SVG_MENU = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" data-icon="menu"><path fill-rule="evenodd" d="M10 3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" clip-rule="evenodd"/></svg>`;
+// Heroicons v2 bookmark (solid mini) — stays filled so the small
+// badge reads legibly at 10px in the circle's top-left corner.
+const SVG_PIN_BADGE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" data-icon="pin-badge"><path fill-rule="evenodd" d="M6.32 2.577a49.255 49.255 0 0 1 7.36 0 2.176 2.176 0 0 1 1.97 2.166v2.607c0 .82-.299 1.614-.844 2.22l-3.8 4.201a.25.25 0 0 1-.375 0L6.83 9.57a3.248 3.248 0 0 1-.843-2.22V4.743A2.176 2.176 0 0 1 6.32 2.577Z" clip-rule="evenodd"/></svg>`;
 
 export interface ShortcutsHandle {
   destroy(): void;
@@ -122,14 +125,23 @@ function renderTile(entry: ShortcutPin, isPinned: boolean): HTMLElement {
     referrerpolicy: 'no-referrer',
   }) as HTMLImageElement;
 
-  // Link wraps just the favicon so clicks on the corner 3-dot button
-  // don't navigate. Corner button is a sibling inside the tile wrapper.
+  // Link wraps favicon + pin badge. Clicks on the corner 3-dot button
+  // don't navigate because the button is a sibling of the link.
+  const linkChildren: (Node | null)[] = [faviconImg];
+  if (isPinned) {
+    const badge = el('span', {
+      className: 'shortcut-pin-badge',
+      'aria-hidden': 'true',
+      title: 'Pinned',
+    }, [iconNode(SVG_PIN_BADGE)]);
+    linkChildren.push(badge);
+  }
   const link = el('a', {
     className: 'shortcut-link',
     href: entry.url,
     title: label,
-    'aria-label': label,
-  }, [faviconImg]);
+    'aria-label': isPinned ? `${label} (pinned)` : label,
+  }, linkChildren.filter((n): n is Node => n !== null));
 
   const menuTrigger = el('button', {
     type: 'button',
@@ -139,35 +151,49 @@ function renderTile(entry: ShortcutPin, isPinned: boolean): HTMLElement {
     title: 'Options',
   }, [iconNode(SVG_MENU)]) as HTMLButtonElement;
 
-  // Pin / unpin label flips with state; second item is always Hide
-  // (handler refuses to hide a pinned URL, so the option stays even
-  // when pinned — consistent surface, explicit no-op via toast).
-  const pinItem = el('button', {
-    type: 'button',
-    className: 'shortcut-menu-item',
-    'data-action': 'shortcut-pin',
-    'data-url': entry.url,
-    'data-title': entry.title,
-    popovertarget: popoverId,
-    popovertargetaction: 'hide',
-  }, [isPinned ? 'Already pinned' : 'Pin']);
-
-  const hideItem = el('button', {
-    type: 'button',
-    className: 'shortcut-menu-item',
-    'data-action': 'shortcut-hide',
-    'data-url': entry.url,
-    'data-title': entry.title,
-    popovertarget: popoverId,
-    popovertargetaction: 'hide',
-  }, ['Hide']);
+  // Symmetric toggle logic:
+  //   pinned      → [Remove pin]
+  //   not pinned  → [Pin, Hide]
+  // Different data-actions so handlers.ts stays explicit; no combined
+  // "shortcut-toggle-pin" that hides branching inside the handler.
+  const menuItems: HTMLElement[] = [];
+  if (isPinned) {
+    const unpinItem = el('button', {
+      type: 'button',
+      className: 'shortcut-menu-item',
+      'data-action': 'shortcut-unpin',
+      'data-url': entry.url,
+      popovertarget: popoverId,
+      popovertargetaction: 'hide',
+    }, ['Remove pin']) as HTMLElement;
+    menuItems.push(unpinItem);
+  } else {
+    const pinItem = el('button', {
+      type: 'button',
+      className: 'shortcut-menu-item',
+      'data-action': 'shortcut-pin',
+      'data-url': entry.url,
+      'data-title': entry.title,
+      popovertarget: popoverId,
+      popovertargetaction: 'hide',
+    }, ['Pin']) as HTMLElement;
+    const hideItem = el('button', {
+      type: 'button',
+      className: 'shortcut-menu-item',
+      'data-action': 'shortcut-hide',
+      'data-url': entry.url,
+      popovertarget: popoverId,
+      popovertargetaction: 'hide',
+    }, ['Hide']) as HTMLElement;
+    menuItems.push(pinItem, hideItem);
+  }
 
   const popover = el('div', {
     id: popoverId,
     className: 'shortcut-menu',
     popover: 'auto',
     role: 'menu',
-  }, [pinItem, hideItem]) as HTMLElement;
+  }, menuItems) as HTMLElement;
 
   // Position the popover under the trigger on every open (same pattern
   // as widgets/theme.ts). Native popover lives in the top layer at

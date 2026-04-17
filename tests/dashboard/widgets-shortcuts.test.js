@@ -151,7 +151,7 @@ describe('mountShortcuts — render + API', () => {
     expect(hideBtn.getAttribute('popovertargetaction')).toBe('hide');
   });
 
-  it('pinned tiles get .is-pinned and "Already pinned" label', async () => {
+  it('pinned tiles get .is-pinned, a pin badge, and a single "Remove pin" menu item', async () => {
     installTopSites([]);
     const slot = document.getElementById('slot');
     mountShortcuts(slot, {
@@ -166,8 +166,34 @@ describe('mountShortcuts — render + API', () => {
     });
 
     expect(tile.classList.contains('is-pinned')).toBe(true);
-    const pinBtn = tile.querySelector('[data-action="shortcut-pin"]');
-    expect(pinBtn.textContent).toBe('Already pinned');
+    // Pin badge rendered only when pinned.
+    expect(tile.querySelector('.shortcut-pin-badge')).not.toBeNull();
+
+    // Symmetric toggle: pinned → [Remove pin] only, no Pin/Hide items.
+    expect(tile.querySelector('[data-action="shortcut-pin"]')).toBeNull();
+    expect(tile.querySelector('[data-action="shortcut-hide"]')).toBeNull();
+    const unpin = tile.querySelector('[data-action="shortcut-unpin"]');
+    expect(unpin).not.toBeNull();
+    expect(unpin.textContent).toBe('Remove pin');
+    expect(unpin.dataset.url).toBe('https://pin.test/');
+  });
+
+  it('non-pinned tiles expose Pin + Hide but no Remove pin', async () => {
+    installTopSites([{ url: 'https://top.test/', title: 'Top' }]);
+    const slot = document.getElementById('slot');
+    mountShortcuts(slot, baseSettings);
+
+    let tile;
+    await vi.waitFor(() => {
+      tile = slot.querySelector('.shortcut-tile');
+      expect(tile).not.toBeNull();
+    });
+
+    expect(tile.classList.contains('is-pinned')).toBe(false);
+    expect(tile.querySelector('.shortcut-pin-badge')).toBeNull();
+    expect(tile.querySelector('[data-action="shortcut-pin"]')).not.toBeNull();
+    expect(tile.querySelector('[data-action="shortcut-hide"]')).not.toBeNull();
+    expect(tile.querySelector('[data-action="shortcut-unpin"]')).toBeNull();
   });
 
   it('collapses to is-empty when no pins and no topSites', async () => {

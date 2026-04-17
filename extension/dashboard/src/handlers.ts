@@ -376,12 +376,13 @@ async function handleSetTheme(theme: ThemeMode): Promise<void> {
   }
 }
 
-// Shortcut-bar pin: append {url,title} to shortcutPins if not already
-// pinned. The re-render runs through the onSettingsChange listener in
-// index.ts — we do not mutate DOM here. No-op if dataset is empty
-// (belt-and-braces; renderTile always writes both fields).
+// Shortcut-bar pin: append {url,title} to shortcutPins. Dashboard
+// only surfaces "Pin" on non-pinned tiles now (symmetric toggle —
+// pinned tiles show "Remove pin" instead), so the already-pinned
+// branch is a belt-and-braces safeguard against stale clicks.
+// Re-render runs through onSettingsChange in index.ts; no DOM
+// mutation here.
 async function handleShortcutPin(e: MouseEvent, actionEl: HTMLElement): Promise<void> {
-  // Stop the parent <a class="shortcut-tile"> from navigating.
   e.preventDefault();
   e.stopPropagation();
   const url = actionEl.dataset.url;
@@ -399,6 +400,26 @@ async function handleShortcutPin(e: MouseEvent, actionEl: HTMLElement): Promise<
     showToast('Pinned');
   } catch (err) {
     console.warn('[tab-out] Failed to pin shortcut:', err);
+  }
+}
+
+// Shortcut-bar unpin: filter out the URL from shortcutPins. Surfaced
+// on pinned tiles as "Remove pin" so users can unpin in place instead
+// of having to walk to the options page.
+async function handleShortcutUnpin(e: MouseEvent, actionEl: HTMLElement): Promise<void> {
+  e.preventDefault();
+  e.stopPropagation();
+  const url = actionEl.dataset.url;
+  if (!url) return;
+  try {
+    const current = await getSettings();
+    if (!current.shortcutPins.some((p) => p.url === url)) return;
+    await setSettings({
+      shortcutPins: current.shortcutPins.filter((p) => p.url !== url),
+    });
+    showToast('Unpinned');
+  } catch (err) {
+    console.warn('[tab-out] Failed to unpin shortcut:', err);
   }
 }
 
@@ -467,6 +488,7 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'set-theme-light':    return handleSetTheme('light');
     case 'set-theme-dark':     return handleSetTheme('dark');
     case 'shortcut-pin':       return handleShortcutPin(e, actionEl);
+    case 'shortcut-unpin':     return handleShortcutUnpin(e, actionEl);
     case 'shortcut-hide':      return handleShortcutHide(e, actionEl);
     default:                   return;
   }
