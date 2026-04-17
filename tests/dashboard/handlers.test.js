@@ -69,6 +69,15 @@ async function loadHandlersWithMocks() {
   };
   const settingsSpies = {
     setSettings: vi.fn().mockResolvedValue({ theme: 'dark', clock: { format: '24h' } }),
+    // Default: no pins, no hides. Tests that exercise shortcut-pin /
+    // shortcut-hide override this via settingsSpies.getSettings.mockResolvedValueOnce.
+    getSettings: vi.fn().mockResolvedValue({
+      theme: 'system',
+      clock: { format: '24h' },
+      layout: 'masonry',
+      shortcutPins: [],
+      shortcutHides: [],
+    }),
   };
 
   vi.doMock('../../extension/dashboard/src/api.ts', () => apiSpies);
@@ -651,6 +660,138 @@ describe('handleSetTheme — header popover + options page radios', () => {
 
     expect(document.documentElement.dataset.theme).toBe('light');
     expect(settings.setSettings).toHaveBeenCalledWith({ theme: 'light' });
+  });
+
+  it('shortcut-pin appends to shortcutPins and toasts', async () => {
+    const { handlers, settings, anim } = await loadHandlersWithMocks();
+    settings.getSettings.mockResolvedValueOnce({
+      theme: 'system', clock: { format: '24h' }, layout: 'masonry',
+      shortcutPins: [], shortcutHides: [],
+    });
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'shortcut-pin';
+    btn.dataset.url = 'https://foo.test/';
+    btn.dataset.title = 'Foo';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(settings.setSettings).toHaveBeenCalledWith({
+      shortcutPins: [{ url: 'https://foo.test/', title: 'Foo' }],
+    });
+    expect(anim.showToast).toHaveBeenCalledWith('Pinned');
+  });
+
+  it('shortcut-pin is a no-op + toast when already pinned', async () => {
+    const { handlers, settings, anim } = await loadHandlersWithMocks();
+    settings.getSettings.mockResolvedValueOnce({
+      theme: 'system', clock: { format: '24h' }, layout: 'masonry',
+      shortcutPins: [{ url: 'https://foo.test/', title: 'Foo' }], shortcutHides: [],
+    });
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'shortcut-pin';
+    btn.dataset.url = 'https://foo.test/';
+    btn.dataset.title = 'Foo';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(settings.setSettings).not.toHaveBeenCalled();
+    expect(anim.showToast).toHaveBeenCalledWith('Already pinned');
+  });
+
+  it('shortcut-unpin filters the URL out of shortcutPins and toasts', async () => {
+    const { handlers, settings, anim } = await loadHandlersWithMocks();
+    settings.getSettings.mockResolvedValueOnce({
+      theme: 'system', clock: { format: '24h' }, layout: 'masonry',
+      shortcutPins: [
+        { url: 'https://foo.test/', title: 'Foo' },
+        { url: 'https://bar.test/', title: 'Bar' },
+      ],
+      shortcutHides: [],
+    });
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'shortcut-unpin';
+    btn.dataset.url = 'https://foo.test/';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(settings.setSettings).toHaveBeenCalledWith({
+      shortcutPins: [{ url: 'https://bar.test/', title: 'Bar' }],
+    });
+    expect(anim.showToast).toHaveBeenCalledWith('Unpinned');
+  });
+
+  it('shortcut-unpin is a silent no-op when URL is not pinned', async () => {
+    const { handlers, settings, anim } = await loadHandlersWithMocks();
+    settings.getSettings.mockResolvedValueOnce({
+      theme: 'system', clock: { format: '24h' }, layout: 'masonry',
+      shortcutPins: [], shortcutHides: [],
+    });
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'shortcut-unpin';
+    btn.dataset.url = 'https://missing.test/';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(settings.setSettings).not.toHaveBeenCalled();
+    expect(anim.showToast).not.toHaveBeenCalled();
+  });
+
+  it('shortcut-hide appends to shortcutHides and toasts', async () => {
+    const { handlers, settings, anim } = await loadHandlersWithMocks();
+    settings.getSettings.mockResolvedValueOnce({
+      theme: 'system', clock: { format: '24h' }, layout: 'masonry',
+      shortcutPins: [], shortcutHides: [],
+    });
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'shortcut-hide';
+    btn.dataset.url = 'https://bar.test/';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(settings.setSettings).toHaveBeenCalledWith({
+      shortcutHides: ['https://bar.test/'],
+    });
+    expect(anim.showToast).toHaveBeenCalledWith('Hidden');
+  });
+
+  it('shortcut-hide refuses to hide a pinned URL', async () => {
+    const { handlers, settings, anim } = await loadHandlersWithMocks();
+    settings.getSettings.mockResolvedValueOnce({
+      theme: 'system', clock: { format: '24h' }, layout: 'masonry',
+      shortcutPins: [{ url: 'https://foo.test/', title: 'Foo' }], shortcutHides: [],
+    });
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'shortcut-hide';
+    btn.dataset.url = 'https://foo.test/';
+    document.body.appendChild(btn);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(settings.setSettings).not.toHaveBeenCalled();
+    expect(anim.showToast).toHaveBeenCalledWith('Unpin first to hide');
   });
 
   it('set-theme-system removes data-theme + calls setSettings', async () => {

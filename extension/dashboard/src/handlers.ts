@@ -42,7 +42,7 @@ import {
   renderArchiveItem,
   renderDeferredColumn,
 } from './renderers.js';
-import { setSettings, type ThemeMode } from '../../shared/dist/settings.js';
+import { getSettings, setSettings, type ThemeMode } from '../../shared/dist/settings.js';
 import { applyTheme } from './widgets/theme.js';
 
 function animateCardOut(card: HTMLElement | null | undefined): void {
@@ -376,6 +376,77 @@ async function handleSetTheme(theme: ThemeMode): Promise<void> {
   }
 }
 
+// Shortcut-bar pin: append {url,title} to shortcutPins. Dashboard
+// only surfaces "Pin" on non-pinned tiles now (symmetric toggle —
+// pinned tiles show "Remove pin" instead), so the already-pinned
+// branch is a belt-and-braces safeguard against stale clicks.
+// Re-render runs through onSettingsChange in index.ts; no DOM
+// mutation here.
+async function handleShortcutPin(e: MouseEvent, actionEl: HTMLElement): Promise<void> {
+  e.preventDefault();
+  e.stopPropagation();
+  const url = actionEl.dataset.url;
+  const title = actionEl.dataset.title ?? '';
+  if (!url) return;
+  try {
+    const current = await getSettings();
+    if (current.shortcutPins.some((p) => p.url === url)) {
+      showToast('Already pinned');
+      return;
+    }
+    await setSettings({
+      shortcutPins: [...current.shortcutPins, { url, title }],
+    });
+    showToast('Pinned');
+  } catch (err) {
+    console.warn('[tab-out] Failed to pin shortcut:', err);
+  }
+}
+
+// Shortcut-bar unpin: filter out the URL from shortcutPins. Surfaced
+// on pinned tiles as "Remove pin" so users can unpin in place instead
+// of having to walk to the options page.
+async function handleShortcutUnpin(e: MouseEvent, actionEl: HTMLElement): Promise<void> {
+  e.preventDefault();
+  e.stopPropagation();
+  const url = actionEl.dataset.url;
+  if (!url) return;
+  try {
+    const current = await getSettings();
+    if (!current.shortcutPins.some((p) => p.url === url)) return;
+    await setSettings({
+      shortcutPins: current.shortcutPins.filter((p) => p.url !== url),
+    });
+    showToast('Unpinned');
+  } catch (err) {
+    console.warn('[tab-out] Failed to unpin shortcut:', err);
+  }
+}
+
+// Shortcut-bar hide: append url to shortcutHides if not already hidden.
+// Hiding a pinned URL is a no-op — pins always win (UI exposes hide
+// only via hover on every tile, so defensive guard matters).
+async function handleShortcutHide(e: MouseEvent, actionEl: HTMLElement): Promise<void> {
+  e.preventDefault();
+  e.stopPropagation();
+  const url = actionEl.dataset.url;
+  if (!url) return;
+  try {
+    const current = await getSettings();
+    if (current.shortcutPins.some((p) => p.url === url)) {
+      showToast('Unpin first to hide');
+      return;
+    }
+    if (current.shortcutHides.includes(url)) return;
+    await setSettings({
+      shortcutHides: [...current.shortcutHides, url],
+    });
+    showToast('Hidden');
+  } catch (err) {
+    console.warn('[tab-out] Failed to hide shortcut:', err);
+  }
+}
+
 function handleArchiveToggle(toggle: HTMLElement): void {
   // actionEl comes from closest('[data-action]'), so the clearAll vs toggle
   // disambiguation the old id-based dispatcher needed is a non-issue now —
@@ -416,6 +487,9 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'set-theme-system':   return handleSetTheme('system');
     case 'set-theme-light':    return handleSetTheme('light');
     case 'set-theme-dark':     return handleSetTheme('dark');
+    case 'shortcut-pin':       return handleShortcutPin(e, actionEl);
+    case 'shortcut-unpin':     return handleShortcutUnpin(e, actionEl);
+    case 'shortcut-hide':      return handleShortcutHide(e, actionEl);
     default:                   return;
   }
 }

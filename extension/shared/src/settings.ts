@@ -17,10 +17,17 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 export type ClockFormat = '12h' | '24h';
 export type Layout = 'masonry' | 'grid';
 
+export interface ShortcutPin {
+  url: string;
+  title: string;
+}
+
 export interface ToutSettings {
   theme: ThemeMode;
   clock: { format: ClockFormat };
   layout: Layout;
+  shortcutPins: ShortcutPin[];
+  shortcutHides: string[];
 }
 
 export const SETTINGS_KEY = 'tabout:settings';
@@ -40,6 +47,8 @@ export function defaultSettings(): ToutSettings {
     theme: 'system',
     clock: { format: inferClockFormat() },
     layout: 'masonry',
+    shortcutPins: [],
+    shortcutHides: [],
   };
 }
 
@@ -62,6 +71,25 @@ function isLayout(v: unknown): v is Layout {
   return v === 'masonry' || v === 'grid';
 }
 
+function isShortcutPin(v: unknown): v is ShortcutPin {
+  if (!v || typeof v !== 'object') return false;
+  const p = v as Partial<ShortcutPin>;
+  return typeof p.url === 'string' && p.url.length > 0
+    && typeof p.title === 'string';
+}
+
+function normalizeShortcutPins(v: unknown): ShortcutPin[] {
+  if (!Array.isArray(v)) return [];
+  // Drop malformed entries silently so one garbage row can't break the
+  // whole list; mirror the defensive parse of DeferredTab rows.
+  return v.filter(isShortcutPin).map((p) => ({ url: p.url, title: p.title }));
+}
+
+function normalizeShortcutHides(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((s): s is string => typeof s === 'string' && s.length > 0);
+}
+
 // Defensive parse: missing or malformed fields fall back to defaults.
 // Mirrors api.ts#isDeferredRow discipline — normalize at the boundary
 // so downstream code can trust the shape.
@@ -75,6 +103,8 @@ export function normalizeSettings(raw: unknown): ToutSettings {
       format: r.clock && isClockFormat(r.clock.format) ? r.clock.format : d.clock.format,
     },
     layout: isLayout(r.layout) ? r.layout : d.layout,
+    shortcutPins: normalizeShortcutPins(r.shortcutPins),
+    shortcutHides: normalizeShortcutHides(r.shortcutHides),
   };
 }
 
@@ -93,6 +123,14 @@ export async function setSettings(patch: Partial<ToutSettings>): Promise<ToutSet
     theme: patch.theme ?? current.theme,
     clock: { format: patch.clock?.format ?? current.clock.format },
     layout: patch.layout ?? current.layout,
+    // Arrays: normalize the patch so callers can pass raw input
+    // without bypassing the defensive shape check.
+    shortcutPins: patch.shortcutPins
+      ? normalizeShortcutPins(patch.shortcutPins)
+      : current.shortcutPins,
+    shortcutHides: patch.shortcutHides
+      ? normalizeShortcutHides(patch.shortcutHides)
+      : current.shortcutHides,
   };
   await storage().set({ [SETTINGS_KEY]: next });
   syncThemeCache(next.theme);

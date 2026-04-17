@@ -102,7 +102,13 @@ describe('normalizeSettings', () => {
   it('preserves valid values', () => {
     installMocks();
     const r = normalizeSettings({ theme: 'dark', clock: { format: '24h' }, layout: 'grid' });
-    expect(r).toEqual({ theme: 'dark', clock: { format: '24h' }, layout: 'grid' });
+    expect(r).toEqual({
+      theme: 'dark',
+      clock: { format: '24h' },
+      layout: 'grid',
+      shortcutPins: [],
+      shortcutHides: [],
+    });
   });
 
   it('fills missing fields with defaults (partial object)', () => {
@@ -118,6 +124,42 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings({ layout: 'staircase' }).layout).toBe('masonry');
     expect(normalizeSettings({ layout: 42 }).layout).toBe('masonry');
   });
+
+  // ── shortcut fields (v2.3.0) ────────────────────────────────────────────────
+  it('defaults shortcutPins + shortcutHides to empty arrays', () => {
+    installMocks();
+    const r = normalizeSettings({});
+    expect(r.shortcutPins).toEqual([]);
+    expect(r.shortcutHides).toEqual([]);
+  });
+
+  it('drops malformed shortcutPins entries silently', () => {
+    installMocks();
+    const r = normalizeSettings({
+      shortcutPins: [
+        { url: 'https://ok/', title: 'OK' },
+        { title: 'no url' },              // dropped
+        null,                              // dropped
+        'string',                          // dropped
+        { url: 'https://no-title/', title: undefined }, // dropped
+      ],
+    });
+    expect(r.shortcutPins).toEqual([{ url: 'https://ok/', title: 'OK' }]);
+  });
+
+  it('rejects non-array shortcutPins / shortcutHides and defaults to []', () => {
+    installMocks();
+    expect(normalizeSettings({ shortcutPins: 'nope' }).shortcutPins).toEqual([]);
+    expect(normalizeSettings({ shortcutHides: 42 }).shortcutHides).toEqual([]);
+  });
+
+  it('keeps valid shortcutHides strings, drops empty/non-string', () => {
+    installMocks();
+    const r = normalizeSettings({
+      shortcutHides: ['https://a/', '', 'https://b/', null, 42],
+    });
+    expect(r.shortcutHides).toEqual(['https://a/', 'https://b/']);
+  });
 });
 
 describe('getSettings', () => {
@@ -129,7 +171,13 @@ describe('getSettings', () => {
 
   it('returns normalized stored settings', async () => {
     installMocks({ [SETTINGS_KEY]: { theme: 'dark', clock: { format: '24h' }, layout: 'grid' } });
-    expect(await getSettings()).toEqual({ theme: 'dark', clock: { format: '24h' }, layout: 'grid' });
+    expect(await getSettings()).toEqual({
+      theme: 'dark',
+      clock: { format: '24h' },
+      layout: 'grid',
+      shortcutPins: [],
+      shortcutHides: [],
+    });
   });
 
   it('drops garbage fields from storage and defaults them', async () => {
@@ -144,7 +192,37 @@ describe('setSettings', () => {
   it('writes the merged shape back to chrome.storage.local', async () => {
     const { store } = installMocks({ [SETTINGS_KEY]: { theme: 'light', clock: { format: '12h' }, layout: 'masonry' } });
     await setSettings({ theme: 'dark' });
-    expect(store.get(SETTINGS_KEY)).toEqual({ theme: 'dark', clock: { format: '12h' }, layout: 'masonry' });
+    expect(store.get(SETTINGS_KEY)).toEqual({
+      theme: 'dark',
+      clock: { format: '12h' },
+      layout: 'masonry',
+      shortcutPins: [],
+      shortcutHides: [],
+    });
+  });
+
+  it('persists shortcutPins and shortcutHides patches', async () => {
+    const { store } = installMocks({});
+    await setSettings({
+      shortcutPins: [{ url: 'https://a/', title: 'A' }],
+      shortcutHides: ['https://b/'],
+    });
+    const saved = store.get(SETTINGS_KEY);
+    expect(saved.shortcutPins).toEqual([{ url: 'https://a/', title: 'A' }]);
+    expect(saved.shortcutHides).toEqual(['https://b/']);
+  });
+
+  it('normalizes patched shortcutPins (drops garbage entries)', async () => {
+    const { store } = installMocks({});
+    await setSettings({
+      shortcutPins: [
+        { url: 'https://ok/', title: 'OK' },
+        { title: 'no url' },
+      ],
+    });
+    expect(store.get(SETTINGS_KEY).shortcutPins).toEqual([
+      { url: 'https://ok/', title: 'OK' },
+    ]);
   });
 
   it('updates localStorage theme cache on explicit light/dark', async () => {

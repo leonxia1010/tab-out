@@ -19,6 +19,7 @@ import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
 import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
 import { mountClock, type ClockHandle } from './widgets/clock.js';
 import { mountSearch } from './widgets/search.js';
+import { mountShortcuts, type ShortcutsHandle } from './widgets/shortcuts.js';
 
 const UPDATE_STATUS_KEY = 'tabout:updateStatus';
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
@@ -127,13 +128,20 @@ async function bootstrapSettings(): Promise<void> {
     clock = mountClock(slot, settings.clock.format);
     themeToggle = mountThemeToggle(slot, settings.theme);
   }
-  if (middleSlot) mountSearch(middleSlot);
+  let shortcuts: ShortcutsHandle | null = null;
+  if (middleSlot) {
+    // Search first so it renders above the shortcut row — the whole
+    // middle section reads top-down: type-to-search, then quick-launch.
+    mountSearch(middleSlot);
+    shortcuts = mountShortcuts(middleSlot, settings);
+  }
 
   onSettingsChange((next) => {
     applyTheme(next.theme);
     applyLayout(next.layout);
     themeToggle?.syncIcon(next.theme);
     clock?.applyFormat(next.clock.format);
+    shortcuts?.applySettings(next);
   });
 }
 
