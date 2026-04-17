@@ -1319,8 +1319,11 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   display: flex;
   align-items: center;
   gap: 12px;
-  /* Lift the cluster toward the h1's optical top without fully snapping to
-   * the raw flex-start baseline (which read too high pre-v2.1.1). */
+  /* Lift the cluster to match h1's visible glyph top. The h1 is
+     Newsreader serif with its own ascent padding, and pulling h1 up
+     via negative margin would break out of the container top padding
+     (since the container uses padding for top breathing room).
+     Keeping the offset on the right cluster is the contained fix. */
   margin-top: -8px;
 }
 
