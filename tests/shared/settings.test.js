@@ -12,6 +12,7 @@ import {
   effectiveTheme,
   getSettings,
   setSettings,
+  onSettingsChange,
   syncThemeCache,
   syncLayoutCache,
   SETTINGS_KEY,
@@ -22,6 +23,7 @@ import {
 function installMocks(initialStorage = {}, initialLocal = {}) {
   const store = new Map(Object.entries(initialStorage));
   const local = new Map(Object.entries(initialLocal));
+  const changeListeners = [];
 
   const storageLocal = {
     get: vi.fn(async (key) => (store.has(key) ? { [key]: store.get(key) } : {})),
@@ -33,7 +35,13 @@ function installMocks(initialStorage = {}, initialLocal = {}) {
   vi.stubGlobal('chrome', {
     storage: {
       local: storageLocal,
-      onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+      onChanged: {
+        addListener: vi.fn((cb) => changeListeners.push(cb)),
+        removeListener: vi.fn((cb) => {
+          const i = changeListeners.indexOf(cb);
+          if (i >= 0) changeListeners.splice(i, 1);
+        }),
+      },
     },
   });
 
@@ -45,7 +53,11 @@ function installMocks(initialStorage = {}, initialLocal = {}) {
 
   vi.stubGlobal('navigator', { language: 'en-US' });
 
-  return { store, local };
+  function fireChange(changes, area = 'local') {
+    for (const cb of changeListeners.slice()) cb(changes, area);
+  }
+
+  return { store, local, fireChange, changeListeners };
 }
 
 afterEach(() => {
@@ -366,5 +378,76 @@ describe('syncLayoutCache', () => {
     });
     expect(() => syncLayoutCache('grid')).not.toThrow();
     expect(() => syncLayoutCache('masonry')).not.toThrow();
+  });
+});
+
+// onSettingsChange is the dashboard ↔ options cross-page sync hook —
+// storage.onChanged fires when one page writes via setSettings and the
+// other page's listener receives the normalized shape. Production path
+// is covered only by manual integration; these tests lock the wiring.
+describe('onSettingsChange', () => {
+  it('forwards normalized newValue when SETTINGS_KEY changes on local', () => {
+    const { fireChange } = installMocks();
+    const cb = vi.fn();
+    onSettingsChange(cb);
+
+    fireChange({
+      [SETTINGS_KEY]: {
+        newValue: { theme: 'dark', clock: { format: '12h' }, layout: 'grid' },
+      },
+    }, 'local');
+
+    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledWith({
+      theme: 'dark',
+      clock: { format: '12h' },
+      layout: 'grid',
+      shortcutPins: [],
+      shortcutHides: [],
+    });
+  });
+
+  it('ignores changes for unrelated keys', () => {
+    const { fireChange } = installMocks();
+    const cb = vi.fn();
+    onSettingsChange(cb);
+
+    fireChange({ 'some:other:key': { newValue: { theme: 'dark' } } }, 'local');
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it('ignores changes on non-local storage areas', () => {
+    const { fireChange } = installMocks();
+    const cb = vi.fn();
+    onSettingsChange(cb);
+
+    fireChange({ [SETTINGS_KEY]: { newValue: { theme: 'dark' } } }, 'sync');
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it('returns an unsubscribe function that detaches the listener', () => {
+    const { fireChange, changeListeners } = installMocks();
+    const cb = vi.fn();
+    const unsub = onSettingsChange(cb);
+    expect(changeListeners).toHaveLength(1);
+
+    unsub();
+    expect(changeListeners).toHaveLength(0);
+    fireChange({ [SETTINGS_KEY]: { newValue: { theme: 'dark' } } }, 'local');
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it('mirrors theme + layout to localStorage so bootstrap scripts stay synced', () => {
+    const { fireChange, local } = installMocks();
+    onSettingsChange(() => {});
+
+    fireChange({
+      [SETTINGS_KEY]: {
+        newValue: { theme: 'dark', clock: { format: '24h' }, layout: 'grid' },
+      },
+    }, 'local');
+
+    expect(local.get(THEME_CACHE_KEY)).toBe('dark');
+    expect(local.get(LAYOUT_CACHE_KEY)).toBe('grid');
   });
 });
