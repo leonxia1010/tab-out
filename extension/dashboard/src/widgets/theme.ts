@@ -32,6 +32,7 @@
 // the button (right-aligned).
 
 import { el, svg } from '../dom-utils.js';
+import { effectiveTheme } from '../../../shared/dist/settings.js';
 import type { ThemeMode } from '../../../shared/dist/settings.js';
 
 const POPOVER_ID = 'taboutThemePopover';
@@ -70,16 +71,6 @@ export function applyTheme(theme: ThemeMode): void {
   } else {
     document.documentElement.dataset.theme = theme;
   }
-}
-
-// Resolve the mode the user actually sees. 'system' folds through the
-// prefers-color-scheme media query; explicit light/dark pass through.
-function effectiveTheme(theme: ThemeMode): 'light' | 'dark' {
-  if (theme === 'light' || theme === 'dark') return theme;
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return 'light';
 }
 
 // Trigger shows the currently-visible theme (sun or moon), never the
