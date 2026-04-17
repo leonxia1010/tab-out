@@ -910,10 +910,16 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   overflow-y: auto;
 }
 
-/* On narrow screens, stack vertically */
+/* On narrow screens, stack vertically.
+   Both children need explicit width:100% because the parent uses
+   align-items: flex-start, which in column-direction mode would
+   otherwise let children shrink to their intrinsic content width. */
 @media (max-width: 800px) {
   .dashboard-columns {
     flex-direction: column;
+  }
+  .dashboard-columns .active-section {
+    width: 100%;
   }
   .deferred-column {
     width: 100%;
