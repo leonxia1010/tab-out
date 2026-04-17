@@ -9,6 +9,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   defaultSettings,
   normalizeSettings,
+  effectiveTheme,
   getSettings,
   setSettings,
   syncThemeCache,
@@ -159,6 +160,36 @@ describe('normalizeSettings', () => {
       shortcutHides: ['https://a/', '', 'https://b/', null, 42],
     });
     expect(r.shortcutHides).toEqual(['https://a/', 'https://b/']);
+  });
+});
+
+describe('effectiveTheme', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('returns light/dark unchanged when set explicitly', () => {
+    expect(effectiveTheme('light')).toBe('light');
+    expect(effectiveTheme('dark')).toBe('dark');
+  });
+
+  it('returns dark when system prefers dark', () => {
+    vi.stubGlobal('window', {
+      matchMedia: (q) => ({ matches: q.includes('dark') }),
+    });
+    expect(effectiveTheme('system')).toBe('dark');
+  });
+
+  it('returns light when system prefers light', () => {
+    vi.stubGlobal('window', {
+      matchMedia: () => ({ matches: false }),
+    });
+    expect(effectiveTheme('system')).toBe('light');
+  });
+
+  it('falls back to light when matchMedia is unavailable', () => {
+    vi.stubGlobal('window', {});
+    expect(effectiveTheme('system')).toBe('light');
   });
 });
 

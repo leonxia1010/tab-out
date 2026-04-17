@@ -108,6 +108,19 @@ export function normalizeSettings(raw: unknown): ToutSettings {
   };
 }
 
+// Resolve the mode the user actually sees. 'system' folds through the
+// prefers-color-scheme media query; explicit light/dark pass through.
+// Lives in shared/ because both the dashboard (theme widget icon sync)
+// and the options page (future "Follow system (currently dark)" hint)
+// need the same resolution rule — duplicating it would invite drift.
+export function effectiveTheme(theme: ThemeMode): 'light' | 'dark' {
+  if (theme === 'light' || theme === 'dark') return theme;
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'light';
+}
+
 export async function getSettings(): Promise<ToutSettings> {
   try {
     const result = await storage().get(SETTINGS_KEY);
@@ -140,7 +153,11 @@ export function setSettings(patch: Partial<ToutSettings>): Promise<ToutSettings>
     const current = await getSettings();
     const next: ToutSettings = {
       theme: patch.theme ?? current.theme,
-      clock: { format: patch.clock?.format ?? current.clock.format },
+      // Spread-merge so clock stays forward-compatible: adding a second
+      // field (e.g. `showSeconds`) later means callers can patch just
+      // `format` without wiping siblings. Explicit-field pick would
+      // silently drop the rest on every unrelated setSettings call.
+      clock: { ...current.clock, ...(patch.clock ?? {}) },
       layout: patch.layout ?? current.layout,
       // Arrays: normalize the patch so callers can pass raw input
       // without bypassing the defensive shape check.
