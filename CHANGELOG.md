@@ -4,6 +4,56 @@ All notable changes to this fork land here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] — 2026-04-17
+
+Options page + first two header widgets. Introduces the
+`tabout:settings` storage layer every future widget reads and writes
+through.
+
+### Added
+
+- Options page — opens via the extension icon's right-click → Options
+  (or `chrome://extensions` → Details → Extension options). Sections
+  for Appearance and Clock format; radio changes save immediately and
+  reflect external writes via `chrome.storage.onChanged`.
+- Dark mode — header moon button opens a native HTML Popover menu
+  (Follow system / Light / Dark). Full dark palette: paper goes
+  near-black with warm amber tint, card-bg one step lighter so cards
+  elevate without shadows, accents desaturated ~15% to read calm on
+  dark backgrounds. `theme-bootstrap.js` (external, MV3 CSP-safe)
+  reads a `localStorage` cache before the stylesheet parses so
+  explicit light/dark choices have zero FOUC on reload.
+- Clock widget — local time in the header. 12h / 24h format configurable
+  from the options page; default inferred from `navigator.language`.
+  Updates on minute rollover; live-syncs when the format is changed
+  from the options page.
+- Shared code module `extension/shared/src/settings.ts` —
+  `getSettings` / `setSettings` / `onSettingsChange` /
+  `normalizeSettings` / `syncThemeCache` / `defaultSettings`.
+  Dashboard and options both import it. Defensive normalizer matches
+  `api.ts#isDeferredRow` discipline (unknown fields fall back to
+  defaults instead of throwing).
+
+### Changed
+
+- Build: TypeScript project references. Root `tsconfig.json` is now a
+  solution file; per-page configs under `tsconfig.{shared,dashboard,
+  options}.json`, each `composite: true` with its own `rootDir`/
+  `outDir`. `npm run build` and `npm run typecheck` both run `tsc -b`.
+- Release pipeline — zip excludes extend to `extension/options/src/*`
+  and `*.d.ts` so options-page source and declaration files don't leak
+  into the release artifact.
+- `prefers-color-scheme: dark` is now honored when the user's theme
+  preference is "Follow system" (default).
+
+### Security
+
+- FOUC bootstrap script (`theme-bootstrap.js`) is external so MV3's
+  CSP `script-src 'self'` can stay unmodified; no `unsafe-inline`
+  grant, no script hash allowlist.
+
+---
+
 ## [2.0.0] — 2026-04-16
 
 First release of the single-extension fork
@@ -103,4 +153,5 @@ extension — no server, no AI — with all state in `chrome.storage.local`.
 
 ---
 
+[2.1.0]: https://github.com/leonxia1010/tab-out/releases/tag/v2.1.0
 [2.0.0]: https://github.com/leonxia1010/tab-out/releases/tag/v2.0.0
