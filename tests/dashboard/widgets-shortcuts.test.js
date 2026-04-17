@@ -116,7 +116,7 @@ describe('mountShortcuts — render + API', () => {
     });
   });
 
-  it('each tile carries href + favicon + pin/hide data-actions', async () => {
+  it('each tile carries link + favicon + menu with pin/hide items', async () => {
     installTopSites([{ url: 'https://example.com/', title: 'Ex' }]);
     const slot = document.getElementById('slot');
     mountShortcuts(slot, baseSettings);
@@ -127,11 +127,17 @@ describe('mountShortcuts — render + API', () => {
       expect(tile).not.toBeNull();
     });
 
-    expect(tile.getAttribute('href')).toBe('https://example.com/');
+    const link = tile.querySelector('a.shortcut-link');
+    expect(link).not.toBeNull();
+    expect(link.getAttribute('href')).toBe('https://example.com/');
 
-    const img = tile.querySelector('img.shortcut-favicon');
+    const img = link.querySelector('img.shortcut-favicon');
     expect(img).not.toBeNull();
     expect(img.getAttribute('src')).toContain('favicons?domain=example.com');
+
+    const trigger = tile.querySelector('button.shortcut-menu-trigger');
+    expect(trigger).not.toBeNull();
+    expect(trigger.getAttribute('popovertarget')).toBeTruthy();
 
     const pinBtn = tile.querySelector('[data-action="shortcut-pin"]');
     const hideBtn = tile.querySelector('[data-action="shortcut-hide"]');
@@ -140,6 +146,28 @@ describe('mountShortcuts — render + API', () => {
     expect(pinBtn.dataset.url).toBe('https://example.com/');
     expect(pinBtn.dataset.title).toBe('Ex');
     expect(hideBtn.dataset.url).toBe('https://example.com/');
+    // Both menu items hide the popover on click via popovertargetaction.
+    expect(pinBtn.getAttribute('popovertargetaction')).toBe('hide');
+    expect(hideBtn.getAttribute('popovertargetaction')).toBe('hide');
+  });
+
+  it('pinned tiles get .is-pinned and "Already pinned" label', async () => {
+    installTopSites([]);
+    const slot = document.getElementById('slot');
+    mountShortcuts(slot, {
+      ...baseSettings,
+      shortcutPins: [{ url: 'https://pin.test/', title: 'Pin' }],
+    });
+
+    let tile;
+    await vi.waitFor(() => {
+      tile = slot.querySelector('.shortcut-tile');
+      expect(tile).not.toBeNull();
+    });
+
+    expect(tile.classList.contains('is-pinned')).toBe(true);
+    const pinBtn = tile.querySelector('[data-action="shortcut-pin"]');
+    expect(pinBtn.textContent).toBe('Already pinned');
   });
 
   it('collapses to is-empty when no pins and no topSites', async () => {
@@ -174,7 +202,8 @@ describe('mountShortcuts — render + API', () => {
     });
 
     const tiles = slot.querySelectorAll('.shortcut-tile');
-    const hrefs = Array.from(tiles).map((t) => t.getAttribute('href'));
+    const hrefs = Array.from(tiles)
+      .map((t) => t.querySelector('a.shortcut-link')?.getAttribute('href'));
     expect(hrefs).toEqual(['https://pinned.test/', 'https://b.test/']);
   });
 

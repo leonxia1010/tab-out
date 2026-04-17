@@ -32,11 +32,10 @@ import type { ToutSettings, ShortcutPin } from '../../../shared/dist/settings.js
 const MAX_TILES = 10;
 const FAVICON_SIZE = 64;
 
-// Heroicons v2 outline — stroke-width 1.5 matches the dashboard icon
-// family. Bookmark/pin glyph for pin; eye-slash for hide.
-const SVG_BASE = 'xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"';
-const SVG_PIN = `<svg ${SVG_BASE} data-icon="pin"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z"/></svg>`;
-const SVG_HIDE = `<svg ${SVG_BASE} data-icon="eye-slash"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>`;
+// Heroicons v2 — ellipsis-vertical (solid mini) for the corner trigger
+// so three filled dots read clearly at 14px. Chrome NTP uses the same
+// three-dot glyph; matching it keeps the interaction recognizable.
+const SVG_MENU = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" data-icon="menu"><path fill-rule="evenodd" d="M10 3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" clip-rule="evenodd"/></svg>`;
 
 export interface ShortcutsHandle {
   destroy(): void;
@@ -99,10 +98,17 @@ function iconNode(svgString: string): Element {
   return node;
 }
 
-function renderTile(entry: ShortcutPin): HTMLElement {
+// Per-tile popover id counter. Each popover needs a unique id because
+// the native popover API uses popovertarget="<id>" to wire trigger →
+// popover. Counter is module-local so it survives re-renders; we never
+// collide across widget mounts because the widget is mounted once.
+let popoverCounter = 0;
+
+function renderTile(entry: ShortcutPin, isPinned: boolean): HTMLElement {
   const host = hostOf(entry.url);
   const label = entry.title || host || entry.url;
   const src = faviconUrl(entry.url);
+  const popoverId = `taboutShortcutMenu-${popoverCounter++}`;
 
   const faviconImg = el('img', {
     className: 'shortcut-favicon',
@@ -110,59 +116,103 @@ function renderTile(entry: ShortcutPin): HTMLElement {
     alt: '',
     // Width/height as attributes (not style) so the img reserves
     // space before the favicon loads and the row doesn't jitter.
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     loading: 'lazy',
     referrerpolicy: 'no-referrer',
   }) as HTMLImageElement;
 
-  const pinBtn = el('button', {
-    type: 'button',
-    className: 'shortcut-action shortcut-action-pin',
-    'data-action': 'shortcut-pin',
-    'data-url': entry.url,
-    'data-title': entry.title,
-    'aria-label': `Pin ${label}`,
-    title: 'Pin',
-  }, [iconNode(SVG_PIN)]);
-
-  const hideBtn = el('button', {
-    type: 'button',
-    className: 'shortcut-action shortcut-action-hide',
-    'data-action': 'shortcut-hide',
-    'data-url': entry.url,
-    'data-title': entry.title,
-    'aria-label': `Hide ${label}`,
-    title: 'Hide',
-  }, [iconNode(SVG_HIDE)]);
-
-  const overlay = el('div', {
-    className: 'shortcut-overlay',
-    'aria-hidden': 'true',
-  }, [pinBtn, hideBtn]);
-
-  // The tile is the link — clicking anywhere outside the overlay
-  // buttons navigates. Overlay buttons stopPropagation in their click
-  // handler (wired in handlers.ts via data-action dispatch).
-  const tile = el('a', {
-    className: 'shortcut-tile',
+  // Link wraps just the favicon so clicks on the corner 3-dot button
+  // don't navigate. Corner button is a sibling inside the tile wrapper.
+  const link = el('a', {
+    className: 'shortcut-link',
     href: entry.url,
     title: label,
     'aria-label': label,
+  }, [faviconImg]);
+
+  const menuTrigger = el('button', {
+    type: 'button',
+    className: 'shortcut-menu-trigger',
+    popovertarget: popoverId,
+    'aria-label': `Options for ${label}`,
+    title: 'Options',
+  }, [iconNode(SVG_MENU)]) as HTMLButtonElement;
+
+  // Pin / unpin label flips with state; second item is always Hide
+  // (handler refuses to hide a pinned URL, so the option stays even
+  // when pinned — consistent surface, explicit no-op via toast).
+  const pinItem = el('button', {
+    type: 'button',
+    className: 'shortcut-menu-item',
+    'data-action': 'shortcut-pin',
     'data-url': entry.url,
-  }, [faviconImg, overlay]);
+    'data-title': entry.title,
+    popovertarget: popoverId,
+    popovertargetaction: 'hide',
+  }, [isPinned ? 'Already pinned' : 'Pin']);
+
+  const hideItem = el('button', {
+    type: 'button',
+    className: 'shortcut-menu-item',
+    'data-action': 'shortcut-hide',
+    'data-url': entry.url,
+    'data-title': entry.title,
+    popovertarget: popoverId,
+    popovertargetaction: 'hide',
+  }, ['Hide']);
+
+  const popover = el('div', {
+    id: popoverId,
+    className: 'shortcut-menu',
+    popover: 'auto',
+    role: 'menu',
+  }, [pinItem, hideItem]) as HTMLElement;
+
+  // Position the popover under the trigger on every open (same pattern
+  // as widgets/theme.ts). Native popover lives in the top layer at
+  // origin (0,0) by default; we set fixed coords off the trigger's
+  // bounding rect. Scroll / resize closes the menu to match the
+  // theme popover's behavior.
+  const dismiss = (): void => {
+    if (typeof popover.hidePopover === 'function') popover.hidePopover();
+  };
+  popover.addEventListener('toggle', (ev) => {
+    const e = ev as ToggleEvent;
+    if (e.newState === 'open') {
+      const tr = menuTrigger.getBoundingClientRect();
+      const pw = popover.offsetWidth;
+      const vw = window.innerWidth;
+      let left = tr.right - pw;
+      if (left < 8) left = 8;
+      if (left + pw > vw - 8) left = vw - pw - 8;
+      popover.style.top = `${tr.bottom + 4}px`;
+      popover.style.left = `${left}px`;
+      window.addEventListener('scroll', dismiss, { capture: true, passive: true });
+      window.addEventListener('resize', dismiss, { passive: true });
+    } else {
+      window.removeEventListener('scroll', dismiss, { capture: true });
+      window.removeEventListener('resize', dismiss);
+    }
+  });
+
+  const tile = el('div', {
+    className: isPinned ? 'shortcut-tile is-pinned' : 'shortcut-tile',
+    'data-url': entry.url,
+  }, [link, menuTrigger, popover]);
 
   return tile;
 }
 
-function renderInto(bar: HTMLElement, list: ShortcutPin[]): void {
+function renderInto(bar: HTMLElement, list: ShortcutPin[], pins: ShortcutPin[]): void {
   if (list.length === 0) {
     bar.replaceChildren();
     bar.classList.add('is-empty');
     return;
   }
   bar.classList.remove('is-empty');
-  bar.replaceChildren(...list.map(renderTile));
+  const pinSet = new Set(pins.map((p) => p.url));
+  bar.replaceChildren(...list.map((entry) => renderTile(entry, pinSet.has(entry.url))));
 }
 
 export function mountShortcuts(
@@ -184,7 +234,8 @@ export function mountShortcuts(
   let current: ToutSettings = initial;
 
   const render = (): void => {
-    renderInto(bar, buildList(current.shortcutPins, cachedTopSites, current.shortcutHides));
+    const list = buildList(current.shortcutPins, cachedTopSites, current.shortcutHides);
+    renderInto(bar, list, current.shortcutPins);
   };
 
   void fetchTopSites().then((sites) => {

@@ -1337,52 +1337,98 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
      width/height are set — no tile collapse. */
 }
 
-/* Pin + hide overlay — hidden until hover. Two small glyph-only
-   buttons anchored top/right of the tile. Keep them tiny so they
-   don't obscure the favicon — affordance over prominence. */
-.shortcut-overlay {
+/* Link fills the tile so clicks on the favicon navigate, but the
+   corner 3-dot button is a sibling (not wrapped by the anchor) so
+   its click doesn't bubble into navigation. */
+.shortcut-link {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 1px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border-radius: inherit;
 }
 
-.shortcut-tile:hover .shortcut-overlay,
-.shortcut-tile:focus-within .shortcut-overlay {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.shortcut-action {
-  width: 16px;
-  height: 16px;
+/* Chrome-NTP-style corner menu trigger. Invisible until hover (or
+   while the popover is open — :has handles that without JS). Tiny
+   glyph-only button, anchored at the top-right with slight outside
+   overlap so it doesn't obscure the favicon.
+*/
+.shortcut-menu-trigger {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--card-bg);
   color: var(--muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, color 0.15s, transform 0.15s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  z-index: 1;
 }
 
-.shortcut-action:hover {
-  background: #fff;
+.shortcut-tile:hover .shortcut-menu-trigger,
+.shortcut-tile:focus-within .shortcut-menu-trigger,
+.shortcut-tile:has(.shortcut-menu:popover-open) .shortcut-menu-trigger {
+  opacity: 1;
+}
+
+.shortcut-menu-trigger:hover {
   color: var(--ink);
-  transform: scale(1.1);
 }
 
-.shortcut-action svg {
-  width: 10px;
-  height: 10px;
+.shortcut-menu-trigger svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Native popover menu — anchored under the trigger in JS on every
+   open (shortcuts.ts `toggle` listener, same pattern as
+   widgets/theme.ts). */
+.shortcut-menu {
+  position: fixed;
+  margin: 0;
+  padding: 4px;
+  min-width: 140px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: var(--card-bg);
+  box-shadow: 0 8px 32px var(--shadow);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  inset: auto;
+}
+
+.shortcut-menu::backdrop {
+  background: transparent;
+}
+
+.shortcut-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.shortcut-menu-item:hover {
+  background: var(--paper);
 }
 
 .archive-search:focus {
