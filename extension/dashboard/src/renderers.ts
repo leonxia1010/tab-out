@@ -12,6 +12,7 @@
 // the window.renderers bridge in one shot.
 
 import { el, mount, svg } from './dom-utils.js';
+import { faviconUrl } from './favicon.js';
 import {
   cleanTitle,
   friendlyDomain,
@@ -155,14 +156,12 @@ export function renderPageChip(
   const tabUrl = tab.url || '';
   const count = urlCounts[tabUrl] || 1;
 
-  let domain = '';
-  try { domain = new URL(tabUrl).hostname; } catch {}
-  const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+  const faviconSrc = faviconUrl(tabUrl, 16);
 
   const children: Array<Node | string | null | undefined | false> = [];
 
-  if (faviconUrl) {
-    const favicon = el('img', { className: 'chip-favicon', src: faviconUrl, alt: '' });
+  if (faviconSrc) {
+    const favicon = el('img', { className: 'chip-favicon', src: faviconSrc, alt: '' });
     favicon.addEventListener('error', () => { favicon.style.display = 'none'; });
     children.push(favicon);
   }
@@ -350,7 +349,7 @@ export function renderDomainCard(group: DomainGroup, groupIndex: number): HTMLEl
 export function renderDeferredItem(item: DeferredTab): HTMLElement {
   let domain = '';
   try { domain = new URL(item.url).hostname.replace(/^www\./, ''); } catch {}
-  const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=16`;
+  const faviconSrc = faviconUrl(item.url, 16);
   const ago = timeAgo(item.deferred_at);
   const titleText = item.title || item.url;
 
@@ -360,8 +359,11 @@ export function renderDeferredItem(item: DeferredTab): HTMLElement {
     dataset: { action: 'check-deferred', deferredId: item.id },
   });
 
+  // src is undefined when the URL won't parse — el() skips the attr so
+  // the img issues no network request (an <img> without src is inert;
+  // <img src=""> refetches the document per HTML spec).
   const favicon = el('img', {
-    src: faviconUrl,
+    src: faviconSrc,
     alt: '',
     style: 'width:14px;height:14px;vertical-align:-2px;margin-right:4px',
   });

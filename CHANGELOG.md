@@ -83,33 +83,14 @@ moves the row back to the active list.
 
 ## [2.1.1] — 2026-04-17
 
-Hotfix for three header UI regressions shipped in 2.1.0.
+Options page + first two header widgets (dark mode, clock) land,
+together with three header UI hotfixes caught in the same-day
+verification pass. Originally drafted as separate 2.1.0 / 2.1.1
+releases; only the 2.1.1 tag was published, so the combined scope
+lives under this single entry.
 
-### Fixed
-
-- Clock and theme toggle no longer drift out of vertical alignment —
-  `.clock-widget` gets an explicit 36px height + `line-height: 1` so the
-  22px serif number and the 36px round button share the same optical
-  center.
-- Theme-toggle icon now reflects the *effective* theme instead of a
-  fixed moon glyph. Explicit light → ☀️, explicit dark → 🌙, and
-  `system` folds through `prefers-color-scheme` (with a matchMedia
-  listener so OS-level flips repaint the icon while on system mode).
-- Theme popover now anchors under the trigger button instead of landing
-  at the viewport's top-left corner. A `toggle`-event listener computes
-  the trigger's bounding rect on each open and writes `position: fixed`
-  coordinates; the popover stylesheet switches from `absolute`/`inset:
-  unset` to `fixed`/`inset: auto` so the JS-set coords take effect.
-
-### Security
-
-- No CSP or permission changes.
-
-## [2.1.0] — 2026-04-17
-
-Options page + first two header widgets. Introduces the
-`tabout:settings` storage layer every future widget reads and writes
-through.
+Introduces the `tabout:settings` storage layer every future widget
+reads and writes through.
 
 ### Added
 
@@ -146,6 +127,22 @@ through.
   into the release artifact.
 - `prefers-color-scheme: dark` is now honored when the user's theme
   preference is "Follow system" (default).
+
+### Fixed
+
+- Clock and theme toggle no longer drift out of vertical alignment —
+  `.clock-widget` gets an explicit 36px height + `line-height: 1` so the
+  22px serif number and the 36px round button share the same optical
+  center.
+- Theme-toggle icon now reflects the *effective* theme instead of a
+  fixed moon glyph. Explicit light → ☀️, explicit dark → 🌙, and
+  `system` folds through `prefers-color-scheme` (with a matchMedia
+  listener so OS-level flips repaint the icon while on system mode).
+- Theme popover now anchors under the trigger button instead of landing
+  at the viewport's top-left corner. A `toggle`-event listener computes
+  the trigger's bounding rect on each open and writes `position: fixed`
+  coordinates; the popover stylesheet switches from `absolute`/`inset:
+  unset` to `fixed`/`inset: auto` so the JS-set coords take effect.
 
 ### Security
 
@@ -256,5 +253,4 @@ extension — no server, no AI — with all state in `chrome.storage.local`.
 
 [2.2.0]: https://github.com/leonxia1010/tab-out/releases/tag/v2.2.0
 [2.1.1]: https://github.com/leonxia1010/tab-out/releases/tag/v2.1.1
-[2.1.0]: https://github.com/leonxia1010/tab-out/releases/tag/v2.1.0
 [2.0.0]: https://github.com/leonxia1010/tab-out/releases/tag/v2.0.0

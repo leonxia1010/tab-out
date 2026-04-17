@@ -255,6 +255,34 @@ describe('setSettings', () => {
     await setSettings({ layout: 'masonry' });
     expect(local.has(LAYOUT_CACHE_KEY)).toBe(false);
   });
+
+  // Without withLock, two concurrent setSettings calls both read the same
+  // snapshot and the later write clobbers the earlier patch (classic
+  // read-modify-write race across the two storage awaits). Regression guard
+  // for the dashboard + options concurrent-write scenario.
+  it('serializes concurrent setSettings calls (no patch lost)', async () => {
+    const { store } = installMocks({
+      [SETTINGS_KEY]: { theme: 'system', clock: { format: '24h' }, layout: 'masonry' },
+    });
+    await Promise.all([
+      setSettings({ theme: 'dark' }),
+      setSettings({ clock: { format: '12h' } }),
+    ]);
+    const saved = store.get(SETTINGS_KEY);
+    expect(saved.theme).toBe('dark');
+    expect(saved.clock.format).toBe('12h');
+  });
+
+  it('serializes concurrent shortcut pin + hide writes', async () => {
+    const { store } = installMocks({});
+    await Promise.all([
+      setSettings({ shortcutPins: [{ url: 'https://a/', title: 'A' }] }),
+      setSettings({ shortcutHides: ['https://b/'] }),
+    ]);
+    const saved = store.get(SETTINGS_KEY);
+    expect(saved.shortcutPins).toEqual([{ url: 'https://a/', title: 'A' }]);
+    expect(saved.shortcutHides).toEqual(['https://b/']);
+  });
 });
 
 describe('syncThemeCache', () => {

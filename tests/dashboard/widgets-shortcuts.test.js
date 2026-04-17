@@ -13,7 +13,17 @@ import { mountShortcuts, __internal } from '../../extension/dashboard/src/widget
 
 function installTopSites(sites) {
   const get = vi.fn().mockResolvedValue(sites);
-  vi.stubGlobal('chrome', { topSites: { get } });
+  vi.stubGlobal('chrome', {
+    topSites: { get },
+    // Stub chrome.runtime.getURL so faviconUrl() in the widget can
+    // construct a `_favicon/` URL. In production the id is the actual
+    // extension id; tests only need the URL to parse and round-trip.
+    runtime: {
+      getURL: vi.fn((path) =>
+        `chrome-extension://testextid${path.startsWith('/') ? '' : '/'}${path}`,
+      ),
+    },
+  });
   return get;
 }
 
@@ -160,7 +170,11 @@ describe('mountShortcuts — render + API', () => {
 
     const img = link.querySelector('img.shortcut-favicon');
     expect(img).not.toBeNull();
-    expect(img.getAttribute('src')).toContain('favicons?domain=example.com');
+    // Native _favicon/ API (chrome-extension:// scheme) — no google.com.
+    const src = img.getAttribute('src');
+    expect(src).toContain('/_favicon/');
+    expect(src).toContain('pageUrl=https%3A%2F%2Fexample.com%2F');
+    expect(src).not.toContain('google.com');
 
     const trigger = tile.querySelector('button.shortcut-menu-trigger');
     expect(trigger).not.toBeNull();
