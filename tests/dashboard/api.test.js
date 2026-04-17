@@ -17,6 +17,7 @@ import {
   dismissDeferred,
   deleteArchived,
   clearAllArchived,
+  restoreArchived,
 } from '../../extension/dashboard/src/api.ts';
 
 // ─── chrome.storage.local mock ──────────────────────────────────────────────
@@ -491,6 +492,78 @@ describe('clearAllArchived', () => {
     const result = await clearAllArchived();
     expect(result).toEqual({ success: true, deleted: 0 });
     expect(local.set).not.toHaveBeenCalled();
+  });
+});
+
+// ─── restoreArchived (v2.2.0) ───────────────────────────────────────────────
+//
+// Restore moves an archived row back to active. Flags reset to the "fresh
+// save" shape (archived=0, archived_at=null, checked=0, checked_at=null,
+// deferred_at=now) so getDeferred's 30-day age-out doesn't immediately
+// re-archive it. URL collision with an active row folds into that row
+// (refresh deferred_at) and drops the archive entry — preserving the
+// activeByUrl invariant saveDefer relies on.
+
+describe('restoreArchived', () => {
+  it('resets flags + refreshes deferred_at when no active dupe exists', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'https://a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 1, checked_at: '2026-04-02', dismissed: 0, archived: 1, archived_at: '2026-04-02' },
+      ],
+    });
+    const before = Date.now();
+    const result = await restoreArchived(1);
+    const after = Date.now();
+    expect(result).toEqual({ success: true, merged: false });
+    const rows = store.get('deferredTabs');
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    expect(row.archived).toBe(0);
+    expect(row.archived_at).toBeNull();
+    expect(row.checked).toBe(0);
+    expect(row.checked_at).toBeNull();
+    const ts = new Date(row.deferred_at).getTime();
+    expect(ts).toBeGreaterThanOrEqual(before);
+    expect(ts).toBeLessThanOrEqual(after);
+  });
+
+  it('merges into the active dupe when one exists — archived row is dropped', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 1, url: 'https://dupe', title: 'old title', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 1, checked_at: '2026-04-02', dismissed: 0, archived: 1, archived_at: '2026-04-02' },
+        { id: 2, url: 'https://dupe', title: 'live title', favicon_url: null, source_mission: null, deferred_at: '2026-03-01', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+    const before = Date.now();
+    const result = await restoreArchived(1);
+    const after = Date.now();
+    expect(result).toEqual({ success: true, merged: true });
+    const rows = store.get('deferredTabs');
+    expect(rows).toHaveLength(1);
+    const kept = rows[0];
+    expect(kept.id).toBe(2);
+    expect(kept.title).toBe('live title');
+    const ts = new Date(kept.deferred_at).getTime();
+    expect(ts).toBeGreaterThanOrEqual(before);
+    expect(ts).toBeLessThanOrEqual(after);
+  });
+
+  it('throws when the id does not exist', async () => {
+    installChromeStorage({ deferredTabs: [] });
+    await expect(restoreArchived(999)).rejects.toThrow(/not found/);
+  });
+
+  it('refuses to restore an active (non-archived) row', async () => {
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 7, url: 'https://u', title: 'u', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
+      ],
+    });
+    await expect(restoreArchived(7)).rejects.toThrow(/not found/);
+    // The row is unchanged — active rows are not silently repurposed.
+    const rows = store.get('deferredTabs');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].archived).toBe(0);
   });
 });
 

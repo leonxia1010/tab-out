@@ -37,6 +37,8 @@ const ICONS = {
 const CHIP_SAVE_SVG  = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>';
 const CHIP_CLOSE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>';
 const DEFERRED_DISMISS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>';
+// Heroicons v2 outline — arrow-uturn-left. Matches the dashboard's icon family.
+const ARCHIVE_RESTORE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>';
 
 // Hostnames whose card stays pinned above non-priority cards regardless of
 // open-order. User-facing rationale: these are the "always-available"
@@ -412,20 +414,35 @@ export function renderArchiveItem(item: DeferredTab): HTMLElement {
     dataset: { action: 'open-saved', savedUrl: item.url },
   });
 
+  const restoreBtn = el('button', {
+    className: 'archive-item-restore',
+    'aria-label': 'Restore to saved for later',
+    title: 'Restore',
+    dataset: { action: 'restore-archived', deferredId: item.id },
+  }, [svg(ARCHIVE_RESTORE_SVG)]);
+
   const deleteBtn = el('button', {
     className: 'archive-item-delete',
     'aria-label': 'Delete from archive',
     title: 'Delete',
     dataset: { action: 'delete-archived', deferredId: item.id },
-  }, ['\u00d7']);
+  }, [svg(DEFERRED_DISMISS_SVG)]);
+
+  // Two-line layout: title + action buttons share row 1; timestamp drops to
+  // row 2 so the first line isn't crowded on a narrow sidebar column.
+  const actions = el('div', { className: 'archive-item-actions' }, [
+    restoreBtn,
+    deleteBtn,
+  ]);
+
+  const main = el('div', { className: 'archive-item-main' }, [link, actions]);
 
   return el('div', {
     className: 'archive-item',
     dataset: { deferredId: item.id },
   }, [
-    link,
+    main,
     el('span', { className: 'archive-item-date', textContent: ago }),
-    deleteBtn,
   ]);
 }
 
