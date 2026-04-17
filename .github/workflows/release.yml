@@ -46,7 +46,9 @@ jobs:
         run: |
           zip -r "tab-out-${GITHUB_REF_NAME}.zip" extension \
             -x 'extension/dashboard/src/*' \
+            -x 'extension/options/src/*' \
             -x '*.map' \
+            -x '*.d.ts' \
             -x '*/.DS_Store'
           ls -la tab-out-*.zip
 
