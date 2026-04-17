@@ -179,6 +179,7 @@ function renderTile(entry: ShortcutPin, isPinned: boolean): HTMLElement {
     const unpinItem = el('button', {
       type: 'button',
       className: 'shortcut-menu-item',
+      role: 'menuitem',
       'data-action': 'shortcut-unpin',
       'data-url': entry.url,
       popovertarget: popoverId,
@@ -189,6 +190,7 @@ function renderTile(entry: ShortcutPin, isPinned: boolean): HTMLElement {
     const pinItem = el('button', {
       type: 'button',
       className: 'shortcut-menu-item',
+      role: 'menuitem',
       'data-action': 'shortcut-pin',
       'data-url': entry.url,
       'data-title': entry.title,
@@ -198,6 +200,7 @@ function renderTile(entry: ShortcutPin, isPinned: boolean): HTMLElement {
     const hideItem = el('button', {
       type: 'button',
       className: 'shortcut-menu-item',
+      role: 'menuitem',
       'data-action': 'shortcut-hide',
       'data-url': entry.url,
       popovertarget: popoverId,
@@ -242,6 +245,7 @@ function renderTile(entry: ShortcutPin, isPinned: boolean): HTMLElement {
 
   const tile = el('div', {
     className: isPinned ? 'shortcut-tile is-pinned' : 'shortcut-tile',
+    role: 'listitem',
     'data-url': entry.url,
   }, [link, menuTrigger, popover]);
 

@@ -260,6 +260,32 @@ describe('mountShortcuts — render + API', () => {
     expect(hrefs).toEqual(['https://pinned.test/', 'https://b.test/']);
   });
 
+  it('tile carries role="listitem" so the role="list" bar has real items', async () => {
+    installTopSites([{ url: 'https://a.test/', title: 'A' }]);
+    const slot = document.getElementById('slot');
+    mountShortcuts(slot, baseSettings);
+
+    await vi.waitFor(() => {
+      const tile = slot.querySelector('.shortcut-tile');
+      expect(tile).not.toBeNull();
+      expect(tile.getAttribute('role')).toBe('listitem');
+    });
+  });
+
+  it('menu items carry role="menuitem" to complete the menu semantics', async () => {
+    installTopSites([{ url: 'https://a.test/', title: 'A' }]);
+    const slot = document.getElementById('slot');
+    mountShortcuts(slot, baseSettings);
+
+    await vi.waitFor(() => {
+      const items = slot.querySelectorAll('.shortcut-menu-item');
+      expect(items.length).toBeGreaterThan(0);
+      for (const item of items) {
+        expect(item.getAttribute('role')).toBe('menuitem');
+      }
+    });
+  });
+
   it('destroy() removes the bar from the slot', async () => {
     installTopSites([{ url: 'https://a/', title: 'A' }]);
     const slot = document.getElementById('slot');
