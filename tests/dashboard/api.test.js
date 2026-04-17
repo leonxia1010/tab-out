@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getUpdateStatus,
+  dismissUpdateBanner,
   saveDefer,
   getDeferred,
   searchDeferred,
@@ -111,6 +112,39 @@ describe('getUpdateStatus', () => {
   });
 });
 
+describe('dismissUpdateBanner', () => {
+  it('stamps dismissedTag = latestTag so getUpdateStatus suppresses the banner', async () => {
+    const { store } = installChromeStorage({
+      'tabout:updateStatus': {
+        updateAvailable: true,
+        latestTag: 'v2.0.1',
+        currentTag: 'v2.0.0',
+        checkedAt: '2026-04-10T00:00:00.000Z',
+        dismissedTag: null,
+      },
+    });
+    await dismissUpdateBanner();
+    expect(store.get('tabout:updateStatus').dismissedTag).toBe('v2.0.1');
+    // Round-trip through getUpdateStatus confirms suppression.
+    expect(await getUpdateStatus()).toMatchObject({ updateAvailable: false });
+  });
+
+  it('is a noop when no update record exists', async () => {
+    const { store } = installChromeStorage({});
+    await dismissUpdateBanner();
+    expect(store.has('tabout:updateStatus')).toBe(false);
+  });
+
+  it('is a noop when latestTag is missing (nothing to dismiss against)', async () => {
+    const { store } = installChromeStorage({
+      'tabout:updateStatus': { updateAvailable: true, currentTag: 'v2.0.0' },
+    });
+    await dismissUpdateBanner();
+    const saved = store.get('tabout:updateStatus');
+    expect(saved.dismissedTag).toBeUndefined();
+  });
+});
+
 // ─── saveDefer ──────────────────────────────────────────────────────────────
 
 describe('saveDefer', () => {
@@ -160,6 +194,29 @@ describe('saveDefer', () => {
     const ids = result.created.map((d) => d.id);
     expect(ids).toHaveLength(50);
     expect(new Set(ids).size).toBe(50);
+  });
+
+  it('honors a cross-instance localStorage watermark for id monotonicity', async () => {
+    // Simulates a second NTP tab that already handed out a very high id
+    // (localStorage is per-origin and shared across tabs). The new
+    // saveDefer here must bump past the stored watermark instead of
+    // restarting from Date.now()*1000, otherwise a same-ms collision
+    // across instances could hand out duplicate ids.
+    const bag = new Map();
+    vi.stubGlobal('localStorage', {
+      getItem: (k) => (bag.has(k) ? bag.get(k) : null),
+      setItem: (k, v) => bag.set(k, String(v)),
+      removeItem: (k) => bag.delete(k),
+    });
+    const high = Date.now() * 1000 + 5_000_000;
+    bag.set('tabout:lastId', String(high));
+    installChromeStorage({});
+    const result = await saveDefer([{ url: 'https://h.test', title: 'H' }]);
+    expect(result.created[0].id).toBeGreaterThan(high);
+    // Watermark must advance to the newly issued id so future calls
+    // keep climbing.
+    expect(Number(bag.get('tabout:lastId'))).toBeGreaterThan(high);
+    vi.unstubAllGlobals();
   });
 
   it('renews deferred_at when the url is already active, does not add a new row', async () => {
@@ -506,14 +563,16 @@ describe('clearAllArchived', () => {
 
 describe('restoreArchived', () => {
   it('resets flags + refreshes deferred_at when no active dupe exists', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-18T12:00:00Z'));
+    const expected = new Date('2026-04-18T12:00:00Z').toISOString();
+
     const { store } = installChromeStorage({
       deferredTabs: [
         { id: 1, url: 'https://a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 1, checked_at: '2026-04-02', dismissed: 0, archived: 1, archived_at: '2026-04-02' },
       ],
     });
-    const before = Date.now();
     const result = await restoreArchived(1);
-    const after = Date.now();
     expect(result).toEqual({ success: true, merged: false });
     const rows = store.get('deferredTabs');
     expect(rows).toHaveLength(1);
@@ -522,35 +581,56 @@ describe('restoreArchived', () => {
     expect(row.archived_at).toBeNull();
     expect(row.checked).toBe(0);
     expect(row.checked_at).toBeNull();
-    const ts = new Date(row.deferred_at).getTime();
-    expect(ts).toBeGreaterThanOrEqual(before);
-    expect(ts).toBeLessThanOrEqual(after);
+    // Fake timers lock deferred_at to the frozen system time — no more
+    // wall-clock [before, after] window that a slow CI / debugger break
+    // could escape (matches the discipline used in the auto-prune tests
+    // further down; this was the last Date.now() holdout in this file).
+    expect(row.deferred_at).toBe(expected);
+    vi.useRealTimers();
   });
 
   it('merges into the active dupe when one exists — archived row is dropped', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-18T12:00:00Z'));
+    const expected = new Date('2026-04-18T12:00:00Z').toISOString();
+
     const { store } = installChromeStorage({
       deferredTabs: [
         { id: 1, url: 'https://dupe', title: 'old title', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 1, checked_at: '2026-04-02', dismissed: 0, archived: 1, archived_at: '2026-04-02' },
         { id: 2, url: 'https://dupe', title: 'live title', favicon_url: null, source_mission: null, deferred_at: '2026-03-01', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
       ],
     });
-    const before = Date.now();
     const result = await restoreArchived(1);
-    const after = Date.now();
     expect(result).toEqual({ success: true, merged: true });
     const rows = store.get('deferredTabs');
     expect(rows).toHaveLength(1);
     const kept = rows[0];
     expect(kept.id).toBe(2);
     expect(kept.title).toBe('live title');
-    const ts = new Date(kept.deferred_at).getTime();
-    expect(ts).toBeGreaterThanOrEqual(before);
-    expect(ts).toBeLessThanOrEqual(after);
+    expect(kept.deferred_at).toBe(expected);
+    vi.useRealTimers();
   });
 
   it('throws when the id does not exist', async () => {
     installChromeStorage({ deferredTabs: [] });
     await expect(restoreArchived(999)).rejects.toThrow(/not found/);
+  });
+
+  it('resets dismissed=0 alongside archived/checked flags (v1-data safety)', async () => {
+    // v1 SQLite allowed dismissed=1 rows; if a user migrated one sitting
+    // in the archive (archived=1 && dismissed=1), restoreArchived without
+    // this reset would produce archived=0 && dismissed=1 — a ghost
+    // active row filtered out by getDeferred's dismissed===0 check.
+    const { store } = installChromeStorage({
+      deferredTabs: [
+        { id: 9, url: 'https://ghost', title: 'Ghost', favicon_url: null, source_mission: null, deferred_at: '2026-04-01', checked: 1, checked_at: '2026-04-02', dismissed: 1, archived: 1, archived_at: '2026-04-02' },
+      ],
+    });
+    await restoreArchived(9);
+    const row = store.get('deferredTabs')[0];
+    expect(row.dismissed).toBe(0);
+    expect(row.archived).toBe(0);
+    expect(row.checked).toBe(0);
   });
 
   it('refuses to restore an active (non-archived) row', async () => {

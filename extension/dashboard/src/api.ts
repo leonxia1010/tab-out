@@ -145,15 +145,55 @@ function withLock<T>(fn: () => Promise<T>): Promise<T> {
 // make checkDeferred/dismissDeferred update multiple rows at once.
 // Math.max(candidate, lastId+1) handles both the in-tick bump and the
 // cross-tick / cross-SW-restart case (Date.now() always wins by then).
+//
+// Cross-instance watermark: every dashboard tab runs its own module copy
+// with its own `lastId`, so two NTPs firing saveDefer in the same
+// millisecond could each pick colliding candidates. localStorage is
+// per-origin and synchronously shared across tabs, so reading the
+// watermark before each newId() call lets the later caller bump past
+// the earlier one without a chrome.storage RTT. Silent degrade if
+// localStorage is blocked — behavior falls back to the module-local
+// monotonicity we already had.
+
+const LAST_ID_KEY = 'tabout:lastId';
+
+function readStoredLastId(): number {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(LAST_ID_KEY) : null;
+    if (raw == null) return 0;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeStoredLastId(n: number): void {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(LAST_ID_KEY, String(n));
+  } catch {
+    // localStorage disabled/full — module-local lastId still guards
+    // monotonicity within this tab.
+  }
+}
 
 let lastId = 0;
 function newId(): number {
+  const stored = readStoredLastId();
   const candidate = Date.now() * 1000 + Math.floor(Math.random() * 1000);
-  lastId = Math.max(candidate, lastId + 1);
-  return lastId;
+  const next = Math.max(candidate, Math.max(stored, lastId) + 1);
+  lastId = next;
+  writeStoredLastId(next);
+  return next;
 }
 
 // ─── Update status ──────────────────────────────────────────────────────────
+
+// Single source of truth for the update-banner storage key. Previously
+// lived as a private constant in both api.ts and index.ts; exporting
+// here means reads (getUpdateStatus), writes (dismissUpdateBanner),
+// and the background.js writer all reference one name.
+export const UPDATE_STATUS_KEY = 'tabout:updateStatus';
 
 // Shape written by background.js checkForUpdate(). All fields optional
 // because a fresh install may have no key yet. Tags (release tag_name)
@@ -171,8 +211,8 @@ export async function getUpdateStatus(): Promise<UpdateStatus> {
     if (typeof chrome === 'undefined' || !chrome.storage?.local) {
       return { updateAvailable: false };
     }
-    const result = await chrome.storage.local.get('tabout:updateStatus');
-    const s = (result as Record<string, UpdateStatusStorage>)['tabout:updateStatus'];
+    const result = await chrome.storage.local.get(UPDATE_STATUS_KEY);
+    const s = (result as Record<string, UpdateStatusStorage>)[UPDATE_STATUS_KEY];
     if (!s) return { updateAvailable: false };
     // Banner stays dismissed until a *new* release comes out (dismissedTag
     // tracks the last latestTag the user dismissed against).
@@ -184,6 +224,24 @@ export async function getUpdateStatus(): Promise<UpdateStatus> {
     };
   } catch {
     return { updateAvailable: false };
+  }
+}
+
+// Persist banner dismissal: read the latest update record and stamp
+// dismissedTag = latestTag so the banner stays hidden until a new
+// release lands. Silent on failure — the UI already removed the banner
+// element; storage persistence is a best-effort concern.
+export async function dismissUpdateBanner(): Promise<void> {
+  try {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
+    const result = await chrome.storage.local.get(UPDATE_STATUS_KEY);
+    const s = (result as Record<string, UpdateStatusStorage | undefined>)[UPDATE_STATUS_KEY];
+    if (!s?.latestTag) return;
+    await chrome.storage.local.set({
+      [UPDATE_STATUS_KEY]: { ...s, dismissedTag: s.latestTag },
+    });
+  } catch {
+    // noop
   }
 }
 
@@ -434,6 +492,14 @@ export function restoreArchived(
     row.archived_at = null;
     row.checked = 0;
     row.checked_at = null;
+    // Defensive reset: `dismissed` is a v1-SQLite legacy field that this
+    // codebase never sets to 1 anymore (dismissDeferred splice-deletes the
+    // row outright). But a user migrating from v1 storage could carry
+    // archived=1 && dismissed=1 rows; without this reset the restored row
+    // would become archived=0 && dismissed=1, a ghost row filtered out by
+    // getDeferred's dismissed===0 check. Keeps the "cleared archive state"
+    // invariant symmetric with the checked/archived flags above.
+    row.dismissed = 0;
     row.deferred_at = now;
     await writeArray('deferredTabs', all);
     return { success: true, merged: false };
