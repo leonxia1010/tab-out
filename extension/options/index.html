@@ -43,6 +43,27 @@
         <label><input type="radio" name="layout" value="grid"> Grid (aligned rows)</label>
       </fieldset>
     </section>
+
+    <section class="settings-section" aria-labelledby="shortcuts-heading">
+      <h2 id="shortcuts-heading">Shortcuts</h2>
+      <p class="settings-help">
+        The dashboard shows up to 10 shortcut tiles under the search
+        widget: pinned sites first, then your Chrome "Most visited" list
+        with anything you've hidden removed.
+      </p>
+
+      <div class="settings-field">
+        <div class="settings-field-label">Pinned</div>
+        <ul class="settings-list" id="pinnedList"></ul>
+        <p class="settings-list-empty" id="pinnedEmpty">No pinned shortcuts.</p>
+      </div>
+
+      <div class="settings-field">
+        <div class="settings-field-label">Hidden</div>
+        <ul class="settings-list" id="hiddenList"></ul>
+        <p class="settings-list-empty" id="hiddenEmpty">Nothing hidden.</p>
+      </div>
+    </section>
   </main>
   <script type="module" src="dist/index.js"></script>
 </body>

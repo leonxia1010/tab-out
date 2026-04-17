@@ -6,23 +6,46 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-04-17
+
+The new middle section lands — search widget + shortcut bar — and the
+dashboard flips to a masonry layout by default so tall sites pack
+next to short lists without the old grid's wasted whitespace.
+
 ### Added
 
 - **Masonry layout** is now the default dashboard arrangement — domain
   cards pack as CSS columns instead of a grid that matches the tallest
-  card, reclaiming the whitespace next to short lists. Grid (single
-  column list) is still available as an opt-in toggle under
-  Options → Layout, and the choice persists via `tabout:settings.layout`.
-  Layout preference hydrates pre-paint through a new
-  `tabout:layout-cache` localStorage key so switches never flash.
-- **Theme popover** now marks the active mode with `aria-checked`
-  and a trailing Heroicons check glyph, and dismisses on window
-  scroll / resize to match native `<select>` behavior.
+  card. Grid (single-column list) is kept as an opt-in toggle under
+  Options → Layout; the choice persists via `tabout:settings.layout`
+  and hydrates pre-paint through a new `tabout:layout-cache` localStorage
+  key so switches never flash.
 - **Search widget** sits under the header in a new middle section —
-  full-width input, autofocus on new-tab open, Enter fires
-  `chrome.search.query` against the user's Chrome-configured default
-  engine (no per-engine picker, by design). Adds the `search`
-  permission.
+  rounded card-token field with a leading Heroicons magnifying-glass
+  glyph. Enter fires `chrome.search.query` against the user's
+  Chrome-configured default engine (no per-engine picker, by design).
+  Adds the `search` permission.
+- **Shortcut bar** — up to 10 circular favicon tiles below the search
+  widget, mirroring Chrome's NTP "Most visited" row. Sources merge as
+  `[...pins, ...topSites.filter(!pin && !hide)].slice(0, 10)`. Hover
+  any tile to pin (persist across reloads) or hide (filter out of the
+  topSites feed). Options → Shortcuts manages both lists with remove
+  / unhide controls. Adds the `topSites` permission.
+- **Theme popover** now marks the active mode with `aria-checked` and
+  a trailing Heroicons check glyph, and dismisses on window scroll /
+  resize to match native `<select>` behavior.
+- **Page-load waterfall** steps have been compressed from 50ms to 30ms
+  per level so the fade-up cascade reads snappier on refresh. Middle
+  section participates in the waterfall at 0.03s delay.
+
+### Changed
+
+- Stacked-layout breakpoint raised from 800px to 1024px (Tailwind `lg`)
+  so the side-by-side active/deferred columns don't cramp before the
+  threshold where dual columns actually improve density.
+- Grid layout explicitly collapses to a single column (`1fr`) at every
+  viewport, restoring the pre-v2.3.0 visual for users who opt out of
+  masonry.
 
 ## [2.2.0] — 2026-04-17
 

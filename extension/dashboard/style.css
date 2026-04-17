@@ -1276,6 +1276,111 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   appearance: none;
 }
 
+/* ============================================================
+   Shortcut bar (v2.3.0) — up to 10 circular favicon tiles under
+   the search widget, mirroring Chrome's NTP "Most visited" row.
+   Tiles reuse the card-family tokens (card-bg, warm-gray border,
+   card shadow on hover) so the row reads as part of the waterfall
+   instead of a foreign tray.
+   ============================================================ */
+.shortcuts-bar {
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 12px;
+  width: 100%;
+}
+
+.shortcuts-bar.is-empty {
+  /* topSites + pins empty → collapse the row entirely so the vertical
+     rhythm of .middle-section gap doesn't leave a ghost gap below the
+     search input. */
+  display: none;
+}
+
+.shortcut-tile {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.shortcut-tile:hover {
+  box-shadow: 0 4px 20px var(--shadow);
+  transform: translateY(-1px);
+}
+
+.shortcut-favicon {
+  width: 28px;
+  height: 28px;
+  display: block;
+  /* Graceful degrade: if Google's favicon service returns a generic
+     placeholder or 404, the img still occupies the same space because
+     width/height are set — no tile collapse. */
+}
+
+/* Pin + hide overlay — hidden until hover. Two small glyph-only
+   buttons anchored top/right of the tile. Keep them tiny so they
+   don't obscure the favicon — affordance over prominence. */
+.shortcut-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.04) 0%,
+    rgba(0, 0, 0, 0) 50%
+  );
+}
+
+.shortcut-tile:hover .shortcut-overlay,
+.shortcut-tile:focus-within .shortcut-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.shortcut-action {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.shortcut-action:hover {
+  background: #fff;
+  color: var(--ink);
+  transform: scale(1.1);
+}
+
+.shortcut-action svg {
+  width: 11px;
+  height: 11px;
+}
+
 .archive-search:focus {
   border-color: var(--accent-amber);
 }
