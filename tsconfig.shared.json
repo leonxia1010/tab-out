@@ -5,8 +5,8 @@
     "module": "ES2020",
     "moduleResolution": "Node",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "outDir": "./extension/dashboard/dist",
-    "rootDir": "./extension/dashboard/src",
+    "outDir": "./extension/shared/dist",
+    "rootDir": "./extension/shared/src",
     "strict": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
@@ -18,9 +18,8 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "sourceMap": true,
-    "declaration": true
+    "declaration": true,
+    "types": ["chrome"]
   },
-  "include": ["extension/dashboard/src/**/*.ts"],
-  "exclude": ["node_modules", "extension/dashboard/dist", "tests"],
-  "references": [{ "path": "./tsconfig.shared.json" }]
+  "include": ["extension/shared/src/**/*.ts"]
 }

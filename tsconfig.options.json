@@ -5,8 +5,8 @@
     "module": "ES2020",
     "moduleResolution": "Node",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "outDir": "./extension/dashboard/dist",
-    "rootDir": "./extension/dashboard/src",
+    "outDir": "./extension/options/dist",
+    "rootDir": "./extension/options/src",
     "strict": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
@@ -20,7 +20,6 @@
     "sourceMap": true,
     "declaration": true
   },
-  "include": ["extension/dashboard/src/**/*.ts"],
-  "exclude": ["node_modules", "extension/dashboard/dist", "tests"],
+  "include": ["extension/options/src/**/*.ts"],
   "references": [{ "path": "./tsconfig.shared.json" }]
 }

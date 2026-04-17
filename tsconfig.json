@@ -1,6 +1,8 @@
 {
   "files": [],
   "references": [
-    { "path": "./tsconfig.dashboard.json" }
+    { "path": "./tsconfig.shared.json" },
+    { "path": "./tsconfig.dashboard.json" },
+    { "path": "./tsconfig.options.json" }
   ]
 }

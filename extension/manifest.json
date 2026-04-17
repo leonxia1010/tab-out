@@ -9,6 +9,7 @@
     "extension_pages": "script-src 'self'; object-src 'self'"
   },
   "chrome_url_overrides": { "newtab": "dashboard/index.html" },
+  "options_ui": { "page": "options/index.html", "open_in_tab": true },
   "background": { "service_worker": "background.js" },
   "action": {
     "default_title": "Tab Out",
