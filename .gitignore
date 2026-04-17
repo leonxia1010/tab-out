@@ -5,5 +5,7 @@ node_modules/
 docs/superpowers/
 CLAUDE.md
 claudedocs/
+.claude/
+.serena/
 coverage/
 extension/dashboard/dist/
