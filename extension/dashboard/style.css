@@ -44,9 +44,15 @@ body::before {
 .container {
   position: relative;
   z-index: 1;
-  max-width: 960px;
+  max-width: 1536px; /* Masonry default — Tailwind 2xl */
   margin: 0 auto;
   padding: 48px 32px 80px;
+}
+
+/* Grid layout keeps the original narrow container — visually identical
+   to pre-v2.3.0 so users who opt into grid see exactly what they had. */
+html[data-layout="grid"] .container {
+  max-width: 960px;
 }
 
 /* ---- Header ---- */
@@ -212,11 +218,38 @@ header {
 }
 
 /* ---- Domain Cards ---- */
+/* Masonry (default, v2.3.0+): CSS columns, 300px wide cards so the
+   rare 2-button action row ("Close all N tabs" + "Close N duplicate")
+   fits on one line. Wider container (1536px) gives room for 3+ cols.
+   Grid is opt-in via html[data-layout="grid"] and restores the exact
+   pre-v2.3.0 config (280px minmax, 960px container) — every rule
+   below that grid selector overrides masonry back to the original. */
 .domains {
+  /* 300px card fits the 2-button "Close all N tabs" + "Close N
+     duplicate" row on one line. On 14" + Chrome side panel → 2
+     cols; on 15"+ or external monitor → 3+ cols (CSS column-width
+     handles the responsive step-up automatically). */
+  column-width: 300px;
+  column-gap: 12px;
+  margin-bottom: 40px;
+}
+
+.domains > * {
+  break-inside: avoid;
+  margin-bottom: 12px;
+}
+
+html[data-layout="grid"] .domains {
+  column-width: auto;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
   margin-bottom: 40px;
+}
+
+html[data-layout="grid"] .domains > * {
+  break-inside: auto;
+  margin-bottom: 0;
 }
 
 .domain-card {
@@ -458,6 +491,7 @@ header {
   font-size: 11px;
   font-family: 'DM Sans', sans-serif;
   font-weight: 500;
+  white-space: nowrap;
   padding: 5px 14px;
   border-radius: 4px;
   border: 1px solid var(--warm-gray);

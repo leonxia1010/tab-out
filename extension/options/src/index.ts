@@ -5,6 +5,7 @@ import {
   type ToutSettings,
   type ThemeMode,
   type ClockFormat,
+  type Layout,
 } from '../../shared/dist/settings.js';
 
 function radios(name: string): NodeListOf<HTMLInputElement> {
@@ -20,6 +21,7 @@ function setRadioValue(name: string, value: string): void {
 function applyToForm(settings: ToutSettings): void {
   setRadioValue('theme', settings.theme);
   setRadioValue('clockFormat', settings.clock.format);
+  setRadioValue('layout', settings.layout);
 }
 
 function isTheme(v: string): v is ThemeMode {
@@ -28,6 +30,10 @@ function isTheme(v: string): v is ThemeMode {
 
 function isClockFormat(v: string): v is ClockFormat {
   return v === '12h' || v === '24h';
+}
+
+function isLayout(v: string): v is Layout {
+  return v === 'masonry' || v === 'grid';
 }
 
 function wireRadio(name: string, handler: (value: string) => void): void {
@@ -48,6 +54,10 @@ async function bootstrap(): Promise<void> {
 
   wireRadio('clockFormat', (value) => {
     if (isClockFormat(value)) void setSettings({ clock: { format: value } });
+  });
+
+  wireRadio('layout', (value) => {
+    if (isLayout(value)) void setSettings({ layout: value });
   });
 
   // Reflect external writes (dashboard toggle, other windows) into the form.
