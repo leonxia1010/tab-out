@@ -1411,6 +1411,15 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--paper);
 }
 
+.theme-option.is-current {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.theme-option.is-current .theme-option-icon {
+  color: var(--accent);
+}
+
 .theme-option-icon {
   display: inline-flex;
   align-items: center;
@@ -1422,6 +1431,25 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 .theme-option-icon svg {
   width: 16px;
   height: 16px;
+}
+
+.theme-option-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  margin-left: auto;
+  color: var(--accent);
+  visibility: hidden;
+}
+
+.theme-option[aria-checked="true"] .theme-option-check {
+  visibility: visible;
+}
+
+.theme-option-check svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* ============================================================
