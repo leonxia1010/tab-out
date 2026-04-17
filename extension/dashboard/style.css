@@ -240,9 +240,12 @@ header {
 }
 
 html[data-layout="grid"] .domains {
+  /* Grid here means a single-column list, not a responsive grid.
+     Each card spans the full .domains width at every viewport — a
+     simple vertical list, opposite of masonry's packed columns. */
   column-width: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
   margin-bottom: 40px;
 }
