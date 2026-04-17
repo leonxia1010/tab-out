@@ -1220,15 +1220,15 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 .search-widget-field {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   width: 100%;
-  padding: 16px 22px;
+  padding: 10px 16px;
   border: 1px solid var(--warm-gray);
   border-radius: 8px;
   background: var(--card-bg);
   /* Mirror .domain-card hover/focus treatment so the field reads as
      part of the same waterfall family. Radius stays at the card's
-     8px (not 14px) for the same reason — consistent card vocabulary. */
+     8px for consistent card vocabulary. */
   transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.2s;
 }
 
@@ -1243,8 +1243,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .search-widget-field svg {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   color: var(--muted);
   flex-shrink: 0;
   /* Icon is decoration; clicks should pass through to the input so
@@ -1254,7 +1254,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 .search-widget-input {
   font-family: 'DM Sans', sans-serif;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 400;
   flex: 1;
   min-width: 0;
@@ -1287,7 +1287,9 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   display: flex;
   justify-content: center;
   flex-wrap: nowrap;
-  gap: 12px;
+  /* Chrome NTP spaces tiles ~16px apart; copy that cadence so the row
+     feels familiar. */
+  gap: 16px;
   width: 100%;
 }
 
@@ -1298,30 +1300,43 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   display: none;
 }
 
+/* Chrome NTP visual language:
+   - 48px circular tile with a subtle translucent background (no
+     visible border), favicon centered at 24px.
+   - Hover/focus deepens the background by one step instead of the
+     card-shadow lift we use on domain cards — keeps the tile row
+     reading as compact "quick-launch" chrome, not cards.
+*/
 .shortcut-tile {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  background: var(--card-bg);
-  border: 1px solid var(--warm-gray);
+  /* color-mix keeps one rule for both themes: 6% of the foreground
+     ink on top of nothing = subtle translucent disc that reads
+     correctly on paper (light) AND panel (dark). Mirrors the
+     rgba(0,0,0,0.06) / rgba(255,255,255,0.1) split Chrome NTP uses,
+     but driven by the theme's own --ink so it stays in tune if we
+     ever retune the palette. */
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  transition: background 0.15s ease;
   overflow: hidden;
   flex-shrink: 0;
 }
 
-.shortcut-tile:hover {
-  box-shadow: 0 4px 20px var(--shadow);
-  transform: translateY(-1px);
+.shortcut-tile:hover,
+.shortcut-tile:focus-visible {
+  background: color-mix(in oklab, var(--ink) 12%, transparent);
 }
 
 .shortcut-favicon {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: block;
   /* Graceful degrade: if Google's favicon service returns a generic
      placeholder or 404, the img still occupies the same space because
@@ -1337,15 +1352,10 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 2px;
+  padding: 1px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s ease;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.04) 0%,
-    rgba(0, 0, 0, 0) 50%
-  );
 }
 
 .shortcut-tile:hover .shortcut-overlay,
@@ -1355,19 +1365,19 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .shortcut-action {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.95);
   color: var(--muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: background 0.15s, color 0.15s, transform 0.15s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .shortcut-action:hover {
@@ -1377,8 +1387,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .shortcut-action svg {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
 }
 
 .archive-search:focus {
