@@ -16,7 +16,7 @@ import { attachTabsListeners } from './refresh.js';
 import { getUpdateStatus } from './api.js';
 import { el } from './dom-utils.js';
 import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
-import { applyTheme, mountThemeToggle } from './widgets/theme.js';
+import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
 import { mountClock, type ClockHandle } from './widgets/clock.js';
 
 const UPDATE_STATUS_KEY = 'tabout:updateStatus';
@@ -103,13 +103,15 @@ async function bootstrapSettings(): Promise<void> {
   applyTheme(settings.theme);
 
   let clock: ClockHandle | null = null;
+  let themeToggle: ThemeToggleHandle | null = null;
   if (slot) {
     clock = mountClock(slot, settings.clock.format);
-    mountThemeToggle(slot);
+    themeToggle = mountThemeToggle(slot, settings.theme);
   }
 
   onSettingsChange((next) => {
     applyTheme(next.theme);
+    themeToggle?.syncIcon(next.theme);
     clock?.applyFormat(next.clock.format);
   });
 }

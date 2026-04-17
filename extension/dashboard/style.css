@@ -1245,6 +1245,10 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 /* Clock widget slot reserved for Phase 4. */
 .clock-widget {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  line-height: 1;
   font-family: 'Newsreader', serif;
   font-weight: 300;
   font-size: 22px;
@@ -1274,7 +1278,11 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .theme-popover {
-  position: absolute;
+  /* theme.ts anchors the popover under the trigger on each `toggle`
+     event by computing getBoundingClientRect and setting top/left.
+     Viewport-relative coords → position: fixed (top layer treats
+     popovers as fixed-positioned). */
+  position: fixed;
   margin: 0;
   padding: 6px;
   min-width: 180px;
@@ -1284,8 +1292,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
   font-family: 'DM Sans', sans-serif;
-  /* :popover-open positions via browser top layer; remove default inset. */
-  inset: unset;
+  /* Clear UA default inset so our top/left win. */
+  inset: auto;
 }
 
 .theme-popover::backdrop {

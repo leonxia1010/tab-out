@@ -4,6 +4,30 @@ All notable changes to this fork land here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
 [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] — 2026-04-17
+
+Hotfix for three header UI regressions shipped in 2.1.0.
+
+### Fixed
+
+- Clock and theme toggle no longer drift out of vertical alignment —
+  `.clock-widget` gets an explicit 36px height + `line-height: 1` so the
+  22px serif number and the 36px round button share the same optical
+  center.
+- Theme-toggle icon now reflects the *effective* theme instead of a
+  fixed moon glyph. Explicit light → ☀️, explicit dark → 🌙, and
+  `system` folds through `prefers-color-scheme` (with a matchMedia
+  listener so OS-level flips repaint the icon while on system mode).
+- Theme popover now anchors under the trigger button instead of landing
+  at the viewport's top-left corner. A `toggle`-event listener computes
+  the trigger's bounding rect on each open and writes `position: fixed`
+  coordinates; the popover stylesheet switches from `absolute`/`inset:
+  unset` to `fixed`/`inset: auto` so the JS-set coords take effect.
+
+### Security
+
+- No CSP or permission changes.
+
 ## [2.1.0] — 2026-04-17
 
 Options page + first two header widgets. Introduces the
@@ -153,5 +177,6 @@ extension — no server, no AI — with all state in `chrome.storage.local`.
 
 ---
 
+[2.1.1]: https://github.com/leonxia1010/tab-out/releases/tag/v2.1.1
 [2.1.0]: https://github.com/leonxia1010/tab-out/releases/tag/v2.1.0
 [2.0.0]: https://github.com/leonxia1010/tab-out/releases/tag/v2.0.0
