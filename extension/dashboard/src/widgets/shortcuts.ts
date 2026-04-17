@@ -36,9 +36,10 @@ const FAVICON_SIZE = 64;
 // so three filled dots read clearly at 14px. Chrome NTP uses the same
 // three-dot glyph; matching it keeps the interaction recognizable.
 const SVG_MENU = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" data-icon="menu"><path fill-rule="evenodd" d="M10 3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm0 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" clip-rule="evenodd"/></svg>`;
-// Heroicons v2 bookmark (solid mini) — stays filled so the small
-// badge reads legibly at 10px in the circle's top-left corner.
-const SVG_PIN_BADGE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" data-icon="pin-badge"><path fill-rule="evenodd" d="M6.32 2.577a49.255 49.255 0 0 1 7.36 0 2.176 2.176 0 0 1 1.97 2.166v2.607c0 .82-.299 1.614-.844 2.22l-3.8 4.201a.25.25 0 0 1-.375 0L6.83 9.57a3.248 3.248 0 0 1-.843-2.22V4.743A2.176 2.176 0 0 1 6.32 2.577Z" clip-rule="evenodd"/></svg>`;
+// Heroicons v2 star (solid mini) — filled pentagon glyph reads cleanly
+// at small sizes and matches the "favorited" visual convention across
+// Chrome / Notion / Figma etc.
+const SVG_PIN_BADGE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" data-icon="star"><path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401Z" clip-rule="evenodd"/></svg>`;
 
 export interface ShortcutsHandle {
   destroy(): void;

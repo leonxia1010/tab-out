@@ -1352,29 +1352,24 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   overflow: visible;
 }
 
-/* Pin badge — tiny amber bookmark glyph in the circle's top-left.
+/* Pin badge — tiny amber star in the circle's top-left. No disc or
+   shadow; just the glyph in accent color so the tile stays airy.
    Only rendered on pinned tiles (shortcuts.ts conditional). Slight
-   outside overlap (-2px inset) so it reads as a corner accent,
-   mirroring how Chrome tags pinned shortcuts. */
+   outside overlap (-2px inset) lets it read as a corner accent.
+   Drop-shadow gives it a breath of separation from dark favicons. */
 .shortcut-pin-badge {
   position: absolute;
   top: -2px;
   left: -2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--accent-amber);
-  color: #fff;
+  color: var(--accent-amber);
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
 }
 
 .shortcut-pin-badge svg {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
 }
 
 /* Chrome-NTP corner menu trigger. Lives at the top-right of the OUTER
