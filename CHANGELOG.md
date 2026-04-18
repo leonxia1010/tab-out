@@ -6,6 +6,30 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [2.6.1] — 2026-04-18
+
+UX polish pass after shipping v2.6.0.
+
+### Fixed
+
+- **No caret on new tab open.** Chrome forces omnibox focus on
+  every new-tab open, leaving a blinking cursor in the URL bar even
+  though Tab Out isn't asking for a URL. A visually-hidden,
+  autofocus-ed sink now absorbs the initial focus so the dashboard
+  opens "quiet" — no omnibox caret, no search-box caret, Tab cycle
+  still works. First real click/keypress hands focus to the control
+  the user touched.
+- **Weather hover stopped flaking.** The 8px physical gap between
+  trigger and popover was catching slow cursors and flickering the
+  popover closed mid-movement. Gap tightened to 2px, the popover's
+  own top padding bumped so the visible whitespace is preserved,
+  and the hover-close grace period doubled from 150ms to 300ms.
+- **Clearing the weather location in Settings now sticks.** The
+  input already let you type into it freely; emptying it out now
+  clears lat/lon/label from the draft and Save lands a null
+  location. The dashboard widget returns to the "Set weather
+  location" prompt the same way a fresh install looks.
+
 ## [2.6.0] — 2026-04-18
 
 Header widgets round 2: the dashboard picks up two new opt-in readouts

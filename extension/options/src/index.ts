@@ -257,12 +257,23 @@ function wireWeather(): void {
     renderDirtyState();
   });
 
-  // Free-text typing alone doesn't mutate draft.weather.locationLabel —
-  // the user has to commit with Find (or Enter). Without this guard a
-  // stray keypress would mark the form dirty against an incomplete
-  // location string that has no lat/lon to pair with.
+  // Free-text typing mid-edit doesn't commit anything — the user has
+  // to hit Find (or Enter) to resolve new coordinates. But clearing
+  // the input to empty IS a commit: it tells us the user wants no
+  // location at all, so we drop lat/lon/label from the draft. Save
+  // then lands a null location and the dashboard widget returns to
+  // its "Set weather location" onboarding prompt.
   location?.addEventListener('input', () => {
     if (feedback) feedback.textContent = '';
+    if (location.value.trim() === '' && draft.weather.latitude !== null) {
+      draft.weather = {
+        ...draft.weather,
+        locationLabel: null,
+        latitude: null,
+        longitude: null,
+      };
+      renderDirtyState();
+    }
   });
 
   const runLookup = async (): Promise<void> => {

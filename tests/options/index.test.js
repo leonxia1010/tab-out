@@ -498,6 +498,36 @@ describe('options page — weather section (v2.6.0)', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(document.getElementById('weatherLocationFeedback').textContent).toBe('Enter a city or ZIP first.');
   });
+
+  it('clearing the location input drops lat/lon/label from the draft', async () => {
+    const mocks = await boot(defaultInitial({
+      weather: {
+        enabled: true,
+        locationLabel: 'Boston, MA, US',
+        latitude: 42.36,
+        longitude: -71.06,
+        unit: 'C',
+      },
+    }));
+
+    const input = document.getElementById('weatherLocation');
+    expect(input.value).toBe('Boston, MA, US');
+
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Empty input marks dirty so the user can Save the cleared state.
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
+
+    document.getElementById('saveBtn').click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const saved = mocks.storageLocal.set.mock.calls.find((c) => SETTINGS_KEY in c[0])[0][SETTINGS_KEY];
+    expect(saved.weather.latitude).toBeNull();
+    expect(saved.weather.longitude).toBeNull();
+    expect(saved.weather.locationLabel).toBeNull();
+    expect(saved.weather.enabled).toBe(true);
+  });
 });
 
 describe('options page — countdown section (v2.6.0)', () => {
