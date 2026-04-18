@@ -79,21 +79,32 @@ const IP_GEO_URL = 'https://ipapi.co/json/';
 async function tryIpGeolocate() {
   try {
     const res = await fetch(IP_GEO_URL);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn('[tab-out] ip-geo: HTTP', res.status);
+      return null;
+    }
     const body = await res.json();
     // ipapi.co 429 / quota rejections return 200 with { error: true,
     // reason: 'RateLimited' }, so the !res.ok guard alone isn't enough.
-    if (!body || body.error) return null;
+    if (!body || body.error) {
+      console.warn('[tab-out] ip-geo: error body', body && body.reason);
+      return null;
+    }
     const latitude = typeof body.latitude === 'number' ? body.latitude : null;
     const longitude = typeof body.longitude === 'number' ? body.longitude : null;
-    if (latitude == null || longitude == null) return null;
+    if (latitude == null || longitude == null) {
+      console.warn('[tab-out] ip-geo: missing coords', { latitude: body.latitude, longitude: body.longitude });
+      return null;
+    }
     const parts = [];
     if (body.city) parts.push(body.city);
     if (body.region) parts.push(body.region);
     if (body.country_code) parts.push(body.country_code);
     const locationLabel = parts.length > 0 ? parts.join(', ') : 'Your location';
+    console.info('[tab-out] ip-geo: OK', locationLabel, latitude, longitude);
     return { latitude, longitude, locationLabel };
-  } catch {
+  } catch (e) {
+    console.warn('[tab-out] ip-geo: exception', e && e.message);
     return null;
   }
 }
@@ -126,13 +137,18 @@ async function fetchWeatherNow() {
   try {
     const stored = await chrome.storage.local.get(SETTINGS_KEY);
     let settings = stored[SETTINGS_KEY];
-    // Fresh install: `tabout:settings` isn't written until the options
-    // page saves, so a user who just installs and opens a new tab would
-    // never reach the IP-geo seed. Synthesize a defaults-shaped object
-    // (weather enabled, no location) so ensureLocationConfigured can
-    // still run and persist a location on the user's behalf.
-    if (!settings) {
+    // Two shapes both need the default-weather backfill:
+    //   1. Fresh install — `tabout:settings` isn't written until the
+    //      options page saves, so storage is `{}`.
+    //   2. Pre-v2.6 upgrade — the old record exists (theme/clock/etc.)
+    //      but carries no `weather` key; `ensureLocationConfigured`
+    //      bails on `!w` before the IP-geo seed can run.
+    // Merge a defaults-shaped weather object in either case so the rest
+    // of the pipeline has something to work with.
+    if (!settings || !settings.weather) {
+      const baseline = settings && typeof settings === 'object' ? settings : {};
       settings = {
+        ...baseline,
         weather: {
           enabled: true,
           locationLabel: null,

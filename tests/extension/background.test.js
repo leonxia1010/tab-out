@@ -207,6 +207,35 @@ describe('fetchWeatherNow', () => {
     expect(settingsWrite[0]['tabout:settings'].weather.latitude).toBe(40.71);
   });
 
+  it('seeds IP geo on pre-v2.6 upgrade (settings exists but has no weather key)', async () => {
+    // Legacy shape from v2.5.x and earlier: the settings object is
+    // present but predates the weather feature, so `weather` is
+    // undefined. ensureLocationConfigured used to bail on `!w`;
+    // fetchWeatherNow now backfills defaults so the IP seed still
+    // runs for an upgraded user who never touches Settings.
+    storageGet.mockResolvedValue({
+      'tabout:settings': { theme: 'dark', clock: { format: '24h' } },
+    });
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ latitude: -33.87, longitude: 151.21, city: 'Sydney', country_code: 'AU' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ current: { temperature_2m: 18, weather_code: 0 } }),
+      });
+
+    await fetchWeatherNow();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipapi\.co/);
+    const settingsWrite = storageSet.mock.calls.find((c) => 'tabout:settings' in c[0]);
+    expect(settingsWrite[0]['tabout:settings'].weather.latitude).toBe(-33.87);
+    // Pre-existing theme/clock preserved through the synthesis.
+    expect(settingsWrite[0]['tabout:settings'].theme).toBe('dark');
+  });
+
   it('is a no-op when weather.enabled is false', async () => {
     storageGet.mockResolvedValue({
       'tabout:settings': {

@@ -13,15 +13,18 @@ actually firing on fresh installs.
 
 ### Fixed
 
-- **IP-geo auto-detect actually runs on first install.** A fresh
-  install leaves `tabout:settings` absent from storage until the
-  options page writes something. The background refresher was
-  early-returning on that case, so the ipapi.co seed never ran for
-  a user who just opened a new tab. It now synthesizes defaults,
-  seeds a location, and writes it back; the dashboard widget also
-  pings the service worker on mount when no location is set, so
-  the "Set weather location" prompt flips to an actual reading
-  within a second or two of opening the tab.
+- **IP-geo auto-detect actually runs on first install and upgrades.**
+  Two storage shapes were skipping the ipapi.co seed:
+  (1) fresh installs, where `tabout:settings` isn't written until the
+  options page saves something; and (2) pre-v2.6 upgrades, where the
+  legacy record has no `weather` key. Both paths now synthesize a
+  default-weather object so `ensureLocationConfigured` runs and
+  persists a location. The dashboard widget also pings the service
+  worker on mount when no location is set, so the "Set weather
+  location" prompt flips to a real reading within a second or two.
+  Failure paths in `tryIpGeolocate` log to the service worker
+  console (`chrome://extensions` → Tab Out → inspect service worker)
+  so users can see why IP detection didn't resolve.
 
 ## [2.6.1] — 2026-04-18
 
