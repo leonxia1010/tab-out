@@ -6,6 +6,64 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [2.6.0] — 2026-04-18
+
+Header widgets round 2: the dashboard picks up two new opt-in readouts
+that share the widget contract introduced in v2.1.0. A Weather pill
+shows current temperature + condition (Open-Meteo, no account
+required) next to the clock; a Countdown timer lets you start a
+Pomodoro-style run from the header that keeps going across tabs and
+reloads, posts a desktop notification on completion, and chimes a
+three-note triad when the dashboard is focused. Both widgets are
+disabled-by-default / off-by-default respectively so the header stays
+quiet until you configure them in Settings.
+
+### Added
+
+- **Weather widget** — temperature + 8-bucket WMO condition icon
+  (clear / partly-cloudy / cloud / fog / rain / snow / shower /
+  storm) in the dashboard header. Disabled by default. Enable from
+  Settings → Weather, enter a city (Open-Meteo geocoding returns
+  lat/lon), and pick Celsius or Fahrenheit. The service worker polls
+  Open-Meteo every 30 minutes and on demand when the dashboard
+  notices cached data older than 30 min. Unit switches are
+  display-only — no re-fetch for a C↔F flip.
+- **Countdown timer widget** — single-timer MVP with a 2×3 preset
+  grid (5/10/15/25/45/60 min) plus a 1–600 minute custom input.
+  State persists in `chrome.storage.local['tabout:countdownState']`
+  so reloading the dashboard mid-countdown resumes the running
+  timer, and two dashboard tabs stay in lockstep via
+  `chrome.storage.onChanged`. Completion fans out via
+  `chrome.notifications` (seen from any tab) plus an in-page toast
+  and a C5-E5-G5 triad when the dashboard is focused; multi-tab
+  users don't get stacked effects. Reset/pause/resume wire into
+  `chrome.alarms.{create,clear}` so the SW can fire the completion
+  alarm even if every Tab Out tab is suspended.
+- `playCompletionSound()` in `animations.ts` — three-note triad
+  reusing the shared `AudioContext` pool already behind
+  `playCloseSound()`.
+- Weather + Countdown sections on the Options page, complete with
+  dirty-state tracking + Save.
+
+### Changed
+
+- `tabout:settings` picks up two new top-level keys: `weather`
+  (`enabled`, `locationLabel`, `latitude`, `longitude`, `unit`) and
+  `countdown` (`enabled`, `soundEnabled`). `setSettings(patch)`
+  extends the spread-merge pattern so a partial patch like
+  `{ weather: { unit: 'F' } }` doesn't clobber siblings;
+  `normalizeSettings()` clamps lat/lon to ±90 / ±180 and rejects
+  non-finite values.
+- `manifest.json` picks up the `"notifications"` permission and two
+  Open-Meteo `host_permissions` (`api.open-meteo.com`,
+  `geocoding-api.open-meteo.com`). Chrome will prompt for
+  notifications on extension reload (standard MV3 flow).
+- `background.js` gains `fetchWeatherNow()` (Open-Meteo poller with
+  SW-side 30-min alarm + on-demand `chrome.runtime.sendMessage`
+  trigger on location/enabled edges) and `handleCountdownComplete()`
+  (alarm-driven notification + 24h stale guard so a browser restart
+  doesn't fire "your timer is done" for a timer that ended yesterday).
+
 ## [2.5.0] — 2026-04-18
 
 Dashboard becomes a current-window control panel: tab lists, close

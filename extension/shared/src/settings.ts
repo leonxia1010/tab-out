@@ -1,7 +1,9 @@
 // Shared settings module — imported by both dashboard and options page.
 //
 // Storage shape (chrome.storage.local['tabout:settings']):
-//   { theme, clock: { format }, layout }
+//   { theme, clock: { format }, layout, shortcutPins, shortcutHides,
+//     weather: { enabled, locationLabel, latitude, longitude, unit },
+//     countdown: { enabled, soundEnabled } }
 //
 // Theme FOUC invariant: localStorage['tabout:theme-cache'] mirrors the
 // resolved explicit theme ('light' or 'dark' only; 'system' clears the
@@ -18,10 +20,24 @@ import { createLock, storage } from './storage.js';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ClockFormat = '12h' | '24h';
 export type Layout = 'masonry' | 'grid';
+export type TemperatureUnit = 'C' | 'F';
 
 export interface ShortcutPin {
   url: string;
   title: string;
+}
+
+export interface WeatherSettings {
+  enabled: boolean;
+  locationLabel: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  unit: TemperatureUnit;
+}
+
+export interface CountdownSettings {
+  enabled: boolean;
+  soundEnabled: boolean;
 }
 
 export interface ToutSettings {
@@ -30,6 +46,8 @@ export interface ToutSettings {
   layout: Layout;
   shortcutPins: ShortcutPin[];
   shortcutHides: string[];
+  weather: WeatherSettings;
+  countdown: CountdownSettings;
 }
 
 export const SETTINGS_KEY = 'tabout:settings';
@@ -51,6 +69,22 @@ export function defaultSettings(): ToutSettings {
     layout: 'masonry',
     shortcutPins: [],
     shortcutHides: [],
+    weather: {
+      // Default ON so a fresh install surfaces the "Set location"
+      // onboarding hint in the header. Location still starts null —
+      // the widget shows a clickable prompt that opens Settings
+      // directly. Users who don't want a weather readout can flip
+      // the toggle off in Settings, which unmounts the node entirely.
+      enabled: true,
+      locationLabel: null,
+      latitude: null,
+      longitude: null,
+      unit: 'C',
+    },
+    countdown: {
+      enabled: true,
+      soundEnabled: true,
+    },
   };
 }
 
@@ -64,6 +98,48 @@ function isClockFormat(v: unknown): v is ClockFormat {
 
 function isLayout(v: unknown): v is Layout {
   return v === 'masonry' || v === 'grid';
+}
+
+function isTemperatureUnit(v: unknown): v is TemperatureUnit {
+  return v === 'C' || v === 'F';
+}
+
+// Latitude/longitude must be finite real numbers in valid ranges — NaN,
+// strings, or out-of-range values all fall back to null so the widget
+// mount guard (`latitude === null`) trips and skips rendering.
+function isFiniteLatitude(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= -90 && v <= 90;
+}
+
+function isFiniteLongitude(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= -180 && v <= 180;
+}
+
+function normalizeWeather(v: unknown): WeatherSettings {
+  const d = defaultSettings().weather;
+  if (!v || typeof v !== 'object') return d;
+  const r = v as Partial<WeatherSettings>;
+  const lat = isFiniteLatitude(r.latitude) ? r.latitude : null;
+  const lon = isFiniteLongitude(r.longitude) ? r.longitude : null;
+  return {
+    enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
+    locationLabel: typeof r.locationLabel === 'string' && r.locationLabel.length > 0
+      ? r.locationLabel
+      : null,
+    latitude: lat,
+    longitude: lon,
+    unit: isTemperatureUnit(r.unit) ? r.unit : d.unit,
+  };
+}
+
+function normalizeCountdown(v: unknown): CountdownSettings {
+  const d = defaultSettings().countdown;
+  if (!v || typeof v !== 'object') return d;
+  const r = v as Partial<CountdownSettings>;
+  return {
+    enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
+    soundEnabled: typeof r.soundEnabled === 'boolean' ? r.soundEnabled : d.soundEnabled,
+  };
 }
 
 function isShortcutPin(v: unknown): v is ShortcutPin {
@@ -100,6 +176,8 @@ export function normalizeSettings(raw: unknown): ToutSettings {
     layout: isLayout(r.layout) ? r.layout : d.layout,
     shortcutPins: normalizeShortcutPins(r.shortcutPins),
     shortcutHides: normalizeShortcutHides(r.shortcutHides),
+    weather: normalizeWeather(r.weather),
+    countdown: normalizeCountdown(r.countdown),
   };
 }
 
@@ -157,6 +235,10 @@ export function setSettings(patch: Partial<ToutSettings>): Promise<ToutSettings>
       shortcutHides: patch.shortcutHides
         ? normalizeShortcutHides(patch.shortcutHides)
         : current.shortcutHides,
+      // Same spread-merge reasoning as clock: callers can patch
+      // `{ weather: { unit: 'F' } }` without clobbering lat/lon/enabled.
+      weather: normalizeWeather({ ...current.weather, ...(patch.weather ?? {}) }),
+      countdown: normalizeCountdown({ ...current.countdown, ...(patch.countdown ?? {}) }),
     };
     await storage().set({ [SETTINGS_KEY]: next });
     syncThemeCache(next.theme);

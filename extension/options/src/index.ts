@@ -7,6 +7,7 @@ import {
   type ThemeMode,
   type ClockFormat,
   type Layout,
+  type TemperatureUnit,
 } from '../../shared/dist/settings.js';
 import { el } from '../../shared/dist/dom-utils.js';
 import { extractHostname } from '../../shared/dist/url.js';
@@ -28,6 +29,8 @@ function cloneSettings(s: ToutSettings): ToutSettings {
     layout: s.layout,
     shortcutPins: s.shortcutPins.map((p) => ({ ...p })),
     shortcutHides: [...s.shortcutHides],
+    weather: { ...s.weather },
+    countdown: { ...s.countdown },
   };
 }
 
@@ -35,12 +38,28 @@ function pinsKey(pins: readonly { url: string; title: string }[]): string {
   return pins.map((p) => `${p.url}\u0000${p.title}`).join('\u0001');
 }
 
+function weatherKey(w: ToutSettings['weather']): string {
+  return [
+    w.enabled ? '1' : '0',
+    w.unit,
+    w.locationLabel ?? '',
+    w.latitude ?? '',
+    w.longitude ?? '',
+  ].join('\u0001');
+}
+
+function countdownKey(c: ToutSettings['countdown']): string {
+  return `${c.enabled ? '1' : '0'}|${c.soundEnabled ? '1' : '0'}`;
+}
+
 function isDirty(): boolean {
   return draft.theme !== baseline.theme
     || draft.clock.format !== baseline.clock.format
     || draft.layout !== baseline.layout
     || pinsKey(draft.shortcutPins) !== pinsKey(baseline.shortcutPins)
-    || draft.shortcutHides.join('\u0001') !== baseline.shortcutHides.join('\u0001');
+    || draft.shortcutHides.join('\u0001') !== baseline.shortcutHides.join('\u0001')
+    || weatherKey(draft.weather) !== weatherKey(baseline.weather)
+    || countdownKey(draft.countdown) !== countdownKey(baseline.countdown);
 }
 
 function radios(name: string): NodeListOf<HTMLInputElement> {
@@ -108,12 +127,29 @@ function renderHiddenList(): void {
   );
 }
 
+function renderWeatherSection(): void {
+  const enabled = document.getElementById('weatherEnabled') as HTMLInputElement | null;
+  const location = document.getElementById('weatherLocation') as HTMLInputElement | null;
+  if (enabled) enabled.checked = draft.weather.enabled;
+  if (location) location.value = draft.weather.locationLabel ?? '';
+  setRadioValue('weatherUnit', draft.weather.unit);
+}
+
+function renderCountdownSection(): void {
+  const enabled = document.getElementById('countdownEnabled') as HTMLInputElement | null;
+  const sound = document.getElementById('countdownSound') as HTMLInputElement | null;
+  if (enabled) enabled.checked = draft.countdown.enabled;
+  if (sound) sound.checked = draft.countdown.soundEnabled;
+}
+
 function renderForm(): void {
   setRadioValue('theme', draft.theme);
   setRadioValue('clockFormat', draft.clock.format);
   setRadioValue('layout', draft.layout);
   renderPinnedList();
   renderHiddenList();
+  renderWeatherSection();
+  renderCountdownSection();
 }
 
 function renderDirtyState(): void {
@@ -136,6 +172,10 @@ function isClockFormat(v: string): v is ClockFormat {
 
 function isLayout(v: string): v is Layout {
   return v === 'masonry' || v === 'grid';
+}
+
+function isTemperatureUnit(v: string): v is TemperatureUnit {
+  return v === 'C' || v === 'F';
 }
 
 function wireRadio(name: string, handler: (value: string) => void): void {
@@ -171,6 +211,117 @@ function cancel(): void {
   navigateToDashboard();
 }
 
+// Open-Meteo geocoding — free, no key. We only need the first result;
+// the user's city name is stored verbatim in `locationLabel` for the
+// popover readout, and lat/lon is what the forecast endpoint actually
+// consumes.
+interface GeocodingResult {
+  name: string;
+  admin1?: string;
+  country_code?: string;
+  latitude: number;
+  longitude: number;
+}
+
+const GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
+
+function formatGeocodingLabel(r: GeocodingResult): string {
+  const parts: string[] = [r.name];
+  if (r.admin1) parts.push(r.admin1);
+  if (r.country_code) parts.push(r.country_code);
+  return parts.join(', ');
+}
+
+async function lookupLocation(query: string): Promise<GeocodingResult | null> {
+  const url = `${GEOCODING_URL}?name=${encodeURIComponent(query)}&count=1&language=en&format=json`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const body = await res.json();
+    const first = Array.isArray(body?.results) && body.results.length > 0 ? body.results[0] : null;
+    if (!first || typeof first.latitude !== 'number' || typeof first.longitude !== 'number') return null;
+    return first as GeocodingResult;
+  } catch {
+    return null;
+  }
+}
+
+function wireWeather(): void {
+  const enabled = document.getElementById('weatherEnabled') as HTMLInputElement | null;
+  const location = document.getElementById('weatherLocation') as HTMLInputElement | null;
+  const findBtn = document.getElementById('weatherLocationSearch') as HTMLButtonElement | null;
+  const feedback = document.getElementById('weatherLocationFeedback');
+
+  enabled?.addEventListener('change', () => {
+    draft.weather = { ...draft.weather, enabled: enabled.checked };
+    renderDirtyState();
+  });
+
+  // Free-text typing alone doesn't mutate draft.weather.locationLabel —
+  // the user has to commit with Find (or Enter). Without this guard a
+  // stray keypress would mark the form dirty against an incomplete
+  // location string that has no lat/lon to pair with.
+  location?.addEventListener('input', () => {
+    if (feedback) feedback.textContent = '';
+  });
+
+  const runLookup = async (): Promise<void> => {
+    if (!location || !feedback) return;
+    const query = location.value.trim();
+    if (!query) {
+      feedback.textContent = 'Enter a city or ZIP first.';
+      return;
+    }
+    feedback.textContent = 'Searching\u2026';
+    const hit = await lookupLocation(query);
+    if (!hit) {
+      feedback.textContent = 'Location not found.';
+      return;
+    }
+    const label = formatGeocodingLabel(hit);
+    draft.weather = {
+      ...draft.weather,
+      locationLabel: label,
+      latitude: hit.latitude,
+      longitude: hit.longitude,
+    };
+    location.value = label;
+    feedback.textContent = `Using ${label}.`;
+    renderDirtyState();
+  };
+
+  findBtn?.addEventListener('click', () => {
+    void runLookup();
+  });
+  location?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      void runLookup();
+    }
+  });
+
+  wireRadio('weatherUnit', (value) => {
+    if (isTemperatureUnit(value)) {
+      draft.weather = { ...draft.weather, unit: value };
+      renderDirtyState();
+    }
+  });
+}
+
+function wireCountdown(): void {
+  const enabled = document.getElementById('countdownEnabled') as HTMLInputElement | null;
+  const sound = document.getElementById('countdownSound') as HTMLInputElement | null;
+
+  enabled?.addEventListener('change', () => {
+    draft.countdown = { ...draft.countdown, enabled: enabled.checked };
+    renderDirtyState();
+  });
+  sound?.addEventListener('change', () => {
+    draft.countdown = { ...draft.countdown, soundEnabled: sound.checked };
+    renderDirtyState();
+  });
+}
+
 async function bootstrap(): Promise<void> {
   const initial = await getSettings();
   baseline = cloneSettings(initial);
@@ -198,6 +349,9 @@ async function bootstrap(): Promise<void> {
       renderDirtyState();
     }
   });
+
+  wireWeather();
+  wireCountdown();
 
   document.getElementById('saveBtn')?.addEventListener('click', () => {
     void save();

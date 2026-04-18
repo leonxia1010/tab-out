@@ -1797,6 +1797,282 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   height: 14px;
 }
 
+/* Weather widget — compact "+77°F · Partly cloudy" text readout.
+   Leftmost in the header cluster so the left-to-right narrative reads:
+   here's the weather → here's your timer → controls → clock. No
+   border / no hover fill — weather is passive display, not an
+   affordance; colour darkens on hover as the only cue that it's
+   clickable (popover opens on click). */
+.weather-widget {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  transition: color 0.15s;
+}
+
+.weather-widget:hover {
+  color: var(--ink);
+}
+
+.weather-widget-readout {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Pre-configuration state — the readout becomes a clickable prompt
+   that opens Settings directly. Dashed underline hints at "not yet
+   data, click to configure" without adding an explicit link glyph. */
+.weather-widget-prompt {
+  color: var(--accent-amber, var(--muted));
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+}
+
+.weather-widget-prompt:hover {
+  color: var(--accent-amber, var(--ink));
+  text-decoration: underline;
+}
+
+.weather-popover {
+  position: fixed;
+  margin: 0;
+  padding: 14px 16px;
+  min-width: 220px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 8px 32px var(--shadow);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  inset: auto;
+}
+
+.weather-popover::backdrop {
+  background: transparent;
+}
+
+.weather-popover-location {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.weather-popover-temp {
+  font-family: 'Newsreader', serif;
+  font-weight: 300;
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+
+.weather-popover-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--accent-amber, var(--ink));
+  text-decoration: none;
+}
+
+.weather-popover-hint:hover {
+  text-decoration: underline;
+}
+
+/* Countdown widget — inline "MM:SS ▶ ↺" pill with three hit targets:
+   the time label opens the duration picker (idle only), play toggles
+   run/pause, reset returns to idle. Rounded rectangle + subtle border
+   differentiate the pill from the surrounding textual widgets (weather
+   left, clock right) and reinforce its role as the cluster's
+   single action. */
+.countdown-widget {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--warm-gray);
+  background: var(--card-bg);
+  border-radius: 10px;
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.countdown-widget:hover {
+  border-color: var(--muted);
+}
+
+.countdown-time-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  min-width: 3.6em;
+  text-align: left;
+}
+
+.countdown-time-btn:disabled {
+  cursor: default;
+  color: var(--ink);
+}
+
+.countdown-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.countdown-icon-btn:hover {
+  background: var(--paper);
+}
+
+.countdown-icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.countdown-icon-btn-muted {
+  color: var(--muted);
+}
+
+.countdown-icon-btn-muted:hover {
+  color: var(--ink);
+}
+
+.countdown-widget.countdown-running {
+  border-color: var(--accent-amber, var(--muted));
+}
+
+.countdown-widget.countdown-running .countdown-time-btn {
+  color: var(--accent-amber, var(--ink));
+}
+
+.countdown-popover {
+  position: fixed;
+  margin: 0;
+  padding: 14px;
+  min-width: 240px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 8px 32px var(--shadow);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  inset: auto;
+}
+
+.countdown-popover::backdrop {
+  background: transparent;
+}
+
+.countdown-popover-title {
+  margin-bottom: 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.countdown-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.countdown-preset {
+  padding: 8px 0;
+  border: 1px solid var(--warm-gray);
+  background: var(--card-bg);
+  color: var(--ink);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.countdown-preset:hover {
+  background: var(--paper);
+  border-color: var(--ink);
+}
+
+.countdown-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.countdown-custom-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.countdown-custom-input:focus {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.countdown-custom-unit {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Same amber fill as the close-extras button in the tab-cleanup
+   banner — both are "apply this action" primaries, and keeping the
+   palette consistent gives users one Pavlovian signal for
+   commit-style controls across the dashboard. */
+.countdown-custom-apply {
+  padding: 6px 14px;
+  border: none;
+  background: var(--accent-amber);
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.countdown-custom-apply:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
 /* ============================================================
    Dark theme palette (v2.1.0).
    Applies when:

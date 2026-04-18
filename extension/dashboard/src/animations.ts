@@ -39,6 +39,41 @@ function getSharedAudioCtx(): AudioContext | null {
   return sharedCtx;
 }
 
+// Three-note rising C-E-G triad for countdown completion. Distinct
+// from playCloseSound's noise-band "thunk" — the close sound is a tab
+// dropping, this one is a task finishing. Reuses the shared AudioContext
+// pool so the first sound of the page still primes the autoplay gate.
+export function playCompletionSound(): void {
+  try {
+    const ctx = getSharedAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') void ctx.resume();
+
+    const t = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99]; // C5 E5 G5
+    const spacing = 0.15;
+    const toneDuration = 0.3;
+
+    for (let i = 0; i < notes.length; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = notes[i];
+
+      const start = t + i * spacing;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.3, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + toneDuration);
+
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + toneDuration);
+    }
+  } catch {
+    // Audio not supported — fail silently.
+  }
+}
+
 export function playCloseSound(): void {
   try {
     const ctx = getSharedAudioCtx();

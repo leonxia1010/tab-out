@@ -21,6 +21,8 @@ import { mountClock, type ClockHandle } from './widgets/clock.js';
 import { mountSearch } from './widgets/search.js';
 import { mountShortcuts, type ShortcutsHandle } from './widgets/shortcuts.js';
 import { mountSettingsLink } from './widgets/settings-link.js';
+import { mountWeather, type WeatherHandle } from './widgets/weather.js';
+import { mountCountdown, type CountdownHandle } from './widgets/countdown.js';
 
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
 
@@ -101,11 +103,19 @@ async function bootstrapSettings(): Promise<void> {
 
   let clock: ClockHandle | null = null;
   let themeToggle: ThemeToggleHandle | null = null;
+  let weather: WeatherHandle | null = null;
+  let countdown: CountdownHandle | null = null;
   if (slot) {
+    // Cluster reads left → right: weather (ambient context) →
+    // countdown (active timer, sits "left of the clock" so you
+    // glance at it the same way you glance at the time) → clock
+    // (original v2.5 position, kept stable so returning users don't
+    // lose their anchor) → theme → settings (controls at the far
+    // edge where missing them is cheap).
+    weather = mountWeather(slot, settings.weather);
+    countdown = mountCountdown(slot, settings.countdown);
     clock = mountClock(slot, settings.clock.format);
     themeToggle = mountThemeToggle(slot, settings.theme);
-    // Settings is a meta tool (go configure, come back) — parked
-    // rightmost in the cluster so the common-use widgets read first.
     mountSettingsLink(slot);
   }
   let shortcuts: ShortcutsHandle | null = null;
@@ -122,6 +132,8 @@ async function bootstrapSettings(): Promise<void> {
     themeToggle?.syncIcon(next.theme);
     clock?.applyFormat(next.clock.format);
     shortcuts?.applySettings(next);
+    weather?.applySettings(next.weather);
+    countdown?.applySettings(next.countdown);
   });
 }
 
