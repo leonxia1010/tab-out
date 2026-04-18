@@ -9,6 +9,7 @@ import {
   type ShortcutPin,
 } from '../../shared/dist/settings.js';
 import { el } from '../../shared/dist/dom-utils.js';
+import { extractHostname } from '../../shared/dist/url.js';
 
 function radios(name: string): NodeListOf<HTMLInputElement> {
   return document.querySelectorAll<HTMLInputElement>(`input[type="radio"][name="${name}"]`);
@@ -21,11 +22,9 @@ function setRadioValue(name: string, value: string): void {
 }
 
 function hostOf(rawUrl: string): string {
-  try {
-    return new URL(rawUrl).hostname;
-  } catch {
-    return rawUrl;
-  }
+  // Fall back to the raw string so a malformed stored URL still renders
+  // something readable in the pinned/hidden lists instead of an empty cell.
+  return extractHostname(rawUrl) ?? rawUrl;
 }
 
 // Shortcut list rendering routes every user-supplied string through

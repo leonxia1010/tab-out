@@ -12,6 +12,7 @@
 // the window.renderers bridge in one shot.
 
 import { el, mount, svg } from '../../shared/dist/dom-utils.js';
+import { extractHostname } from '../../shared/dist/url.js';
 import { faviconUrl } from './favicon.js';
 import {
   cleanTitle,
@@ -347,8 +348,8 @@ export function renderDomainCard(group: DomainGroup, groupIndex: number): HTMLEl
 }
 
 export function renderDeferredItem(item: DeferredTab): HTMLElement {
-  let domain = '';
-  try { domain = new URL(item.url).hostname.replace(/^www\./, ''); } catch {}
+  const host = extractHostname(item.url);
+  const domain = host ? host.replace(/^www\./, '') : '';
   const faviconSrc = faviconUrl(item.url, 16);
   const ago = timeAgo(item.deferred_at);
   const titleText = item.title || item.url;

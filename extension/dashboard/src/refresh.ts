@@ -23,6 +23,7 @@ import { applyOpenTabsDiff } from './diff.js';
 import { fetchOpenTabs } from './extension-bridge.js';
 import { getOpenTabs } from './state.js';
 import { getDisplayableTabs } from './utils.js';
+import { extractHostname } from '../../shared/dist/url.js';
 
 const REFRESH_DEBOUNCE_MS = 500;
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -54,7 +55,10 @@ function displayableSignature(): string {
     .map((t) => {
       const raw = t.url || '';
       if (!raw) return '';
-      try { return new URL(raw).hostname; } catch { return raw; }
+      // Fall back to the raw string on parse failure so chrome:// and
+      // similar schemes still participate in the signature instead of
+      // collapsing to '' and hiding real UI state changes.
+      return extractHostname(raw) ?? raw;
     })
     .filter(Boolean)
     .join('|');

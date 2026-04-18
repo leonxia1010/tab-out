@@ -30,7 +30,7 @@
 
 import { anchorPopoverTo, el, iconNode } from '../../../shared/dist/dom-utils.js';
 import { faviconUrl } from '../favicon.js';
-import { canonicalUrl } from '../../../shared/dist/url.js';
+import { canonicalUrl, extractHostname } from '../../../shared/dist/url.js';
 import type { ToutSettings, ShortcutPin } from '../../../shared/dist/settings.js';
 
 const MAX_TILES = 10;
@@ -56,11 +56,7 @@ interface TopSite {
 }
 
 function hostOf(rawUrl: string): string {
-  try {
-    return new URL(rawUrl).hostname;
-  } catch {
-    return '';
-  }
+  return extractHostname(rawUrl) ?? '';
 }
 
 // Loopback/local-dev hosts — filtered out of topSites at the source so

@@ -16,6 +16,7 @@ import {
   setOpenTabs,
   type Tab,
 } from './state.js';
+import { extractHostname } from '../../shared/dist/url.js';
 
 function chromeAvailable(): boolean {
   return typeof chrome !== 'undefined' && !!chrome?.tabs;
@@ -44,8 +45,7 @@ function tabOutNewtabUrls(): string[] {
 }
 
 function hostnameOf(url: string | undefined): string | null {
-  if (!url) return null;
-  try { return new URL(url).hostname; } catch { return null; }
+  return url ? extractHostname(url) : null;
 }
 
 // Schemes where hostname matching is unreliable or meaningless:
