@@ -43,6 +43,52 @@
       </fieldset>
     </section>
 
+    <section class="settings-section" aria-labelledby="weather-heading">
+      <h2 id="weather-heading">Weather</h2>
+      <p class="settings-help">
+        Shows a temperature readout in the dashboard header. Refreshes every
+        30 minutes via <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> — no account required.
+      </p>
+
+      <label class="settings-toggle">
+        <input type="checkbox" id="weatherEnabled">
+        Show weather widget
+      </label>
+
+      <div class="settings-field">
+        <div class="settings-field-label">Location</div>
+        <div class="settings-inline-row">
+          <input type="text" id="weatherLocation" class="settings-text-input" placeholder="e.g., Boston, MA" autocomplete="off">
+          <button type="button" id="weatherLocationSearch" class="settings-btn settings-btn-muted">Find</button>
+        </div>
+        <span id="weatherLocationFeedback" class="settings-hint" aria-live="polite"></span>
+      </div>
+
+      <fieldset class="settings-field">
+        <legend>Temperature unit</legend>
+        <label><input type="radio" name="weatherUnit" value="C"> Celsius</label>
+        <label><input type="radio" name="weatherUnit" value="F"> Fahrenheit</label>
+      </fieldset>
+    </section>
+
+    <section class="settings-section" aria-labelledby="countdown-heading">
+      <h2 id="countdown-heading">Countdown timer</h2>
+      <p class="settings-help">
+        Quick Pomodoro-style timer in the dashboard header. The countdown keeps
+        running across tabs and fires a desktop notification when it finishes.
+      </p>
+
+      <label class="settings-toggle">
+        <input type="checkbox" id="countdownEnabled">
+        Show countdown widget
+      </label>
+
+      <label class="settings-toggle">
+        <input type="checkbox" id="countdownSound">
+        Play sound when timer completes
+      </label>
+    </section>
+
     <section class="settings-section" aria-labelledby="shortcuts-heading">
       <h2 id="shortcuts-heading">Shortcuts</h2>
       <p class="settings-help">

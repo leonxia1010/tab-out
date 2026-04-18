@@ -14,16 +14,26 @@ function installChrome() {
   vi.stubGlobal('chrome', {
     runtime: {
       onInstalled: { addListener: vi.fn() },
+      onMessage: { addListener: vi.fn() },
+      getURL: vi.fn((p) => `chrome-extension://test/${p}`),
     },
     alarms: {
       create: vi.fn(),
+      clear: vi.fn(async () => true),
       onAlarm: { addListener: vi.fn() },
     },
     storage: {
       local: {
         get: vi.fn(async () => ({})),
         set: vi.fn(async () => {}),
+        remove: vi.fn(async () => {}),
       },
+      onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+    },
+    notifications: {
+      create: vi.fn(),
+      clear: vi.fn(),
+      onClicked: { addListener: vi.fn() },
     },
   });
 }

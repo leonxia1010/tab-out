@@ -153,6 +153,59 @@ body {
   margin-top: 20px;
 }
 
+/* v2.6.0 helpers — weather/countdown toggle rows, text inputs, feedback. */
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  cursor: pointer;
+  font-size: 14px;
+  user-select: none;
+}
+
+.settings-toggle input[type="checkbox"] {
+  cursor: pointer;
+  margin: 0;
+}
+
+.settings-toggle + .settings-toggle {
+  padding-top: 4px;
+}
+
+.settings-inline-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 4px;
+}
+
+.settings-text-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.settings-text-input:focus {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.settings-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+  min-height: 1em;
+}
+
 .settings-field-label {
   font-size: 11px;
   font-weight: 500;

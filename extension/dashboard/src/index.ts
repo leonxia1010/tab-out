@@ -21,6 +21,7 @@ import { mountClock, type ClockHandle } from './widgets/clock.js';
 import { mountSearch } from './widgets/search.js';
 import { mountShortcuts, type ShortcutsHandle } from './widgets/shortcuts.js';
 import { mountSettingsLink } from './widgets/settings-link.js';
+import { mountWeather, type WeatherHandle } from './widgets/weather.js';
 
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
 
@@ -101,8 +102,13 @@ async function bootstrapSettings(): Promise<void> {
 
   let clock: ClockHandle | null = null;
   let themeToggle: ThemeToggleHandle | null = null;
+  let weather: WeatherHandle | null = null;
   if (slot) {
     clock = mountClock(slot, settings.clock.format);
+    // Weather sits between clock (time) and theme (visual affordance)
+    // so the info-bearing widgets cluster on the left of the right
+    // group and controls cluster on the right.
+    weather = mountWeather(slot, settings.weather);
     themeToggle = mountThemeToggle(slot, settings.theme);
     // Settings is a meta tool (go configure, come back) — parked
     // rightmost in the cluster so the common-use widgets read first.
@@ -122,6 +128,7 @@ async function bootstrapSettings(): Promise<void> {
     themeToggle?.syncIcon(next.theme);
     clock?.applyFormat(next.clock.format);
     shortcuts?.applySettings(next);
+    weather?.applySettings(next.weather);
   });
 }
 
