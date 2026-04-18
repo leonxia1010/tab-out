@@ -458,3 +458,183 @@ describe('closeTabsByUrls skipSelf guard', () => {
     expect(tabsApi.remove).not.toHaveBeenCalled();
   });
 });
+
+// ─── organizeTabs (v2.5.0) ─────────────────────────────────────────────────
+
+describe('organizeTabs', () => {
+  // Import lazily inside each test so the mock install happens BEFORE
+  // the module under test resolves chrome.
+  async function loadOrganize() {
+    const mod = await import('../../extension/dashboard/src/extension-bridge.ts');
+    return mod.organizeTabs;
+  }
+
+  function withMoveMock(opts) {
+    const { tabsApi } = installChrome(opts);
+    tabsApi.move = vi.fn(async () => ({}));
+    return tabsApi;
+  }
+
+  it('batches chrome.tabs.move with domain-card order + Tab Out appended', async () => {
+    const tabsApi = withMoveMock({
+      currentWindowId: 1,
+      tabs: [
+        { id: 10, url: 'https://github.com/a', pinned: false, index: 0, windowId: 1 },
+        { id: 11, url: 'https://twitter.com/x', pinned: false, index: 1, windowId: 1 },
+        { id: 12, url: NEWTAB_URL, pinned: false, index: 2, windowId: 1 },
+      ],
+    });
+    const organizeTabs = await loadOrganize();
+
+    const result = await organizeTabs([
+      { domain: 'twitter.com', tabs: [{ id: 11, url: 'https://twitter.com/x', title: 'X', index: 1 }] },
+      { domain: 'github.com', tabs: [{ id: 10, url: 'https://github.com/a', title: 'GH', index: 0 }] },
+    ]);
+
+    expect(tabsApi.move).toHaveBeenCalledTimes(1);
+    // Twitter first (from desired order), GitHub second, Tab Out last.
+    expect(tabsApi.move).toHaveBeenCalledWith([11, 10, 12], { index: 0 });
+    expect(result.movedCount).toBe(3);
+  });
+
+  it('skips pinned tabs and starts index at pinnedCount', async () => {
+    const tabsApi = withMoveMock({
+      currentWindowId: 1,
+      tabs: [
+        { id: 1, url: 'https://pin.com', pinned: true, index: 0, windowId: 1 },
+        { id: 2, url: 'https://pin.com/two', pinned: true, index: 1, windowId: 1 },
+        { id: 10, url: 'https://a.com', pinned: false, index: 2, windowId: 1 },
+        { id: 11, url: 'https://b.com', pinned: false, index: 3, windowId: 1 },
+      ],
+    });
+    const organizeTabs = await loadOrganize();
+
+    await organizeTabs([
+      { domain: 'a.com', tabs: [{ id: 10, url: 'https://a.com', index: 2 }] },
+      { domain: 'b.com', tabs: [{ id: 11, url: 'https://b.com', index: 3 }] },
+    ]);
+
+    expect(tabsApi.move).toHaveBeenCalledWith([10, 11], { index: 2 });
+    expect(tabsApi.move.mock.calls[0][0]).not.toContain(1);
+    expect(tabsApi.move.mock.calls[0][0]).not.toContain(2);
+  });
+
+  it('captures originalIndex for every non-pinned tab so undo can restore', async () => {
+    withMoveMock({
+      currentWindowId: 1,
+      tabs: [
+        { id: 1, url: 'https://pin.com', pinned: true, index: 0, windowId: 1 },
+        { id: 10, url: 'https://a.com', pinned: false, index: 1, windowId: 1 },
+        { id: 11, url: 'https://b.com', pinned: false, index: 2, windowId: 1 },
+      ],
+    });
+    const organizeTabs = await loadOrganize();
+
+    const { moves } = await organizeTabs([
+      { domain: 'b.com', tabs: [{ id: 11, url: 'https://b.com', index: 2 }] },
+      { domain: 'a.com', tabs: [{ id: 10, url: 'https://a.com', index: 1 }] },
+    ]);
+
+    // Pinned tab (id 1) excluded; non-pinned tabs captured with their pre-move index.
+    expect(moves).toEqual([
+      { tabId: 10, originalIndex: 1 },
+      { tabId: 11, originalIndex: 2 },
+    ]);
+  });
+
+  it('Tab Out tabs land at the end regardless of desired order', async () => {
+    const tabsApi = withMoveMock({
+      currentWindowId: 1,
+      tabs: [
+        { id: 10, url: 'https://a.com', pinned: false, index: 0, windowId: 1 },
+        { id: 12, url: NEWTAB_URL, pinned: false, index: 1, windowId: 1 },
+        { id: 13, url: 'chrome://newtab/', pinned: false, index: 2, windowId: 1 },
+        { id: 11, url: 'https://b.com', pinned: false, index: 3, windowId: 1 },
+      ],
+    });
+    const organizeTabs = await loadOrganize();
+
+    await organizeTabs([
+      { domain: 'a.com', tabs: [{ id: 10, url: 'https://a.com', index: 0 }] },
+      { domain: 'b.com', tabs: [{ id: 11, url: 'https://b.com', index: 3 }] },
+    ]);
+
+    const [ids] = tabsApi.move.mock.calls[0];
+    const tabOutIds = [12, 13];
+    // Tab Out ids come after every domain id.
+    for (const tabOutId of tabOutIds) {
+      const domainId10Idx = ids.indexOf(10);
+      const domainId11Idx = ids.indexOf(11);
+      const tabOutIdx = ids.indexOf(tabOutId);
+      expect(tabOutIdx).toBeGreaterThan(domainId10Idx);
+      expect(tabOutIdx).toBeGreaterThan(domainId11Idx);
+    }
+  });
+
+  it('returns movedCount=0 when no non-pinned tabs exist', async () => {
+    const tabsApi = withMoveMock({
+      currentWindowId: 1,
+      tabs: [
+        { id: 1, url: 'https://pin.com', pinned: true, index: 0, windowId: 1 },
+      ],
+    });
+    const organizeTabs = await loadOrganize();
+
+    const result = await organizeTabs([]);
+
+    expect(tabsApi.move).not.toHaveBeenCalled();
+    expect(result.movedCount).toBe(0);
+  });
+});
+
+describe('undoOrganizeTabs', () => {
+  async function loadUndo() {
+    const mod = await import('../../extension/dashboard/src/extension-bridge.ts');
+    return mod.undoOrganizeTabs;
+  }
+
+  it('replays moves in ascending originalIndex order', async () => {
+    const { tabsApi } = installChrome({ tabs: [] });
+    tabsApi.move = vi.fn(async () => ({}));
+    const undoOrganizeTabs = await loadUndo();
+
+    await undoOrganizeTabs([
+      { tabId: 11, originalIndex: 2 },
+      { tabId: 10, originalIndex: 1 },
+      { tabId: 12, originalIndex: 3 },
+    ]);
+
+    expect(tabsApi.move).toHaveBeenCalledTimes(3);
+    expect(tabsApi.move.mock.calls[0]).toEqual([10, { index: 1 }]);
+    expect(tabsApi.move.mock.calls[1]).toEqual([11, { index: 2 }]);
+    expect(tabsApi.move.mock.calls[2]).toEqual([12, { index: 3 }]);
+  });
+
+  it('no-ops on empty move list', async () => {
+    const { tabsApi } = installChrome({ tabs: [] });
+    tabsApi.move = vi.fn(async () => ({}));
+    const undoOrganizeTabs = await loadUndo();
+
+    await undoOrganizeTabs([]);
+
+    expect(tabsApi.move).not.toHaveBeenCalled();
+  });
+
+  it('swallows move rejections for tabs that were closed mid-undo', async () => {
+    const { tabsApi } = installChrome({ tabs: [] });
+    tabsApi.move = vi.fn(async (id) => {
+      if (id === 11) throw new Error('No tab with id: 11');
+      return {};
+    });
+    const undoOrganizeTabs = await loadUndo();
+
+    await expect(undoOrganizeTabs([
+      { tabId: 10, originalIndex: 0 },
+      { tabId: 11, originalIndex: 1 },
+      { tabId: 12, originalIndex: 2 },
+    ])).resolves.toBeUndefined();
+
+    // All three attempted; rejection on 11 didn't block 12.
+    expect(tabsApi.move).toHaveBeenCalledTimes(3);
+  });
+});

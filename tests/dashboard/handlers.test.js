@@ -54,12 +54,15 @@ async function loadHandlersWithMocks() {
     closeDuplicates: vi.fn().mockResolvedValue(undefined),
     closeTabOutDupes: vi.fn().mockResolvedValue(undefined),
     focusTab: vi.fn().mockResolvedValue(undefined),
+    organizeTabs: vi.fn().mockResolvedValue({ moves: [], movedCount: 0 }),
+    undoOrganizeTabs: vi.fn().mockResolvedValue(undefined),
   };
   const animSpies = {
     animateCardOut: vi.fn(),
     playCloseSound: vi.fn(),
     shootConfetti: vi.fn(),
     showToast: vi.fn(),
+    showActionToast: vi.fn(() => ({ dismiss: vi.fn() })),
   };
   const renderSpies = {
     checkAndShowEmptyState: vi.fn(),
@@ -521,6 +524,106 @@ describe('handleCloseAllDupesGlobal — aggregates per-card dedup actions', () =
 
     expect(anim.playCloseSound).toHaveBeenCalled();
     expect(render.refreshOpenTabsCounters).toHaveBeenCalled();
+  });
+});
+
+// v2.5.0 — organize-tabs flow. handleOrganizeTabs passes the current
+// domainGroups snapshot into organizeTabs(), stashes the returned moves
+// in state so the undo button can reverse, and surfaces an action toast.
+describe('handleOrganizeTabs — reorder + undo toast', () => {
+  it('calls organizeTabs with the current domain-group order', async () => {
+    const { state, handlers, bridge } = await loadHandlersWithMocks();
+    const groups = [
+      { domain: 'github.com', tabs: [{ id: 10, url: 'https://github.com', index: 1 }] },
+      { domain: 'x.com', tabs: [{ id: 11, url: 'https://x.com', index: 2 }] },
+    ];
+    state.setDomainGroups(groups);
+    bridge.organizeTabs.mockResolvedValueOnce({ moves: [], movedCount: 0 });
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'organize-tabs';
+    document.body.appendChild(btn);
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(bridge.organizeTabs).toHaveBeenCalledTimes(1);
+    const [passedGroups] = bridge.organizeTabs.mock.calls[0];
+    expect(passedGroups).toHaveLength(2);
+    expect(passedGroups[0].domain).toBe('github.com');
+    expect(passedGroups[1].domain).toBe('x.com');
+  });
+
+  it('stashes moves in state.undoSnapshot and shows an action toast', async () => {
+    const { state, handlers, bridge, anim } = await loadHandlersWithMocks();
+    state.setDomainGroups([
+      { domain: 'a.com', tabs: [{ id: 10, url: 'https://a.com', index: 0 }] },
+    ]);
+    bridge.organizeTabs.mockResolvedValueOnce({
+      moves: [{ tabId: 10, originalIndex: 0 }, { tabId: 11, originalIndex: 1 }],
+      movedCount: 2,
+    });
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'organize-tabs';
+    document.body.appendChild(btn);
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(state.getUndoSnapshot()).toMatchObject({
+      type: 'organize',
+      moves: [
+        { tabId: 10, originalIndex: 0 },
+        { tabId: 11, originalIndex: 1 },
+      ],
+    });
+    expect(anim.showActionToast).toHaveBeenCalledTimes(1);
+    const [msg, action, ttl] = anim.showActionToast.mock.calls[0];
+    expect(msg).toBe('Organized 2 tabs');
+    expect(action.label).toBe('Undo');
+    expect(ttl).toBe(60_000);
+  });
+
+  it('no-ops when movedCount is 0 (no toast, no snapshot)', async () => {
+    const { state, handlers, bridge, anim } = await loadHandlersWithMocks();
+    state.setDomainGroups([]);
+    bridge.organizeTabs.mockResolvedValueOnce({ moves: [], movedCount: 0 });
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'organize-tabs';
+    document.body.appendChild(btn);
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(anim.showActionToast).not.toHaveBeenCalled();
+    expect(state.getUndoSnapshot()).toBeNull();
+  });
+
+  it('Undo click invokes undoOrganizeTabs with the stashed moves and clears the snapshot', async () => {
+    const { state, handlers, bridge, anim } = await loadHandlersWithMocks();
+    state.setDomainGroups([
+      { domain: 'a.com', tabs: [{ id: 10, url: 'https://a.com', index: 0 }] },
+    ]);
+    const stashed = [{ tabId: 10, originalIndex: 0 }];
+    bridge.organizeTabs.mockResolvedValueOnce({ moves: stashed, movedCount: 1 });
+    handlers.attachListeners();
+
+    const btn = document.createElement('button');
+    btn.dataset.action = 'organize-tabs';
+    document.body.appendChild(btn);
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    // Trigger the Undo action by calling the onClick the handler passed to showActionToast.
+    const [, action] = anim.showActionToast.mock.calls[0];
+    action.onClick();
+    await vi.runAllTimersAsync();
+
+    expect(bridge.undoOrganizeTabs).toHaveBeenCalledWith(stashed);
+    expect(state.getUndoSnapshot()).toBeNull();
+    expect(anim.showToast).toHaveBeenCalledWith('Reverted');
   });
 });
 

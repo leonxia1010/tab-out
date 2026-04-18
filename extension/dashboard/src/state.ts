@@ -44,3 +44,20 @@ export function setDomainGroups(groups: DomainGroup[]): void {
   domainGroups = groups;
 }
 
+// --- undoSnapshot: v2.5.0 "Organize tabs" one-shot undo buffer -------------
+// In-memory only: lives for the lifetime of the dashboard tab. Closing
+// the Tab Out page or navigating away discards it, matching the
+// "undo while the toast is still visible" user mental model.
+export interface UndoSnapshot {
+  type: 'organize';
+  timestamp: number;
+  moves: Array<{ tabId: number; originalIndex: number }>;
+}
+let undoSnapshot: UndoSnapshot | null = null;
+export function getUndoSnapshot(): UndoSnapshot | null {
+  return undoSnapshot;
+}
+export function setUndoSnapshot(snap: UndoSnapshot | null): void {
+  undoSnapshot = snap;
+}
+

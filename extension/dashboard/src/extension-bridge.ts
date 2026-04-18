@@ -10,6 +10,7 @@ import {
   getOpenTabs,
   setExtensionAvailable,
   setOpenTabs,
+  type DomainGroup,
   type Tab,
 } from './state.js';
 import { extractHostname } from '../../shared/dist/url.js';
@@ -189,6 +190,82 @@ export async function closeTabOutDupes(): Promise<void> {
     .filter((id): id is number => typeof id === 'number');
 
   if (ids.length > 0) await swallow(chrome.tabs.remove(ids), 'chrome.tabs.remove');
+  await fetchOpenTabs();
+}
+
+export interface OrganizeResult {
+  moves: Array<{ tabId: number; originalIndex: number }>;
+  movedCount: number;
+}
+
+// v2.5.0 — reorder the current window's tab bar to match the dashboard's
+// domain-card order. Pinned tabs stay where Chrome enforces them; Tab Out
+// tabs move to the end so the user's tool drops out of the way once the
+// reorder lands. Returns a snapshot of every non-pinned tab's original
+// index so the caller can reverse the move for a 60s undo flow.
+export async function organizeTabs(desiredOrder: ReadonlyArray<DomainGroup>): Promise<OrganizeResult> {
+  if (!chromeAvailable()) return { moves: [], movedCount: 0 };
+
+  const allTabs = await chrome.tabs.query({ currentWindow: true });
+  const pinnedCount = allTabs.filter((t) => t.pinned).length;
+  const tabOutUrls = new Set(tabOutNewtabUrls());
+
+  // Build the desired tabId sequence from the domain cards, then append
+  // Tab Out tabs. Skip pinned tabs everywhere — Chrome rejects moves that
+  // would violate the "pinned before unpinned" invariant anyway, so
+  // filtering upfront keeps the intent explicit.
+  const seen = new Set<number>();
+  const domainTabIds: number[] = [];
+  for (const group of desiredOrder) {
+    for (const tab of group.tabs) {
+      if (typeof tab.id !== 'number') continue;
+      if (seen.has(tab.id)) continue;
+      const real = allTabs.find((t) => t.id === tab.id);
+      if (!real || real.pinned) continue;
+      if (real.url && tabOutUrls.has(real.url)) continue; // Tab Out handled below
+      seen.add(tab.id);
+      domainTabIds.push(tab.id);
+    }
+  }
+
+  const tabOutIds = allTabs
+    .filter((t) => typeof t.id === 'number' && !t.pinned && !!t.url && tabOutUrls.has(t.url))
+    .map((t) => t.id as number);
+
+  // Snapshot BEFORE moving — covers every non-pinned tab so undo can
+  // restore positions even for tabs we left in place (e.g. chrome://
+  // system pages not represented by any domain card).
+  const moves: Array<{ tabId: number; originalIndex: number }> = [];
+  for (const t of allTabs) {
+    if (typeof t.id === 'number' && !t.pinned) {
+      moves.push({ tabId: t.id, originalIndex: t.index });
+    }
+  }
+
+  const finalOrder = [...domainTabIds, ...tabOutIds];
+  if (finalOrder.length === 0) return { moves, movedCount: 0 };
+
+  // chrome.tabs.move with an array + single index places them starting
+  // at that index, preserving the array order. Batched into one atomic
+  // call so onMoved fires once per tab but the final layout is
+  // deterministic.
+  await swallow(chrome.tabs.move(finalOrder, { index: pinnedCount }), 'chrome.tabs.move');
+  await fetchOpenTabs();
+  return { moves, movedCount: finalOrder.length };
+}
+
+export async function undoOrganizeTabs(
+  moves: ReadonlyArray<{ tabId: number; originalIndex: number }>,
+): Promise<void> {
+  if (!chromeAvailable() || moves.length === 0) return;
+
+  // Replay in ascending originalIndex order so each move lands at the
+  // slot Chrome expects (earlier tabs shifting later ones left-to-right
+  // matches how organizeTabs originally consumed the index).
+  const sorted = [...moves].sort((a, b) => a.originalIndex - b.originalIndex);
+  for (const m of sorted) {
+    await swallow(chrome.tabs.move(m.tabId, { index: m.originalIndex }), 'chrome.tabs.move');
+  }
   await fetchOpenTabs();
 }
 

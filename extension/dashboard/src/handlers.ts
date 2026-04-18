@@ -12,12 +12,16 @@ import { friendlyDomain } from './utils.js';
 import {
   getDomainGroups,
   getOpenTabs,
+  getUndoSnapshot,
+  setUndoSnapshot,
 } from './state.js';
 import {
   closeDuplicates,
   closeTabOutDupes,
   closeTabsByUrls,
   focusTab,
+  organizeTabs,
+  undoOrganizeTabs,
 } from './extension-bridge.js';
 import {
   checkDeferred as apiCheckDeferred,
@@ -33,6 +37,7 @@ import {
   animateCardOut as animateCardOutRaw,
   playCloseSound,
   shootConfetti,
+  showActionToast,
   showToast,
 } from './animations.js';
 import {
@@ -408,6 +413,39 @@ async function handleCloseAllDupesGlobal(): Promise<void> {
   showToast(`Closed ${allUrls.length} duplicate${allUrls.length !== 1 ? 's' : ''} across ${domainCount} ${domainWord}`);
 }
 
+// v2.5.0 — reorder the current window's tab bar to match the dashboard
+// domain-card order. Result snapshot is stashed in module state so the
+// toast's Undo button can reverse the move for up to 60 seconds.
+async function handleOrganizeTabs(): Promise<void> {
+  const desiredOrder = getDomainGroups().map((g) => ({ domain: g.domain, tabs: g.tabs.slice() }));
+  const { moves, movedCount } = await organizeTabs(desiredOrder);
+  if (movedCount === 0) return;
+
+  setUndoSnapshot({ type: 'organize', timestamp: Date.now(), moves });
+  refreshOpenTabsCounters();
+
+  const { dismiss } = showActionToast(
+    `Organized ${movedCount} tab${movedCount !== 1 ? 's' : ''}`,
+    {
+      label: 'Undo',
+      onClick: () => {
+        void handleUndoOrganize();
+        dismiss();
+      },
+    },
+    60_000,
+  );
+}
+
+async function handleUndoOrganize(): Promise<void> {
+  const snap = getUndoSnapshot();
+  if (!snap || snap.type !== 'organize') return;
+  await undoOrganizeTabs(snap.moves);
+  setUndoSnapshot(null);
+  refreshOpenTabsCounters();
+  showToast('Reverted');
+}
+
 async function handleArchiveClearAll(): Promise<void> {
   // Browser confirm is fine here: this is a dashboard page (not a service
   // worker) and the action is genuinely destructive + user-initiated.
@@ -541,6 +579,7 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card());
     case 'close-all-open-tabs':return handleCloseAllOpenTabs();
     case 'close-all-dupes-global': return handleCloseAllDupesGlobal();
+    case 'organize-tabs':      return handleOrganizeTabs();
     case 'delete-archived':    return handleDeleteArchived(actionEl);
     case 'restore-archived':   return handleRestoreArchived(actionEl);
     case 'archive-toggle':     return handleArchiveToggle(actionEl);

@@ -601,6 +601,36 @@ html[data-layout="grid"] .domains > * {
   color: var(--status-active);
 }
 
+/* v2.5.0 — undo action button inside the toast (Organize tabs flow).
+   Inline with the text so a single toast row carries both the message
+   and the reversal affordance. Pointer-events re-enabled because the
+   toast container sets pointer-events: none. */
+.toast-action {
+  background: transparent;
+  border: none;
+  color: var(--accent-amber);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 2px 6px;
+  margin-left: 6px;
+  cursor: pointer;
+  pointer-events: auto;
+  border-radius: 4px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.toast-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+  text-decoration: none;
+}
+
+.toast-action:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 2px;
+}
+
 /* ---- Footer ---- */
 footer {
   margin-top: 48px;
