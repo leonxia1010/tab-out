@@ -30,6 +30,9 @@ export const WEATHER_STORAGE_KEY = 'tabout:weatherData';
 const STALE_MS = 30 * 60 * 1000;
 const POPOVER_ID = 'taboutWeatherPopover';
 const POPOVER_GAP_PX = 8;
+// Hover-close grace period: lets the cursor bridge the ~8px gap
+// between trigger and popover without the popover snapping shut.
+const HOVER_CLOSE_DELAY_MS = 150;
 
 // WMO code → human-readable condition text. Condensed from the full
 // WMO table to ~10 buckets covering the atmospheric phenomena users
@@ -137,6 +140,36 @@ export function mountWeather(
   let readoutSlot: HTMLElement | null = null;
   let popoverLocation: HTMLElement | null = null;
   let popoverTemp: HTMLElement | null = null;
+  let hoverCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function cancelHoverClose(): void {
+    if (hoverCloseTimer != null) {
+      clearTimeout(hoverCloseTimer);
+      hoverCloseTimer = null;
+    }
+  }
+
+  function scheduleHoverClose(): void {
+    cancelHoverClose();
+    hoverCloseTimer = setTimeout(() => {
+      hoverCloseTimer = null;
+      try {
+        popover?.hidePopover?.();
+      } catch {
+        // Popover already closed by click-outside / Escape — benign.
+      }
+    }, HOVER_CLOSE_DELAY_MS);
+  }
+
+  function showPopoverSafe(): void {
+    if (!popover) return;
+    try {
+      if (!popover.matches(':popover-open')) popover.showPopover?.();
+    } catch {
+      // showPopover throws InvalidStateError if already open or not
+      // connected; both are benign for this hover-driven path.
+    }
+  }
 
   function buildTrigger(): HTMLButtonElement {
     readoutSlot = el('span', { className: 'weather-widget-readout' }, ['\u2014']);
@@ -145,14 +178,29 @@ export function mountWeather(
       className: 'weather-widget',
       'aria-label': 'Weather',
     }, [readoutSlot]) as HTMLButtonElement;
-    // Click routes dynamically: in setup mode it opens Settings
-    // directly (the readout acts as a prompt); otherwise it opens the
-    // native popover. We toggle the popovertarget attribute in
-    // renderDisplay() instead of carrying both paths in one handler
-    // so the native popover keybinding (Escape, click-outside) keeps
-    // working when the popover is actually the right destination.
+    // Popover triggers on BOTH click and hover (users asked for
+    // hover). Native `popovertarget` only responds to click, so we
+    // drive showPopover() manually and keep popover="auto" so click-
+    // outside + Escape still close it for free.
+    //
+    // In setup mode (no location configured) the button is a
+    // Settings shortcut instead, so hover/click route to
+    // openOptionsPage() — no popover would carry useful info there.
     btn.addEventListener('click', () => {
-      if (btn.dataset.mode === 'setup') openOptionsPage();
+      if (btn.dataset.mode === 'setup') {
+        openOptionsPage();
+        return;
+      }
+      showPopoverSafe();
+    });
+    btn.addEventListener('mouseenter', () => {
+      if (btn.dataset.mode === 'setup') return;
+      cancelHoverClose();
+      showPopoverSafe();
+    });
+    btn.addEventListener('mouseleave', () => {
+      if (btn.dataset.mode === 'setup') return;
+      scheduleHoverClose();
     });
     return btn;
   }
@@ -169,12 +217,18 @@ export function mountWeather(
       e.preventDefault();
       openOptionsPage();
     });
-    return el('div', {
+    const pop = el('div', {
       id: POPOVER_ID,
       className: 'weather-popover',
       popover: 'auto',
       role: 'dialog',
     }, [popoverLocation, popoverTemp, hint]) as HTMLElement;
+    // Hover bridge: moving into the popover cancels the pending close
+    // so users can click the "Open settings" link; leaving again
+    // schedules it fresh.
+    pop.addEventListener('mouseenter', cancelHoverClose);
+    pop.addEventListener('mouseleave', scheduleHoverClose);
+    return pop;
   }
 
   function renderDisplay(): void {
@@ -182,9 +236,9 @@ export function mountWeather(
 
     if (!hasLocation(settings)) {
       // Setup mode: prompt the user to configure a location. The
-      // button becomes a direct Settings shortcut (no popover step).
+      // button acts as a direct Settings shortcut; the hover/click
+      // handlers short-circuit when dataset.mode === 'setup'.
       readoutSlot.textContent = 'Set weather location';
-      trigger.removeAttribute('popovertarget');
       trigger.dataset.mode = 'setup';
       trigger.classList.add('weather-widget-prompt');
       popoverLocation.textContent = '\u2014';
@@ -192,7 +246,6 @@ export function mountWeather(
       return;
     }
 
-    trigger.setAttribute('popovertarget', POPOVER_ID);
     delete trigger.dataset.mode;
     trigger.classList.remove('weather-widget-prompt');
 
@@ -266,6 +319,7 @@ export function mountWeather(
   return {
     destroy(): void {
       destroyed = true;
+      cancelHoverClose();
       chrome.storage.onChanged.removeListener(onStorageChange);
       unmount();
     },
