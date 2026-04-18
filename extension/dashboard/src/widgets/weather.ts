@@ -29,10 +29,15 @@ export interface WeatherData {
 export const WEATHER_STORAGE_KEY = 'tabout:weatherData';
 const STALE_MS = 30 * 60 * 1000;
 const POPOVER_ID = 'taboutWeatherPopover';
-const POPOVER_GAP_PX = 8;
-// Hover-close grace period: lets the cursor bridge the ~8px gap
-// between trigger and popover without the popover snapping shut.
-const HOVER_CLOSE_DELAY_MS = 150;
+// Tight 2px gap (was 8px) — with the wider padding on .weather-popover
+// the visible space between trigger and card still reads as ~8px, but
+// the physical hover-tracking gap is small enough that the cursor
+// can't slip between them and trigger mouseleave by accident.
+const POPOVER_GAP_PX = 2;
+// Hover-close grace period: 300ms (was 150ms) tolerates a slower
+// cursor crossing the gap and gives the popover's mouseenter a full
+// frame or two to cancel the pending close.
+const HOVER_CLOSE_DELAY_MS = 300;
 
 // WMO code → human-readable condition text. Condensed from the full
 // WMO table to ~10 buckets covering the atmospheric phenomena users

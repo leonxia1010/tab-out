@@ -1843,10 +1843,39 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   text-decoration: underline;
 }
 
+/* Invisible focus sink — see index.html for why it exists. Must stay
+   focusable (no display:none, no visibility:hidden) or the browser
+   ignores autofocus; the clip-to-zero pattern keeps it out of layout
+   and out of sight but still focusable. */
+.focus-sink {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  background: transparent;
+  pointer-events: none;
+}
+
+.focus-sink:focus {
+  outline: none;
+}
+
 .weather-popover {
   position: fixed;
   margin: 0;
-  padding: 14px 16px;
+  /* Extra top padding acts as an invisible bridge into the popover,
+     so moving down from the trigger into the card content doesn't
+     flick the cursor over an empty gap and trigger mouseleave on
+     both elements. */
+  padding: 18px 16px 14px;
   min-width: 220px;
   border: 1px solid var(--warm-gray);
   border-radius: 8px;
