@@ -20,6 +20,7 @@ import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/
 import { mountClock, type ClockHandle } from './widgets/clock.js';
 import { mountSearch } from './widgets/search.js';
 import { mountShortcuts, type ShortcutsHandle } from './widgets/shortcuts.js';
+import { mountSettingsLink } from './widgets/settings-link.js';
 
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
 
@@ -103,6 +104,9 @@ async function bootstrapSettings(): Promise<void> {
   if (slot) {
     clock = mountClock(slot, settings.clock.format);
     themeToggle = mountThemeToggle(slot, settings.theme);
+    // Settings is a meta tool (go configure, come back) — parked
+    // rightmost in the cluster so the common-use widgets read first.
+    mountSettingsLink(slot);
   }
   let shortcuts: ShortcutsHandle | null = null;
   if (middleSlot) {
