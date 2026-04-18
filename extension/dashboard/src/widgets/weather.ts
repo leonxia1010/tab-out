@@ -248,11 +248,18 @@ export function mountWeather(
   };
   chrome.storage.onChanged.addListener(onStorageChange);
 
+  // Mount synchronously so the header cluster DOM order matches the
+  // index.ts call order — reading data first (via await) would let
+  // any sibling widget mounted after us (countdown) append its node
+  // before ours, visually swapping weather and countdown in the row.
+  if (shouldRender(settings)) mount();
+
   void (async () => {
     data = await readWeatherData();
-    if (shouldRender(settings)) {
-      mount();
-      if (isStale(data)) requestRefresh(false);
+    if (destroyed) return;
+    renderDisplay();
+    if (shouldRender(settings) && hasLocation(settings) && isStale(data)) {
+      requestRefresh(false);
     }
   })();
 
