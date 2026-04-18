@@ -13,7 +13,7 @@
 import * as handlers from './handlers.js';
 import { renderDashboard } from './renderers.js';
 import { attachTabsListeners } from './refresh.js';
-import { getUpdateStatus } from './api.js';
+import { dismissUpdateBanner, getUpdateStatus } from './api.js';
 import { el, svg } from './dom-utils.js';
 import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
 import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
@@ -21,36 +21,12 @@ import { mountClock, type ClockHandle } from './widgets/clock.js';
 import { mountSearch } from './widgets/search.js';
 import { mountShortcuts, type ShortcutsHandle } from './widgets/shortcuts.js';
 
-const UPDATE_STATUS_KEY = 'tabout:updateStatus';
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
-
-// Matches the shape written by background.js#checkForUpdate. Declared
-// narrow instead of casting through Record<string, unknown>; ts-level
-// autocomplete on s.dismissedTag etc. is the main win.
-interface UpdateStatusRecord {
-  updateAvailable?: boolean;
-  latestTag?: string;
-  currentTag?: string;
-  checkedAt?: string;
-  dismissedTag?: string | null;
-}
 
 async function dismissBanner(e: Event): Promise<void> {
   const banner = (e.currentTarget as HTMLElement | null)?.closest('.update-banner');
   banner?.remove();
-  // Persist dismissal so the banner stays gone until the next release.
-  // Silent on failure — the banner is already removed visually.
-  try {
-    if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
-    const result = await chrome.storage.local.get(UPDATE_STATUS_KEY);
-    const s = (result as Record<string, UpdateStatusRecord | undefined>)[UPDATE_STATUS_KEY];
-    if (!s?.latestTag) return;
-    await chrome.storage.local.set({
-      [UPDATE_STATUS_KEY]: { ...s, dismissedTag: s.latestTag },
-    });
-  } catch {
-    // noop
-  }
+  await dismissUpdateBanner();
 }
 
 async function checkForUpdates(): Promise<void> {

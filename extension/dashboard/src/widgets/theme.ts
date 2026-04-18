@@ -63,6 +63,12 @@ export interface ThemeToggleHandle {
   // Called by index.ts#onSettingsChange so the trigger icon tracks the
   // selected theme (and the OS preference, when on 'system').
   syncIcon(theme: ThemeMode): void;
+  // Lifecycle parity with clock / search / shortcuts handles: detach
+  // the OS media listener and remove the mounted DOM. No dashboard
+  // path calls this today (widget lives for the page's lifetime) but
+  // keeping the contract uniform makes future options-page live-
+  // preview mounts safe.
+  destroy(): void;
 }
 
 export function applyTheme(theme: ThemeMode): void {
@@ -131,8 +137,10 @@ export function mountThemeToggle(
   const markCurrent = (theme: ThemeMode): void => {
     for (const btn of optionButtons) {
       const isCurrent = btn.dataset.theme === theme;
+      // Single source of truth: aria-checked. CSS selects the current
+      // option via `.theme-option[aria-checked="true"]`; maintaining a
+      // mirror `is-current` class just invites drift.
       btn.setAttribute('aria-checked', isCurrent ? 'true' : 'false');
-      btn.classList.toggle('is-current', isCurrent);
     }
   };
   markCurrent(initialTheme);
@@ -191,6 +199,11 @@ export function mountThemeToggle(
       current = theme;
       trigger.replaceChildren(iconNode(triggerIconSvg(theme)));
       markCurrent(theme);
+    },
+    destroy(): void {
+      mql?.removeEventListener?.('change', onMediaChange);
+      trigger.remove();
+      popover.remove();
     },
   };
 }

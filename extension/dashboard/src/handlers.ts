@@ -64,9 +64,11 @@ const CHIP_FADE_DURATION_MS = 200;
 // hand — refresh.ts sees signature parity (closeTabsByUrls already
 // pre-synced openTabs) and correctly skips the diff pass, so the card's
 // header + "Close all N tabs" button would otherwise sit stale on
-// screen. The `:has(.domain-pages:empty)` query catches the fast path;
-// the forEach with a chip-count fallback covers cards that still have
-// overflow containers or other non-chip descendants.
+// screen. One path: scan every card for chips with
+// data-action="focus-tab". The older `:has(.domain-pages:empty)` fast
+// path was removed — `animateCardOut` calls shootConfetti which is
+// non-idempotent, so firing the fast path AND the forEach on the same
+// card produced two overlapping confetti bursts.
 function fadeChipAndCleanupCards(
   chip: HTMLElement,
   opts: { confetti: boolean } = { confetti: false },
@@ -80,8 +82,6 @@ function fadeChipAndCleanupCards(
   chip.style.transform = 'scale(0.8)';
   setTimeout(() => {
     chip.remove();
-    const cardEmpty = document.querySelector<HTMLElement>('.domain-card:has(.domain-pages:empty)');
-    if (cardEmpty) animateCardOut(cardEmpty);
     document.querySelectorAll<HTMLElement>('.domain-card').forEach(c => {
       const remainingTabs = c.querySelectorAll('.page-chip[data-action="focus-tab"]');
       if (remainingTabs.length === 0) animateCardOut(c);

@@ -61,6 +61,13 @@ describe('isLoopbackHost', () => {
     expect(isLoopbackHost('my-nas.local')).toBe(false);
     expect(isLoopbackHost('')).toBe(false);
   });
+
+  it('does not misclassify 127-prefixed DNS labels as loopback', () => {
+    // 127.example.com is a legal DNS label (starts with `127.`) but
+    // not in the 127.0.0.0/8 range. Old `/^127\./` incorrectly matched.
+    expect(isLoopbackHost('127.example.com')).toBe(false);
+    expect(isLoopbackHost('127.abc.def')).toBe(false);
+  });
 });
 
 describe('buildList — merge semantics', () => {
