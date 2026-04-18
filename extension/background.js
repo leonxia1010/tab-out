@@ -2,10 +2,10 @@
  * background.js — Service Worker
  *
  * Two independent concerns live here:
- *   1. Domain-count badge (phase 3 PR M). The badge color/text reflects how
- *      many unique http(s) hostnames are currently open.
- *   2. Update checker (phase 4 PR-B). Polls GitHub every 48h for new commits
- *      on main and writes the result to chrome.storage.local so the dashboard
+ *   1. Domain-count badge — the badge color/text reflects how many
+ *      unique http(s) hostnames are currently open.
+ *   2. Update checker — polls GitHub every 48h for the latest release
+ *      and writes the result to chrome.storage.local so the dashboard
  *      can render the update banner. chrome.alarms is used instead of
  *      setInterval because service workers can be suspended at any time.
  *

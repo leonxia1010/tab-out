@@ -28,23 +28,18 @@ const ICONS = {
 const CHIP_SAVE_SVG  = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>';
 const CHIP_CLOSE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>';
 
+const EMPTY_CHECK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>';
+
 export function checkAndShowEmptyState(): void {
   const domainsEl = document.getElementById('openTabsDomains');
   if (!domainsEl) return;
   const remaining = domainsEl.querySelectorAll('.domain-card:not(.closing)').length;
   if (remaining > 0) return;
-  // Developer-authored static SVG, no user data — innerHTML is safe.
-  domainsEl.innerHTML = `
-    <div class="domains-empty-state">
-      <div class="empty-checkmark">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-        </svg>
-      </div>
-      <div class="empty-title">Inbox zero, but for tabs.</div>
-      <div class="empty-subtitle">You're free.</div>
-    </div>
-  `;
+  mount(domainsEl, el('div', { className: 'domains-empty-state' }, [
+    el('div', { className: 'empty-checkmark' }, [svg(EMPTY_CHECK_SVG)]),
+    el('div', { className: 'empty-title', textContent: 'Inbox zero, but for tabs.' }),
+    el('div', { className: 'empty-subtitle', textContent: "You're free." }),
+  ]));
   const countEl = document.getElementById('openTabsSectionCount');
   if (countEl) countEl.textContent = '0 domains';
 }

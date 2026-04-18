@@ -26,13 +26,11 @@
        ================================================================ -->
   <header>
     <div class="header-left">
-      <!-- "Good afternoon" — written by getGreeting() in app.js -->
+      <!-- Greeting + date written by the renderers layer on boot -->
       <h1 id="greeting"></h1>
-      <!-- "Friday, April 4, 2026" — written by getDateDisplay() in app.js -->
       <div class="date" id="dateDisplay"></div>
     </div>
-    <!-- Header widget slots. clock mount lands in Phase 4; theme-toggle
-         popover mounts here via widgets/theme.ts on boot. -->
+    <!-- Header widget slots — clock, theme toggle, etc. mount here on boot. -->
     <div class="header-right" id="headerRight"></div>
   </header>
 
@@ -44,8 +42,9 @@
   <section class="middle-section" id="middleSection"></section>
 
   <!-- ================================================================
-       TAB OUT DUPES BANNER — appears when you have extra Tab Out tabs open
-       Hidden by default; app.js shows it when dupeTabOutCount > 1
+       TAB OUT DUPES BANNER — appears when you have extra Tab Out tabs open.
+       Hidden by default; extension-bridge.ts#checkTabOutDupes reveals it
+       when more than one Tab Out tab is open.
        ================================================================ -->
   <div class="tab-cleanup-banner" id="tabOutDupeBanner" style="display:none">
     <div class="tab-cleanup-left">
@@ -87,7 +86,7 @@
         <div class="section-count" id="deferredCount"></div>
       </div>
 
-      <!-- Active checklist items — injected by renderDeferredList() in app.js -->
+      <!-- Active checklist items — injected by renderers/deferred.ts -->
       <div class="deferred-list" id="deferredList"></div>
 
       <!-- Empty state — shown when no active deferred tabs -->

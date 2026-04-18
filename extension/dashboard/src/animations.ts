@@ -1,11 +1,7 @@
-// Tab Out dashboard — purely presentational animations (Phase 2 PR D).
-//
-// Every function here is fire-and-forget DOM / Web Audio side-effects with no
-// state dependency, which is why this is the smallest slice in the god-file
-// teardown. Consumed by app.js via the window.animations bridge until PR G
-// deletes app.js. `animateCardOut` takes an optional `onComplete` callback so
-// this module stays free of `checkAndShowEmptyState` (that helper belongs to
-// the renderer slice in PR E).
+// Purely presentational DOM / Web Audio side effects — no state reads.
+// `animateCardOut` takes an optional `onComplete` callback so this module
+// stays free of `checkAndShowEmptyState`; that helper lives in the
+// renderers layer and the coupling would otherwise flow the wrong way.
 
 const CONFETTI_COLORS = [
   '#c8713a', // amber

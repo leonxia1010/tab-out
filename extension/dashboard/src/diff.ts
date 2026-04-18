@@ -1,24 +1,19 @@
-// Tab Out dashboard — card-level diff for the open-tabs grid (Phase 3 PR 3).
+// Card-level diff for the open-tabs grid. Applied on event-driven
+// refreshes (chrome.tabs.on{Created,Removed,Updated}); page-load still
+// renders the whole grid so the initial waterfall plays cleanly.
 //
-// Replaces the full-grid replaceChildren() in renderOpenTabsOnly() for
-// EVENT-DRIVEN refreshes (chrome.tabs.on{Created,Removed,Updated}). Page-
-// load still calls renderOpenTabsOnly() directly from renderStaticDashboard
-// so the initial waterfall still plays cleanly — diff only rules the
-// subsequent steady state.
-//
-// Rules this implements (from plan/glistening-splashing-taco.md):
-//   1. Don't re-render whole grid on every tab change.
-//   2. Adding a card → no full re-render, only local fadeUp.
-//   3. Removing a card → no full re-render, only animateCardOut.
+// Rules:
+//   1. Don't re-render the whole grid on every tab change.
+//   2. Adding a card → local fadeUp only.
+//   3. Removing a card → animateCardOut only.
 //   4. Card ORDER actually changed → fall back to full re-render.
-//   5. Chip moves from card A → card B → both A and B rebuild (degraded
-//      from "chip DOM moves": rewiring the four URL-keyed handlers to tab
-//      ids was deemed not worth the blast radius).
+//   5. Chip moves from card A → card B → both A and B rebuild (rewiring
+//      URL-keyed handlers to tab ids was judged not worth the blast radius).
 //
-// Stable sort (PR 2: first-seen by chrome tab.index) is the precondition
-// that makes rule 4 fire only on REAL reshuffles (user drags a chrome
-// tab). Without it, tab-count-descending sort would flip card order on
-// every add/close and rule 4 would swallow rule 1.
+// Stable sort (first-seen by chrome tab.index) is the precondition that
+// makes rule 4 fire only on REAL reshuffles (user drags a chrome tab).
+// Without it, tab-count-descending sort would flip card order on every
+// add/close and rule 4 would swallow rule 1.
 //
 // Animation coordination:
 //   - Added card: renderDomainCard(group, 0) → inline animationDelay 0.25s,

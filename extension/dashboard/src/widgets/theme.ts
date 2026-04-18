@@ -1,35 +1,27 @@
 // Theme toggle widget — circular button + native popover with three options.
 //
-// Uses the HTML Popover API (browser-native, no custom click-away JS):
+// Uses the HTML Popover API (Chromium 114+, guaranteed by the manifest
+// minimum_chrome_version):
 //   - button has popovertarget="<id>" -> browser toggles the popover
-//   - each option has popovertargetaction="hide" -> browser closes it
-//     on click
-// Chromium 114+ ships the attribute; MV3 floor guarantees we're well
-// above that.
+//   - each option has popovertargetaction="hide" -> browser closes on click
+// Popover positioning lives in shared/dom-utils.ts#anchorPopoverTo —
+// shortcuts.ts uses the same helper.
 //
 // Icons are Heroicons v2 outline (MIT, tailwindlabs/heroicons). Inline
 // SVG so they inherit `currentColor` and swap cleanly between dark and
-// light palettes without an image request or emoji-font dependency.
-// Each SVG carries `data-icon="sun|moon|system"` so tests can assert
-// which glyph is mounted without poking at path data.
+// light palettes. Each SVG carries `data-icon="sun|moon|system"` so
+// tests can assert which glyph is mounted without poking at path data.
 //
-// The click handlers (data-action="set-theme-*") live in handlers.ts —
-// kept inside the single document-level dispatcher so we don't grow a
-// second listener. handleSetTheme there calls setSettings(); the
-// chrome.storage.onChanged listener in index.ts then applies the theme
-// via applyTheme() AND calls ThemeToggleHandle.syncIcon so the trigger
-// glyph tracks the currently-visible theme.
+// Click handlers (data-action="set-theme-*") live in handlers.ts so we
+// keep one document-level dispatcher. handleSetTheme calls setSettings();
+// the chrome.storage.onChanged listener in index.ts then applies the
+// theme and calls ThemeToggleHandle.syncIcon so the trigger glyph tracks
+// the currently-visible theme.
 //
-// Trigger icon reflects the EFFECTIVE theme (what the user sees), not
-// the selected mode — so 'system' resolves through
-// `prefers-color-scheme` and we listen for OS changes to keep the icon
+// The trigger icon reflects the EFFECTIVE theme (what the user sees),
+// not the selected mode — 'system' resolves through
+// `prefers-color-scheme`, and we listen for OS changes to keep the icon
 // in sync while on system mode.
-//
-// Popover positioning: the native popover API puts the element in the
-// browser top layer at the default (0,0) position. We listen to the
-// `toggle` event and set `position: fixed` coords from the trigger's
-// bounding rect each time it opens, so the menu stays anchored under
-// the button (right-aligned).
 
 import { anchorPopoverTo, el, iconNode } from '../../../shared/dist/dom-utils.js';
 import { effectiveTheme } from '../../../shared/dist/settings.js';

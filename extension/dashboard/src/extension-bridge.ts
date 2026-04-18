@@ -1,9 +1,5 @@
-// Tab Out dashboard — direct chrome.tabs/windows wrapper (Phase 3 PR J).
-//
-// Phase 2 ran the dashboard inside an iframe and routed every privileged
-// call through window.postMessage to extension/newtab.js. PR K moved the
-// dashboard into the extension page itself, so chrome.tabs.* is now in
-// scope and the bridge collapses into thin typed wrappers.
+// Thin typed wrappers around chrome.tabs / chrome.windows used by the
+// dashboard.
 //
 // `chromeAvailable()` keeps the dev/test path working: when the page is
 // served outside an extension context (vitest, plain localhost), every

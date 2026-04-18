@@ -1,7 +1,7 @@
 // Shortcut bar widget — up to 10 circular favicon tiles below the
 // search widget, mirroring Chrome's native NTP "Most visited" row.
 //
-// Sources merge order (locked convention, see plan zazzy-puzzling-narwhal):
+// Sources merge order (locked convention):
 //   [...pins, ...topSites.filter(!pinned && !hidden)].slice(0, 10)
 // Pins always come first; topSites fills the remainder. Hides apply to
 // topSites only — a pinned URL is never hidden (user's explicit pin

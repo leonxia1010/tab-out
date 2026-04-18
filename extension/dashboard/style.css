@@ -1613,7 +1613,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   margin-top: -8px;
 }
 
-/* Clock widget slot reserved for Phase 4. */
+/* Clock widget — mounted into the header-right slot by widgets/clock.ts. */
 .clock-widget {
   display: flex;
   align-items: center;

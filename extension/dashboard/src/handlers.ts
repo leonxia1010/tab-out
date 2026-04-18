@@ -1,11 +1,11 @@
-// Tab Out dashboard — event delegation handlers (Phase 2 PR F).
+// Single document-level click + input listeners, dispatched to a
+// data-action handler by a switch in dispatchClick. Every new
+// interactive surface adds a `data-action="..."` dataset and a case
+// below — no per-button addEventListener sprawl.
 //
-// Single document-level click + input listeners, dispatched to one of 10
-// data-action handlers.
-//
-// Lifecycle: src/index.ts calls attachListeners() exactly once on module
-// load. attachListeners is idempotent so accidental re-imports do not
-// double-fire handlers.
+// Lifecycle: src/index.ts calls attachListeners() exactly once on
+// module load. attachListeners is idempotent so accidental re-imports
+// don't double-fire handlers.
 
 import { el, mount } from '../../shared/dist/dom-utils.js';
 import { friendlyDomain } from './utils.js';

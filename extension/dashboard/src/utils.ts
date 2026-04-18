@@ -1,8 +1,5 @@
-// Tab Out dashboard — pure helpers extracted from app.js (Phase 2 PR B).
-//
-// Everything here is side-effect-free; callers pass state in (no hidden reads
-// from a module-level `openTabs`). Depended on by app.js via the window.utils
-// bridge (see src/index.ts) and directly imported by tests/dashboard/utils.test.js.
+// Pure dashboard helpers. Side-effect-free; callers pass state in
+// (no hidden reads from a module-level `openTabs`).
 
 export interface Tab {
   url?: string;
@@ -269,9 +266,9 @@ export function smartTitle(
   return title || url;
 }
 
-// All three tab helpers now take the tab array as an argument so the module
-// stays pure; app.js passes the module-level openTabs in explicitly. state.ts
-// lands in PR C.
+// Tab helpers take the array as an argument so the module stays pure —
+// no hidden module-level reads — and tests can feed fixtures without
+// stubbing state.
 
 // Allowlist filter: keep tabs the dashboard should render. We drop other-
 // browser internals (about/edge/brave) and Tab Out's own newtab pages so the
