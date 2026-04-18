@@ -125,9 +125,13 @@ export function capitalize(str: string | null | undefined): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-export function friendlyDomain(hostname: string | null | undefined): string {
-  if (!hostname) return '';
+// Memoize by hostname — the universe of hostnames a given dashboard
+// ever sees is small (the user's open + saved tabs), and renderDomainCard
+// calls this every repaint. Bounded cache in practice by the same ceiling
+// the underlying browser has on concurrent tabs.
+const friendlyDomainCache = new Map<string, string>();
 
+function computeFriendlyDomain(hostname: string): string {
   if (FRIENDLY_DOMAINS[hostname]) return FRIENDLY_DOMAINS[hostname];
 
   if (hostname.endsWith('.substack.com') && hostname !== 'substack.com') {
@@ -148,6 +152,15 @@ export function friendlyDomain(hostname: string | null | undefined): string {
     .split('.')
     .map((part) => capitalize(part))
     .join(' ');
+}
+
+export function friendlyDomain(hostname: string | null | undefined): string {
+  if (!hostname) return '';
+  const cached = friendlyDomainCache.get(hostname);
+  if (cached !== undefined) return cached;
+  const resolved = computeFriendlyDomain(hostname);
+  friendlyDomainCache.set(hostname, resolved);
+  return resolved;
 }
 
 export function stripTitleNoise(title: string | null | undefined): string {

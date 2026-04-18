@@ -465,10 +465,12 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
   const actionEl = target?.closest<HTMLElement>('[data-action]') ?? null;
   if (!actionEl) return;
 
-  const action = actionEl.dataset.action;
-  const card   = actionEl.closest<HTMLElement>('.domain-card');
+  // `.domain-card` lookup is only needed for two branches; compute it
+  // lazily so the other ~20 actions don't pay for an unused ancestor
+  // walk on every click.
+  const card = (): HTMLElement | null => actionEl.closest<HTMLElement>('.domain-card');
 
-  switch (action) {
+  switch (actionEl.dataset.action) {
     case 'close-tabout-dupes': return handleCloseTabOutDupes();
     case 'expand-chips':       return handleExpandChips(actionEl);
     case 'focus-tab':          return handleFocusTab(actionEl);
@@ -477,8 +479,8 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'check-deferred':     return handleCheckDeferred(actionEl);
     case 'dismiss-deferred':   return handleDismissDeferred(actionEl);
     case 'open-saved':         return handleOpenSaved(e, actionEl);
-    case 'close-domain-tabs':  return handleCloseDomainTabs(actionEl, card);
-    case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card);
+    case 'close-domain-tabs':  return handleCloseDomainTabs(actionEl, card());
+    case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card());
     case 'close-all-open-tabs':return handleCloseAllOpenTabs();
     case 'delete-archived':    return handleDeleteArchived(actionEl);
     case 'restore-archived':   return handleRestoreArchived(actionEl);
