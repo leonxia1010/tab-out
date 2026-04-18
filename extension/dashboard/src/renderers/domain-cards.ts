@@ -23,6 +23,9 @@ const ICONS = {
   close:   '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>',
   archive: '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m6 4.125l2.25 2.25m0 0l2.25 2.25M12 13.875l2.25-2.25M12 13.875l-2.25 2.25M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>',
   focus:   '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 19.5 15-15m0 0H8.25m11.25 0v11.25" /></svg>',
+  // Heroicons outline bars-arrow-down — bars + down arrow signals "sort
+  // these into this order".
+  sort:    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h9.75m4.5-4.5v12m0 0-3.75-3.75M17.25 21 21 17.25" /></svg>',
 } as const;
 
 const CHIP_SAVE_SVG  = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>';
@@ -324,10 +327,48 @@ export function renderOpenTabsHeader(sortedGroups: DomainGroup[], realTabsCount:
     style: 'font-size:11px;padding:3px 10px;',
     dataset: { action: 'close-all-open-tabs' },
   }, [svg(ICONS.close), ` Close all ${realTabsCount} tabs`]);
-  mount(openTabsSectionCount, [
+
+  // v2.5.0 — cross-domain dedup button. Sums dupe counts across every
+  // card so the user can clear the whole window's duplicate clutter in
+  // one click instead of N per-card clicks.
+  let totalDupes = 0;
+  let dupeGroups = 0;
+  for (const g of sortedGroups) {
+    const urlCounts: Record<string, number> = {};
+    for (const t of g.tabs) {
+      const u = t.url || '';
+      urlCounts[u] = (urlCounts[u] || 0) + 1;
+    }
+    const extras = Object.values(urlCounts).reduce((s, c) => s + (c > 1 ? c - 1 : 0), 0);
+    if (extras > 0) {
+      totalDupes += extras;
+      dupeGroups += 1;
+    }
+  }
+
+  const children: Node[] = [
     document.createTextNode(`${sortedGroups.length} domain${sortedGroups.length !== 1 ? 's' : ''}\u00a0\u00b7\u00a0`),
     closeAllBtn,
-  ]);
+  ];
+  if (totalDupes > 0) {
+    const closeDupesBtn = el('button', {
+      className: 'action-btn',
+      style: 'font-size:11px;padding:3px 10px;margin-left:6px;',
+      dataset: { action: 'close-all-dupes-global', totalDupes: String(totalDupes), dupeGroups: String(dupeGroups) },
+    }, [svg(ICONS.close), ` Close all ${totalDupes} duplicate${totalDupes !== 1 ? 's' : ''}`]);
+    children.push(closeDupesBtn);
+  }
+  // v2.5.0 — Organize button reorders the current window's tab bar to
+  // match the card sort. Placed after Close/Dedup so the destructive
+  // actions remain leftmost and the non-destructive reorder lands on
+  // the right.
+  const organizeBtn = el('button', {
+    className: 'action-btn',
+    style: 'font-size:11px;padding:3px 10px;margin-left:6px;',
+    dataset: { action: 'organize-tabs' },
+  }, [svg(ICONS.sort), ' Organize']);
+  children.push(organizeBtn);
+  mount(openTabsSectionCount, children);
 }
 
 export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount: number): void {

@@ -6,6 +6,112 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-04-18
+
+Dashboard becomes a current-window control panel: tab lists, close
+actions, and the new Organize button all scope to the browser window
+the Tab Out tab lives in. The domain-count badge on the extension
+icon — global by construction — is retired because it no longer
+matches what any single dashboard shows. Two new header buttons
+land: one-click global dedup, and reorder-tab-bar-to-match-cards
+with a 60-second Undo.
+
+### Added
+
+- **Organize tabs** — new header button reorders the current window's
+  tab bar to match the dashboard's domain-card order. Pinned tabs
+  stay put (Chrome enforces position-before-unpinned anyway); Tab
+  Out tabs land at the end as "tool done, back to work." A 60-second
+  action toast carries an `Undo` button backed by an in-memory
+  snapshot of each non-pinned tab's original index — click and
+  every move is reversed. No new permissions; batch
+  `chrome.tabs.move` and a `swallow()` guard on the reverse pass
+  cover the "tab was closed during the undo window" edge.
+- **Close all duplicates** — second header button sums every
+  per-card dedup action's url set and hits `closeDuplicates()` in
+  one pass. Toast reports `Closed N duplicates across M domains`;
+  per-card dedup controls + badges fade out with the global button
+  so the grid visually settles without a full remount.
+- `showActionToast(message, action, ttl)` animation primitive —
+  action-bearing variant of `showToast`. Returns a `dismiss` handle
+  so an action click can retire the toast immediately instead of
+  waiting for the TTL.
+
+### Changed
+
+- **Dashboard scope is now per-window.** Every `chrome.tabs.query()`
+  call site in `extension-bridge.ts` passes `{ currentWindow: true }`,
+  and `refresh.ts` gates each tab event listener on a
+  `dashboardWindowId` resolved once via `chrome.tabs.getCurrent()`.
+  `onAttached` tracks the dashboard tab itself if the user drags it
+  to another window. `closeTabOutDupes` loses its cross-window
+  prefer-same-window logic — dead code under per-window scope.
+- `ToutSettings` storage shape is unchanged; no migration needed.
+
+### Removed
+
+- **Domain-count badge.** `background.js` no longer computes or
+  writes the per-count badge color (`getDomainCount` /
+  `colorForCount` / `updateBadge` + their four tab-event
+  listeners are gone). The update-check alarm path is untouched.
+  The extension icon reverts to Chrome's default no-badge look.
+
+## [2.4.0] — 2026-04-18
+
+Options page gains an explicit Save / Cancel model and a visual
+refresh; the dashboard header gets a gear button so opening
+Settings no longer requires a trip through `chrome://extensions`.
+
+### Added
+
+- **Settings gear** in the dashboard header — new
+  `widgets/settings-link.ts` mounts rightmost in `#headerRight`
+  (clock → theme → gear). Heroicons outline cog-6-tooth at 18px
+  in a 36px circular button that mirrors the theme toggle. Click
+  calls `chrome.runtime.openOptionsPage()` and
+  `manifest.json#options_ui.open_in_tab` already resolves it in a
+  full tab.
+- **Explicit Save model** in the options page — edits mutate a
+  local `draft` instead of writing storage on every change.
+  `isDirty()` compares `draft` to a `baseline` snapshot of the
+  last storage value, and a footer with `Cancel` (muted) + `Save &
+  Close` (ink primary) lets the user commit intentionally. Save is
+  disabled while clean. `Escape` maps to Cancel; `Cmd/Ctrl+S`
+  triggers Save (no-op when disabled).
+- **Dirty indicators** (both retained) — an 8-px amber dot next to
+  the heading and an italic `Unsaved changes` string in the footer.
+  The two reinforce each other: the dot is a top-of-page glance
+  cue, the text is button-adjacent so the reader sees the same
+  signal when their eye is on Save.
+- **beforeunload guard** prompts when leaving the page with
+  unsaved changes. Modern browsers show their generic `Leave
+  site?` dialog and ignore the custom string; kept anyway as
+  self-documenting intent.
+
+### Changed
+
+- **Options form visual language aligns with the dashboard.** Radio
+  rows switch from `display: block` + `vertical-align: middle` to
+  `display: flex; align-items: center; gap: 8px`. `options/style.css`
+  `:root` expands with `--warm-gray`, `--accent-amber`,
+  `--accent-sage`, `--shadow` (copied from dashboard values —
+  options keeps self-contained tokens, nothing shared).
+- **onSettingsChange** gating — external writes (dashboard theme
+  toggle, another options tab) always update `baseline` so the
+  dirty comparison stays meaningful, but `draft` and the form only
+  re-render when the user hadn't started editing. In-flight edits
+  win.
+- Cancel **navigates** unconditionally: dirty prompts via
+  `beforeunload`, clean goes straight to
+  `chrome.runtime.getURL('dashboard/index.html')`. Chrome silently
+  blocks `chrome-extension://` → `chrome://newtab/` navigation via
+  `location.href`, so the dashboard file URL is the only path that
+  actually lands the user back home.
+
+### Removed
+
+- `Settings save automatically` tagline — no longer true.
+
 ## [2.3.0] — 2026-04-17
 
 The new middle section lands — search widget + shortcut bar — and the

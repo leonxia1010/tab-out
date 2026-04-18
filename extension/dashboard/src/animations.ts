@@ -158,7 +158,61 @@ export function showToast(message: string): void {
   const toast = document.getElementById('toast');
   const text = document.getElementById('toastText');
   if (!toast || !text) return;
+  // Clear any lingering action button from a previous showActionToast.
+  toast.querySelectorAll('.toast-action').forEach((el) => el.remove());
   text.textContent = message;
   toast.classList.add('visible');
   setTimeout(() => toast.classList.remove('visible'), TOAST_VISIBLE_MS);
+}
+
+// v2.5.0 — action-bearing toast for undoable operations. Returns a
+// `dismiss` handle so the action click can take the toast down itself
+// (e.g. clicking Undo should close the toast immediately, not wait
+// for the 60s TTL). The underlying `#toast` DOM lives in index.html
+// alongside the existing `#toastText`; this helper appends a
+// `.toast-action` button and removes it on dismiss.
+export interface ActionToastHandle {
+  dismiss: () => void;
+}
+
+export function showActionToast(
+  message: string,
+  action: { label: string; onClick: () => void },
+  ttlMs = 60_000,
+): ActionToastHandle {
+  const toast = document.getElementById('toast');
+  const text = document.getElementById('toastText');
+  if (!toast || !text) {
+    return { dismiss: () => {} };
+  }
+  // Clean up any prior action button so consecutive toasts don't stack.
+  toast.querySelectorAll('.toast-action').forEach((el) => el.remove());
+  text.textContent = message;
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'toast-action';
+  btn.textContent = action.label;
+  toast.appendChild(btn);
+
+  let dismissed = false;
+  const dismiss = (): void => {
+    if (dismissed) return;
+    dismissed = true;
+    toast.classList.remove('visible');
+    btn.remove();
+  };
+
+  btn.addEventListener('click', () => {
+    try {
+      action.onClick();
+    } finally {
+      dismiss();
+    }
+  });
+
+  toast.classList.add('visible');
+  setTimeout(dismiss, ttlMs);
+
+  return { dismiss };
 }

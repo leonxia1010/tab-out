@@ -12,12 +12,16 @@ import { friendlyDomain } from './utils.js';
 import {
   getDomainGroups,
   getOpenTabs,
+  getUndoSnapshot,
+  setUndoSnapshot,
 } from './state.js';
 import {
   closeDuplicates,
   closeTabOutDupes,
   closeTabsByUrls,
   focusTab,
+  organizeTabs,
+  undoOrganizeTabs,
 } from './extension-bridge.js';
 import {
   checkDeferred as apiCheckDeferred,
@@ -33,6 +37,7 @@ import {
   animateCardOut as animateCardOutRaw,
   playCloseSound,
   shootConfetti,
+  showActionToast,
   showToast,
 } from './animations.js';
 import {
@@ -350,6 +355,97 @@ async function handleCloseAllOpenTabs(): Promise<void> {
   showToast('All tabs closed. Fresh start.');
 }
 
+// v2.5.0 — sum every card's dupe URLs and close them in one pass. Mirrors
+// handleDedupKeepOne's per-card flow (fade out badges, refresh counters,
+// toast) but aggregated across the whole open-tabs grid.
+async function handleCloseAllDupesGlobal(): Promise<void> {
+  const actionEls = document.querySelectorAll<HTMLElement>(
+    '#openTabsDomains [data-action="dedup-keep-one"]',
+  );
+  const allUrls: string[] = [];
+  let domainCount = 0;
+  for (const el of actionEls) {
+    const urls = (el.dataset.dupeUrls || '')
+      .split(',')
+      .map((u) => decodeURIComponent(u))
+      .filter(Boolean);
+    if (urls.length > 0) {
+      allUrls.push(...urls);
+      domainCount += 1;
+    }
+  }
+  if (allUrls.length === 0) return;
+
+  await closeDuplicates(allUrls);
+  playCloseSound();
+
+  // Fade per-card dedup buttons + duplicate badges so the grid visually
+  // settles without a full re-mount (refreshOpenTabsCounters below
+  // re-renders the header, not the cards).
+  actionEls.forEach((el) => {
+    el.style.transition = 'opacity 0.2s';
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 200);
+  });
+  document.querySelectorAll<HTMLElement>('#openTabsDomains .chip-dupe-badge').forEach((b) => {
+    b.style.transition = 'opacity 0.2s';
+    b.style.opacity = '0';
+    setTimeout(() => b.remove(), 200);
+  });
+  document.querySelectorAll<HTMLElement>('#openTabsDomains .open-tabs-badge').forEach((badge) => {
+    if ((badge.textContent || '').includes('duplicate')) {
+      badge.style.transition = 'opacity 0.2s';
+      badge.style.opacity = '0';
+      setTimeout(() => badge.remove(), 200);
+    }
+  });
+
+  // Remove the global button itself so the header tidies up immediately
+  // instead of waiting for the refresh debounce.
+  document.querySelectorAll<HTMLElement>('[data-action="close-all-dupes-global"]').forEach((btn) => {
+    btn.style.transition = 'opacity 0.2s';
+    btn.style.opacity = '0';
+    setTimeout(() => btn.remove(), 200);
+  });
+
+  refreshOpenTabsCounters();
+  const domainWord = domainCount === 1 ? 'domain' : 'domains';
+  showToast(`Closed ${allUrls.length} duplicate${allUrls.length !== 1 ? 's' : ''} across ${domainCount} ${domainWord}`);
+}
+
+// v2.5.0 — reorder the current window's tab bar to match the dashboard
+// domain-card order. Result snapshot is stashed in module state so the
+// toast's Undo button can reverse the move for up to 60 seconds.
+async function handleOrganizeTabs(): Promise<void> {
+  const desiredOrder = getDomainGroups().map((g) => ({ domain: g.domain, tabs: g.tabs.slice() }));
+  const { moves, movedCount } = await organizeTabs(desiredOrder);
+  if (movedCount === 0) return;
+
+  setUndoSnapshot({ type: 'organize', timestamp: Date.now(), moves });
+  refreshOpenTabsCounters();
+
+  const { dismiss } = showActionToast(
+    `Organized ${movedCount} tab${movedCount !== 1 ? 's' : ''}`,
+    {
+      label: 'Undo',
+      onClick: () => {
+        void handleUndoOrganize();
+        dismiss();
+      },
+    },
+    60_000,
+  );
+}
+
+async function handleUndoOrganize(): Promise<void> {
+  const snap = getUndoSnapshot();
+  if (!snap || snap.type !== 'organize') return;
+  await undoOrganizeTabs(snap.moves);
+  setUndoSnapshot(null);
+  refreshOpenTabsCounters();
+  showToast('Reverted');
+}
+
 async function handleArchiveClearAll(): Promise<void> {
   // Browser confirm is fine here: this is a dashboard page (not a service
   // worker) and the action is genuinely destructive + user-initiated.
@@ -482,6 +578,8 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'close-domain-tabs':  return handleCloseDomainTabs(actionEl, card());
     case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card());
     case 'close-all-open-tabs':return handleCloseAllOpenTabs();
+    case 'close-all-dupes-global': return handleCloseAllDupesGlobal();
+    case 'organize-tabs':      return handleOrganizeTabs();
     case 'delete-archived':    return handleDeleteArchived(actionEl);
     case 'restore-archived':   return handleRestoreArchived(actionEl);
     case 'archive-toggle':     return handleArchiveToggle(actionEl);
