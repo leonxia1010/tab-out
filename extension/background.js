@@ -1,53 +1,16 @@
 /**
  * background.js — Service Worker
  *
- * Two independent concerns live here:
- *   1. Domain-count badge — the badge color/text reflects how many
- *      unique http(s) hostnames are currently open.
- *   2. Update checker — polls GitHub every 48h for the latest release
- *      and writes the result to chrome.storage.local so the dashboard
- *      can render the update banner. chrome.alarms is used instead of
- *      setInterval because service workers can be suspended at any time.
+ * Sole responsibility (v2.5.0+): poll GitHub every 48h for the latest
+ * release and write the result to chrome.storage.local so the dashboard
+ * can render the update banner. chrome.alarms is used instead of
+ * setInterval because service workers can be suspended at any time.
  *
- * Badge color bands:
- *   1-3 domains → green  (#3d7a4a, focused)
- *   4-6 domains → amber  (#b8892e, busy)
- *   7+ domains  → red    (#b35a5a, overloaded)
+ * The domain-count action badge shipped in v2.3.0 was retired in
+ * v2.5.0: the dashboard became per-window, and a global hostname count
+ * on the extension icon no longer matched what any single dashboard
+ * showed.
  */
-
-// ─── Badge ─────────────────────────────────────────────────────────────────
-
-function getDomainCount(tabs) {
-  const domains = new Set();
-  for (const t of tabs) {
-    const url = t && t.url;
-    if (!url || !/^https?:\/\//.test(url)) continue;
-    try { domains.add(new URL(url).hostname); }
-    catch { /* malformed URL — skip */ }
-  }
-  return domains.size;
-}
-
-function colorForCount(count) {
-  if (count <= 3) return '#3d7a4a';
-  if (count <= 6) return '#b8892e';
-  return '#b35a5a';
-}
-
-async function updateBadge() {
-  try {
-    const tabs = await chrome.tabs.query({});
-    const count = getDomainCount(tabs);
-    if (count === 0) {
-      chrome.action.setBadgeText({ text: '' });
-      return;
-    }
-    chrome.action.setBadgeText({ text: String(count) });
-    chrome.action.setBadgeBackgroundColor({ color: colorForCount(count) });
-  } catch {
-    chrome.action.setBadgeText({ text: '' });
-  }
-}
 
 // ─── Update checker ────────────────────────────────────────────────────────
 
@@ -95,18 +58,6 @@ async function checkForUpdate() {
 // listener registration is irrelevant) does not crash.
 
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onInstalled) {
-  chrome.runtime.onInstalled.addListener(updateBadge);
-  chrome.runtime.onStartup.addListener(updateBadge);
-  chrome.tabs.onCreated.addListener(updateBadge);
-  chrome.tabs.onRemoved.addListener(updateBadge);
-  // Filter onUpdated the same way refresh.ts does — only navigations can
-  // shift the hostname count. Without this, every favicon/title/status
-  // tick fires a chrome.tabs.query({}) over the entire browser.
-  chrome.tabs.onUpdated.addListener((_id, change) => {
-    if (change.url) void updateBadge();
-  });
-  updateBadge();
-
   // 60s initial delay avoids racing the install; then period kicks in.
   chrome.runtime.onInstalled.addListener(() => {
     chrome.alarms.create(UPDATE_ALARM, {
@@ -120,5 +71,5 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onInstalle
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { getDomainCount, colorForCount, updateBadge, checkForUpdate };
+  module.exports = { checkForUpdate };
 }

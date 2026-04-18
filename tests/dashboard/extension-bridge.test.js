@@ -30,7 +30,15 @@ const NEWTAB_URL = `chrome-extension://${EXT_ID}/dashboard/index.html`;
 // runtime being unavailable). Default uses the standard EXT_ID.
 function installChrome({ tabs = [], currentWindowId = 1, runtimeId } = {}) {
   const tabsApi = {
-    query: vi.fn(async () => tabs),
+    // v2.5.0: dashboard queries with { currentWindow: true }. Mock respects
+    // that filter so cross-window tabs in the test fixture don't leak into
+    // per-window call sites.
+    query: vi.fn(async (q) => {
+      if (q && q.currentWindow === true) {
+        return tabs.filter((t) => t.windowId == null || t.windowId === currentWindowId);
+      }
+      return tabs;
+    }),
     remove: vi.fn(async () => {}),
     update: vi.fn(async () => ({})),
   };
@@ -84,12 +92,16 @@ describe('when chrome.tabs is unavailable', () => {
 
 describe('fetchOpenTabs', () => {
   it('maps Chrome tabs into the dashboard Tab shape and marks isTabOut', async () => {
+    // v2.5.0 per-window scope: query only returns current-window tabs. All
+    // fixture tabs share windowId=10 and currentWindowId=10 matches, so
+    // every tab flows through.
     installChrome({
+      currentWindowId: 10,
       tabs: [
         { id: 1, url: 'https://github.com', title: 'GH', windowId: 10, active: true },
         { id: 2, url: NEWTAB_URL, title: 'Tab Out', windowId: 10, active: false },
-        { id: 3, url: 'chrome://newtab/', title: 'Tab Out', windowId: 11, active: false },
-        { id: 4, url: 'https://example.com', title: 'EX', windowId: 11, active: false },
+        { id: 3, url: 'chrome://newtab/', title: 'Tab Out', windowId: 10, active: false },
+        { id: 4, url: 'https://example.com', title: 'EX', windowId: 10, active: false },
       ],
     });
 
@@ -348,11 +360,11 @@ describe('closeTabOutDupes', () => {
     expect(tabsApi.remove).not.toHaveBeenCalled();
   });
 
-  it('keeps the current-window Tab Out even when another window has an active dashboard', async () => {
-    // Multi-window bug: without the windowId check, an active Tab Out tab in
-    // another window wins the `keep` selection and every Tab Out tab in the
-    // window the user is actually in gets closed — their current view
-    // disappears.
+  it('v2.5.0: ignores Tab Out tabs in other windows (per-window scope)', async () => {
+    // Pre-v2.5.0 this function saw Tab Out tabs globally and tried to
+    // prefer the current-window active one. With per-window query, the
+    // other-window Tab Out never enters the picture — only the current
+    // window's duplicates are candidates for close.
     const { tabsApi } = installChrome({
       currentWindowId: 2,
       tabs: [
@@ -362,20 +374,22 @@ describe('closeTabOutDupes', () => {
       ],
     });
     await closeTabOutDupes();
-    // Must keep id 2 (active in current window 2) and close 1 and 3.
-    expect(tabsApi.remove).toHaveBeenCalledWith([1, 3]);
+    // Window 1's Tab Out (id 1) is invisible to this call. Among window 2's
+    // tabs, id 2 is active → keep it, close id 3.
+    expect(tabsApi.remove).toHaveBeenCalledWith([3]);
   });
 
-  it('falls back to any-window active when no current-window Tab Out is active', async () => {
+  it('does nothing when the current window has only one Tab Out (even if another window has more)', async () => {
     const { tabsApi } = installChrome({
       currentWindowId: 2,
       tabs: [
         { id: 1, url: NEWTAB_URL, active: true, windowId: 1 },
-        { id: 2, url: NEWTAB_URL, active: false, windowId: 2 },
+        { id: 2, url: NEWTAB_URL, active: false, windowId: 1 },
+        { id: 3, url: NEWTAB_URL, active: false, windowId: 2 },
       ],
     });
     await closeTabOutDupes();
-    expect(tabsApi.remove).toHaveBeenCalledWith([2]);
+    expect(tabsApi.remove).not.toHaveBeenCalled();
   });
 });
 

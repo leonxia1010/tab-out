@@ -88,19 +88,60 @@ export function scheduleRefresh(): void {
   }, REFRESH_DEBOUNCE_MS);
 }
 
+// v2.5.0 per-window scope. Dashboard cares only about tab events in its
+// own window. Until dashboardWindowId resolves (async on boot), we fall
+// through to the old "refresh on every event" behavior so the first
+// render still catches anything that happens during the race.
+let dashboardWindowId: number | undefined;
+let dashboardTabId: number | undefined;
+
+async function resolveDashboardWindow(): Promise<void> {
+  try {
+    const me = await chrome.tabs.getCurrent();
+    if (me?.windowId != null) dashboardWindowId = me.windowId;
+    if (me?.id != null) dashboardTabId = me.id;
+  } catch {
+    try {
+      const w = await chrome.windows.getCurrent();
+      if (w?.id != null) dashboardWindowId = w.id;
+    } catch { /* giving up; filter stays permissive */ }
+  }
+}
+
+function matchesDashboardWindow(windowId: number | undefined): boolean {
+  return dashboardWindowId == null || windowId === dashboardWindowId;
+}
+
 export function attachTabsListeners(): void {
   if (typeof chrome === 'undefined' || !chrome.tabs) return;
-  chrome.tabs.onCreated.addListener(() => scheduleRefresh());
-  chrome.tabs.onRemoved.addListener(() => scheduleRefresh());
-  chrome.tabs.onUpdated.addListener((_id, change) => {
+
+  void resolveDashboardWindow();
+
+  chrome.tabs.onCreated.addListener((tab) => {
+    if (matchesDashboardWindow(tab.windowId)) scheduleRefresh();
+  });
+  chrome.tabs.onRemoved.addListener((_tabId, removeInfo) => {
+    if (matchesDashboardWindow(removeInfo.windowId)) scheduleRefresh();
+  });
+  chrome.tabs.onUpdated.addListener((_id, change, tab) => {
     // Only react to url changes. title/status/favicon/pinned/audible either
     // duplicate the url event or (status=complete on slow loads) land long
     // after the url event and cause a second spurious waterfall.
-    if (change.url) scheduleRefresh();
+    if (change.url && matchesDashboardWindow(tab.windowId)) scheduleRefresh();
   });
   // Needed for rule 4: a user dragging a chrome tab between positions is
   // the only real-world trigger for card-order reshuffle. Without this
   // listener the event never fires a scheduleRefresh and rule 4 is dead
   // code (signature+diff paths exist but are unreachable).
-  chrome.tabs.onMoved.addListener(() => scheduleRefresh());
+  chrome.tabs.onMoved.addListener((_tabId, moveInfo) => {
+    if (matchesDashboardWindow(moveInfo.windowId)) scheduleRefresh();
+  });
+  // If this dashboard tab is dragged to a different window, update the
+  // cached windowId so subsequent filtering tracks the new context.
+  chrome.tabs.onAttached?.addListener((tabId, attachInfo) => {
+    if (tabId === dashboardTabId) {
+      dashboardWindowId = attachInfo.newWindowId;
+      scheduleRefresh();
+    }
+  });
 }

@@ -62,7 +62,10 @@ export async function fetchOpenTabs(): Promise<void> {
   }
 
   const newtabUrls = tabOutNewtabUrls();
-  const tabs = await chrome.tabs.query({});
+  // v2.5.0 per-window scope: dashboard shows only tabs in its own window.
+  // Every tab-query call site in this file uses the same filter so the
+  // state, close actions, and dupe banner all agree on "this window".
+  const tabs = await chrome.tabs.query({ currentWindow: true });
   const simple: Tab[] = tabs.map((t) => ({
     id: t.id,
     url: t.url,
@@ -87,7 +90,7 @@ export async function closeTabsByUrls(
 ): Promise<void> {
   if (!chromeAvailable() || !urls || urls.length === 0) return;
 
-  const allTabs = await chrome.tabs.query({});
+  const allTabs = await chrome.tabs.query({ currentWindow: true });
   const selfUrls = skipSelf ? new Set(tabOutNewtabUrls()) : null;
   let matched: chrome.tabs.Tab[];
 
@@ -150,7 +153,7 @@ export async function focusTab(url: string): Promise<void> {
 export async function closeDuplicates(urls: string[]): Promise<void> {
   if (!chromeAvailable() || !urls || urls.length === 0) return;
 
-  const allTabs = await chrome.tabs.query({});
+  const allTabs = await chrome.tabs.query({ currentWindow: true });
   const toClose: number[] = [];
 
   for (const url of urls) {
@@ -170,21 +173,16 @@ export async function closeTabOutDupes(): Promise<void> {
   if (!chromeAvailable()) return;
 
   const newtabUrls = tabOutNewtabUrls();
-  const allTabs = await chrome.tabs.query({});
-  const currentWindow = await chrome.windows.getCurrent();
+  // v2.5.0: scope to current window. Per-window scope means each Tab Out
+  // dashboard only sees/closes its own window's Tab Out tabs — another
+  // window's duplicates are that window's problem.
+  const allTabs = await chrome.tabs.query({ currentWindow: true });
   const tabOutTabs = allTabs.filter(
     (t) => !!t.url && newtabUrls.includes(t.url),
   );
   if (tabOutTabs.length <= 1) return;
 
-  // Prefer the active Tab Out tab in the current window so the user's
-  // current view survives. Without the windowId check, a cross-window
-  // active match can close every Tab Out tab in the window they're
-  // actually looking at.
-  const keep =
-    tabOutTabs.find((t) => t.active && t.windowId === currentWindow.id) ||
-    tabOutTabs.find((t) => t.active) ||
-    tabOutTabs[0];
+  const keep = tabOutTabs.find((t) => t.active) || tabOutTabs[0];
   const ids = tabOutTabs
     .filter((t) => t.id !== keep.id)
     .map((t) => t.id)
