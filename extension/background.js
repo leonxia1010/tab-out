@@ -126,7 +126,22 @@ async function fetchWeatherNow() {
   try {
     const stored = await chrome.storage.local.get(SETTINGS_KEY);
     let settings = stored[SETTINGS_KEY];
-    if (!settings) return;
+    // Fresh install: `tabout:settings` isn't written until the options
+    // page saves, so a user who just installs and opens a new tab would
+    // never reach the IP-geo seed. Synthesize a defaults-shaped object
+    // (weather enabled, no location) so ensureLocationConfigured can
+    // still run and persist a location on the user's behalf.
+    if (!settings) {
+      settings = {
+        weather: {
+          enabled: true,
+          locationLabel: null,
+          latitude: null,
+          longitude: null,
+          unit: 'C',
+        },
+      };
+    }
     // Opportunistic IP-geo fallback: a first-run user with
     // weather.enabled=true but no manual location picks gets a
     // reasonable starting point so the widget hydrates without a

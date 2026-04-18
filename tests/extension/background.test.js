@@ -183,6 +183,30 @@ describe('fetchWeatherNow', () => {
     expect(url).toMatch(/longitude=-71\.06/);
   });
 
+  it('seeds IP geo even when tabout:settings has not been written yet (fresh install)', async () => {
+    // Storage returns `{}` — the key was never written because the
+    // user hasn't touched Settings. This is the exact shape a brand-
+    // new install shows when the weather alarm fires 15s after install.
+    storageGet.mockResolvedValue({});
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ latitude: 40.71, longitude: -74.0, city: 'New York', country_code: 'US' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ current: { temperature_2m: 15, weather_code: 2 } }),
+      });
+
+    await fetchWeatherNow();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipapi\.co/);
+    expect(fetchMock.mock.calls[1][0]).toMatch(/api\.open-meteo\.com/);
+    const settingsWrite = storageSet.mock.calls.find((c) => 'tabout:settings' in c[0]);
+    expect(settingsWrite[0]['tabout:settings'].weather.latitude).toBe(40.71);
+  });
+
   it('is a no-op when weather.enabled is false', async () => {
     storageGet.mockResolvedValue({
       'tabout:settings': {

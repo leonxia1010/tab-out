@@ -316,7 +316,11 @@ export function mountWeather(
     data = await readWeatherData();
     if (destroyed) return;
     renderDisplay();
-    if (shouldRender(settings) && hasLocation(settings) && isStale(data)) {
+    // Ping the SW on mount if we either have no location yet (first-
+    // run IP-geo seed happens in fetchWeatherNow) or the cached reading
+    // is stale. Without the no-location case, a user who never opens
+    // Settings would wait up to 30min for the next alarm tick.
+    if (shouldRender(settings) && (!hasLocation(settings) || isStale(data))) {
       requestRefresh(false);
     }
   })();
