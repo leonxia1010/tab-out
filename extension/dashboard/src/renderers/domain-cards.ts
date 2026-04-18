@@ -324,10 +324,38 @@ export function renderOpenTabsHeader(sortedGroups: DomainGroup[], realTabsCount:
     style: 'font-size:11px;padding:3px 10px;',
     dataset: { action: 'close-all-open-tabs' },
   }, [svg(ICONS.close), ` Close all ${realTabsCount} tabs`]);
-  mount(openTabsSectionCount, [
+
+  // v2.5.0 — cross-domain dedup button. Sums dupe counts across every
+  // card so the user can clear the whole window's duplicate clutter in
+  // one click instead of N per-card clicks.
+  let totalDupes = 0;
+  let dupeGroups = 0;
+  for (const g of sortedGroups) {
+    const urlCounts: Record<string, number> = {};
+    for (const t of g.tabs) {
+      const u = t.url || '';
+      urlCounts[u] = (urlCounts[u] || 0) + 1;
+    }
+    const extras = Object.values(urlCounts).reduce((s, c) => s + (c > 1 ? c - 1 : 0), 0);
+    if (extras > 0) {
+      totalDupes += extras;
+      dupeGroups += 1;
+    }
+  }
+
+  const children: Node[] = [
     document.createTextNode(`${sortedGroups.length} domain${sortedGroups.length !== 1 ? 's' : ''}\u00a0\u00b7\u00a0`),
     closeAllBtn,
-  ]);
+  ];
+  if (totalDupes > 0) {
+    const closeDupesBtn = el('button', {
+      className: 'action-btn',
+      style: 'font-size:11px;padding:3px 10px;margin-left:6px;',
+      dataset: { action: 'close-all-dupes-global', totalDupes: String(totalDupes), dupeGroups: String(dupeGroups) },
+    }, [svg(ICONS.close), ` Close ${totalDupes} duplicate${totalDupes !== 1 ? 's' : ''}`]);
+    children.push(closeDupesBtn);
+  }
+  mount(openTabsSectionCount, children);
 }
 
 export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount: number): void {

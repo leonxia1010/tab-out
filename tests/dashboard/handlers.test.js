@@ -446,6 +446,84 @@ describe('handleCloseAllOpenTabs — never closes the dashboard tab', () => {
   });
 });
 
+// v2.5.0 — cross-domain "Close all N duplicates" header button. Aggregates
+// every per-card dedup-keep-one action's url list, hits closeDuplicates in
+// one shot, then fades the stale badges so the header/card visuals settle
+// without a full remount.
+describe('handleCloseAllDupesGlobal — aggregates per-card dedup actions', () => {
+  function seedDupes() {
+    const grid = document.getElementById('openTabsDomains');
+    // Two cards, each with a dedup-keep-one button carrying encoded urls.
+    grid.innerHTML = `
+      <div class="domain-card">
+        <span class="chip-dupe-badge">dupe</span>
+        <span class="open-tabs-badge">2 duplicates</span>
+        <button data-action="dedup-keep-one" data-dupe-urls="${encodeURIComponent('https://a.com/x')},${encodeURIComponent('https://a.com/y')}">Close</button>
+      </div>
+      <div class="domain-card">
+        <span class="open-tabs-badge">1 duplicate</span>
+        <button data-action="dedup-keep-one" data-dupe-urls="${encodeURIComponent('https://b.com/z')}">Close</button>
+      </div>
+      <button data-action="close-all-dupes-global" data-total-dupes="3" data-dupe-groups="2">Close 3 duplicates</button>
+    `;
+  }
+
+  it('collects dupeUrls across every card and calls closeDuplicates once', async () => {
+    const { handlers, bridge } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+    seedDupes();
+
+    const btn = document.querySelector('[data-action="close-all-dupes-global"]');
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(bridge.closeDuplicates).toHaveBeenCalledTimes(1);
+    expect(bridge.closeDuplicates).toHaveBeenCalledWith([
+      'https://a.com/x',
+      'https://a.com/y',
+      'https://b.com/z',
+    ]);
+  });
+
+  it('shows toast with aggregate count and domain count', async () => {
+    const { handlers, anim } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+    seedDupes();
+
+    click(document.querySelector('[data-action="close-all-dupes-global"]'));
+    await vi.runAllTimersAsync();
+
+    expect(anim.showToast).toHaveBeenCalledWith('Closed 3 duplicates across 2 domains');
+  });
+
+  it('no-ops when no dedup-keep-one actions exist', async () => {
+    const { handlers, bridge, anim } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+    // Button exists (stale render) but no per-card dedup actions.
+    document.getElementById('openTabsDomains').innerHTML = `
+      <button data-action="close-all-dupes-global">Close 0</button>
+    `;
+
+    click(document.querySelector('[data-action="close-all-dupes-global"]'));
+    await vi.runAllTimersAsync();
+
+    expect(bridge.closeDuplicates).not.toHaveBeenCalled();
+    expect(anim.showToast).not.toHaveBeenCalled();
+  });
+
+  it('refreshes counters and plays close sound', async () => {
+    const { handlers, anim, render } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+    seedDupes();
+
+    click(document.querySelector('[data-action="close-all-dupes-global"]'));
+    await vi.runAllTimersAsync();
+
+    expect(anim.playCloseSound).toHaveBeenCalled();
+    expect(render.refreshOpenTabsCounters).toHaveBeenCalled();
+  });
+});
+
 describe('handleCloseDomainTabs — matches card by domainId slug', () => {
   it('closes every url in the matched group and animates the card out', async () => {
     const { state, handlers, bridge, anim } = await loadHandlersWithMocks();
