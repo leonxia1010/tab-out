@@ -1846,7 +1846,11 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 .weather-popover {
   position: fixed;
   margin: 0;
-  padding: 14px 16px;
+  /* Extra top padding acts as an invisible bridge into the popover,
+     so moving down from the trigger into the card content doesn't
+     flick the cursor over an empty gap and trigger mouseleave on
+     both elements. */
+  padding: 18px 16px 14px;
   min-width: 220px;
   border: 1px solid var(--warm-gray);
   border-radius: 8px;
