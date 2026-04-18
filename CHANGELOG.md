@@ -22,9 +22,15 @@ actually firing on fresh installs.
   persists a location. The dashboard widget also pings the service
   worker on mount when no location is set, so the "Set weather
   location" prompt flips to a real reading within a second or two.
-  Failure paths in `tryIpGeolocate` log to the service worker
-  console (`chrome://extensions` → Tab Out → inspect service worker)
-  so users can see why IP detection didn't resolve.
+- **IP-geo no longer single-sourced on ipapi.co.** Field reports
+  showed ipapi.co returning HTTP 403 (bot-detection / regional
+  block) for extension-issued requests, leaving the widget stuck
+  in setup mode. The SW now tries three providers in order —
+  ipwho.is → geojs.io → ipapi.co — and stops at the first that
+  returns usable coordinates. Failure paths log per-provider
+  reasons to the service worker console (`chrome://extensions` →
+  Tab Out → inspect service worker) so users can diagnose why IP
+  detection didn't resolve.
 
 ## [2.6.1] — 2026-04-18
 

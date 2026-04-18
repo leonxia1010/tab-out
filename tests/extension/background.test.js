@@ -190,8 +190,9 @@ describe('fetchWeatherNow', () => {
     storageGet.mockResolvedValue({});
     fetchMock
       .mockResolvedValueOnce({
+        // ipwho.is (primary provider)
         ok: true,
-        json: async () => ({ latitude: 40.71, longitude: -74.0, city: 'New York', country_code: 'US' }),
+        json: async () => ({ success: true, latitude: 40.71, longitude: -74.0, city: 'New York', country_code: 'US' }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -201,7 +202,7 @@ describe('fetchWeatherNow', () => {
     await fetchWeatherNow();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0][0]).toMatch(/ipapi\.co/);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipwho\.is/);
     expect(fetchMock.mock.calls[1][0]).toMatch(/api\.open-meteo\.com/);
     const settingsWrite = storageSet.mock.calls.find((c) => 'tabout:settings' in c[0]);
     expect(settingsWrite[0]['tabout:settings'].weather.latitude).toBe(40.71);
@@ -219,7 +220,7 @@ describe('fetchWeatherNow', () => {
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ latitude: -33.87, longitude: 151.21, city: 'Sydney', country_code: 'AU' }),
+        json: async () => ({ success: true, latitude: -33.87, longitude: 151.21, city: 'Sydney', country_code: 'AU' }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -229,7 +230,7 @@ describe('fetchWeatherNow', () => {
     await fetchWeatherNow();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0][0]).toMatch(/ipapi\.co/);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipwho\.is/);
     const settingsWrite = storageSet.mock.calls.find((c) => 'tabout:settings' in c[0]);
     expect(settingsWrite[0]['tabout:settings'].weather.latitude).toBe(-33.87);
     // Pre-existing theme/clock preserved through the synthesis.
@@ -253,9 +254,9 @@ describe('fetchWeatherNow', () => {
     });
     fetchMock
       .mockResolvedValueOnce({
-        // ipapi.co first
+        // ipwho.is first (primary provider)
         ok: true,
-        json: async () => ({ latitude: 5, longitude: 10, city: 'Anywhere', country_code: 'US' }),
+        json: async () => ({ success: true, latitude: 5, longitude: 10, city: 'Anywhere', country_code: 'US' }),
       })
       .mockResolvedValueOnce({
         // open-meteo second
@@ -265,9 +266,9 @@ describe('fetchWeatherNow', () => {
 
     await fetchWeatherNow();
 
-    // Two network calls: ipapi.co, then open-meteo.
+    // Two network calls: ipwho.is, then open-meteo.
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0][0]).toMatch(/ipapi\.co/);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipwho\.is/);
     expect(fetchMock.mock.calls[1][0]).toMatch(/api\.open-meteo\.com/);
 
     // Two storage writes: settings update (with new lat/lon), then weather data.
@@ -279,15 +280,15 @@ describe('fetchWeatherNow', () => {
     );
   });
 
-  it('is a no-op when lat/lon are null and IP geo also fails', async () => {
+  it('is a no-op when lat/lon are null and every IP-geo provider fails', async () => {
     storageGet.mockResolvedValue({
       'tabout:settings': { weather: { enabled: true, latitude: null, longitude: null, unit: 'C' } },
     });
+    // Same 500 response for all three providers; open-meteo never runs.
     fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
     await fetchWeatherNow();
-    // Only the ipapi.co call happened; open-meteo never ran.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toMatch(/ipapi\.co/);
+    // Three provider attempts (ipwho.is, geojs.io, ipapi.co), then stops.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const weatherWrite = storageSet.mock.calls.find((c) => 'tabout:weatherData' in c[0]);
     expect(weatherWrite).toBeUndefined();
   });
@@ -331,10 +332,11 @@ describe('tryIpGeolocate', () => {
     vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('returns lat/lon/label from a successful ipapi.co response', async () => {
+  it('returns lat/lon/label from a successful ipwho.is response', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({
+        success: true,
         latitude: 42.36,
         longitude: -71.06,
         city: 'Boston',
@@ -350,23 +352,34 @@ describe('tryIpGeolocate', () => {
     });
   });
 
-  it('returns null when ipapi.co reports rate-limit (200 + error flag)', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ error: true, reason: 'RateLimited' }),
+  it('falls through ipwho.is → geojs.io when the primary blocks the request', async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({}) })
+      .mockResolvedValueOnce({
+        ok: true,
+        // geojs returns strings for coords; parser must cast.
+        json: async () => ({ latitude: '35.68', longitude: '139.69', city: 'Tokyo', country_code: 'JP' }),
+      });
+    const geo = await tryIpGeolocate();
+    expect(geo).toEqual({
+      latitude: 35.68,
+      longitude: 139.69,
+      locationLabel: 'Tokyo, JP',
     });
-    expect(await tryIpGeolocate()).toBeNull();
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipwho\.is/);
+    expect(fetchMock.mock.calls[1][0]).toMatch(/geojs\.io/);
   });
 
-  it('returns null on network failure', async () => {
+  it('returns null on network failure across all providers', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
     expect(await tryIpGeolocate()).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('returns null when latitude is missing or non-numeric', async () => {
+  it('returns null when latitude is missing or non-numeric in every provider', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ latitude: 'nope', longitude: 0, city: 'X' }),
+      json: async () => ({ success: true, latitude: 'nope', longitude: 0, city: 'X' }),
     });
     expect(await tryIpGeolocate()).toBeNull();
   });
@@ -374,7 +387,7 @@ describe('tryIpGeolocate', () => {
   it('falls back to "Your location" when city/region/country are absent', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ latitude: 1, longitude: 2 }),
+      json: async () => ({ success: true, latitude: 1, longitude: 2 }),
     });
     const geo = await tryIpGeolocate();
     expect(geo.locationLabel).toBe('Your location');

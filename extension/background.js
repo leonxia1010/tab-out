@@ -71,42 +71,94 @@ const WEATHER_ALARM = 'tabout-weather-refresh';
 const WEATHER_STORAGE_KEY = 'tabout:weatherData';
 const WEATHER_REFRESH_PERIOD_MIN = 30;
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
-// ipapi.co: free tier is 1k req/day without an API key, well above
-// anything this extension will ever issue (one call per install when
-// no manual location exists yet).
-const IP_GEO_URL = 'https://ipapi.co/json/';
+// Multi-provider fallback: ipapi.co blocks some regions / bot-detects
+// extension User-Agents (observed HTTP 403 on v2.6.2 field reports).
+// ipwho.is is the primary now because it's the most permissive;
+// geojs.io and ipapi.co are fallbacks so one regional block doesn't
+// leave the widget stuck at "Set weather location".
+const IP_GEO_PROVIDERS = [
+  {
+    name: 'ipwho.is',
+    url: 'https://ipwho.is/',
+    // { success: true/false, latitude, longitude, city, region, country_code }
+    parse: (body) => {
+      if (!body || body.success === false) return null;
+      return {
+        latitude: body.latitude,
+        longitude: body.longitude,
+        city: body.city,
+        region: body.region,
+        country_code: body.country_code,
+      };
+    },
+  },
+  {
+    name: 'geojs.io',
+    url: 'https://get.geojs.io/v1/ip/geo.json',
+    // Numeric fields arrive as strings here; cast before range checks.
+    parse: (body) => {
+      if (!body) return null;
+      const lat = typeof body.latitude === 'string' ? parseFloat(body.latitude) : body.latitude;
+      const lon = typeof body.longitude === 'string' ? parseFloat(body.longitude) : body.longitude;
+      return {
+        latitude: lat,
+        longitude: lon,
+        city: body.city,
+        region: body.region,
+        country_code: body.country_code,
+      };
+    },
+  },
+  {
+    name: 'ipapi.co',
+    url: 'https://ipapi.co/json/',
+    // 429 / quota rejections return 200 with { error: true, reason: ... }.
+    parse: (body) => {
+      if (!body || body.error) return null;
+      return {
+        latitude: body.latitude,
+        longitude: body.longitude,
+        city: body.city,
+        region: body.region,
+        country_code: body.country_code,
+      };
+    },
+  },
+];
 
 async function tryIpGeolocate() {
-  try {
-    const res = await fetch(IP_GEO_URL);
-    if (!res.ok) {
-      console.warn('[tab-out] ip-geo: HTTP', res.status);
-      return null;
+  for (const provider of IP_GEO_PROVIDERS) {
+    try {
+      const res = await fetch(provider.url);
+      if (!res.ok) {
+        console.warn(`[tab-out] ip-geo ${provider.name}: HTTP`, res.status);
+        continue;
+      }
+      const body = await res.json();
+      const parsed = provider.parse(body);
+      if (!parsed) {
+        console.warn(`[tab-out] ip-geo ${provider.name}: rejected body`, body && (body.reason || body.message));
+        continue;
+      }
+      const latitude = typeof parsed.latitude === 'number' && Number.isFinite(parsed.latitude) ? parsed.latitude : null;
+      const longitude = typeof parsed.longitude === 'number' && Number.isFinite(parsed.longitude) ? parsed.longitude : null;
+      if (latitude == null || longitude == null) {
+        console.warn(`[tab-out] ip-geo ${provider.name}: missing coords`, parsed);
+        continue;
+      }
+      const parts = [];
+      if (parsed.city) parts.push(parsed.city);
+      if (parsed.region) parts.push(parsed.region);
+      if (parsed.country_code) parts.push(parsed.country_code);
+      const locationLabel = parts.length > 0 ? parts.join(', ') : 'Your location';
+      console.info(`[tab-out] ip-geo ${provider.name}: OK`, locationLabel, latitude, longitude);
+      return { latitude, longitude, locationLabel };
+    } catch (e) {
+      console.warn(`[tab-out] ip-geo ${provider.name}: exception`, e && e.message);
     }
-    const body = await res.json();
-    // ipapi.co 429 / quota rejections return 200 with { error: true,
-    // reason: 'RateLimited' }, so the !res.ok guard alone isn't enough.
-    if (!body || body.error) {
-      console.warn('[tab-out] ip-geo: error body', body && body.reason);
-      return null;
-    }
-    const latitude = typeof body.latitude === 'number' ? body.latitude : null;
-    const longitude = typeof body.longitude === 'number' ? body.longitude : null;
-    if (latitude == null || longitude == null) {
-      console.warn('[tab-out] ip-geo: missing coords', { latitude: body.latitude, longitude: body.longitude });
-      return null;
-    }
-    const parts = [];
-    if (body.city) parts.push(body.city);
-    if (body.region) parts.push(body.region);
-    if (body.country_code) parts.push(body.country_code);
-    const locationLabel = parts.length > 0 ? parts.join(', ') : 'Your location';
-    console.info('[tab-out] ip-geo: OK', locationLabel, latitude, longitude);
-    return { latitude, longitude, locationLabel };
-  } catch (e) {
-    console.warn('[tab-out] ip-geo: exception', e && e.message);
-    return null;
   }
+  console.warn('[tab-out] ip-geo: all providers exhausted');
+  return null;
 }
 
 // Writes IP-derived lat/lon into tabout:settings when the user hasn't
