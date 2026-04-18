@@ -2,11 +2,6 @@
 // textContent/setAttribute auto-escape; inline event handlers are rejected;
 // href values run through a scheme whitelist. No raw HTML from user data
 // ever reaches innerHTML through these helpers.
-//
-// Phase 2 PR A: ESM rewrite of legacy dashboard/dom-utils.js. The legacy
-// IIFE file still exists for now — render.test.js injects it into JSDOM as
-// a <script> tag, and app.js still reads window.domUtils from it. Both go
-// away in PR G once app.js is fully migrated to ESM.
 
 type AttrValue = string | number | boolean | null | undefined;
 type DatasetValue = Record<string, AttrValue>;
@@ -107,4 +102,50 @@ export function mount(target: Element, nodes: Node | Array<Node | null | undefin
   const list = Array.isArray(nodes) ? nodes : [nodes];
   const filtered = list.filter((n): n is Node => n != null && (n as unknown) !== false);
   target.replaceChildren(...filtered);
+}
+
+// Parse a trusted inline SVG literal into a single Element, throwing a
+// labelled error when the literal is malformed. Every widget used to
+// inline the same null-check around `svg()`; centralizing here keeps the
+// "bad SVG string" failure mode uniform and prevents each widget from
+// drifting into slightly different error copy.
+export function iconNode(svgString: string, label = 'icon'): Element {
+  const node = svg(svgString);
+  if (!node) throw new Error(`dom-utils: failed to parse ${label} SVG`);
+  return node;
+}
+
+// Anchor a popover (position:fixed in the browser top layer) to a
+// trigger's bounding rect on every `open` transition. Right-aligned under
+// the trigger with an 8px viewport-edge clamp, dismissed on scroll/resize
+// so the menu never floats detached from its anchor while the page moves.
+// Listener lifetime is bound to the popover's open state: attached on
+// open, removed on close, so no work is done while the menu is hidden.
+export function anchorPopoverTo(
+  trigger: HTMLElement,
+  popover: HTMLElement,
+  gapPx = 4,
+): void {
+  const dismiss = (): void => {
+    if (typeof popover.hidePopover === 'function') popover.hidePopover();
+  };
+  popover.addEventListener('toggle', (ev) => {
+    const e = ev as ToggleEvent;
+    if (e.newState === 'open') {
+      const tr = trigger.getBoundingClientRect();
+      const pw = popover.offsetWidth;
+      const vw = window.innerWidth;
+      let left = tr.right - pw;
+      if (left < 8) left = 8;
+      if (left + pw > vw - 8) left = vw - pw - 8;
+      popover.style.top = `${tr.bottom + gapPx}px`;
+      popover.style.left = `${left}px`;
+      // Capture phase so nested scroll containers also trigger dismissal.
+      window.addEventListener('scroll', dismiss, { capture: true, passive: true });
+      window.addEventListener('resize', dismiss, { passive: true });
+    } else {
+      window.removeEventListener('scroll', dismiss, { capture: true });
+      window.removeEventListener('resize', dismiss);
+    }
+  });
 }

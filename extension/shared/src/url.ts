@@ -13,3 +13,11 @@
 export function canonicalUrl(u: string): string {
   try { return new URL(u).href; } catch { return u; }
 }
+
+// Safely extract the hostname of a URL string. Returns null on parse
+// failure so callers can pick their own fallback (''/'raw input'/drop)
+// explicitly — before this existed, six call sites inlined the same
+// try/catch and quietly disagreed on what "no hostname" means.
+export function extractHostname(u: string): string | null {
+  try { return new URL(u).hostname; } catch { return null; }
+}

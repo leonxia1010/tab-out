@@ -13,7 +13,7 @@
 // symmetric shape keeps widget wiring uniform and lets tests assert
 // cleanup without special-casing.
 
-import { el, svg } from '../dom-utils.js';
+import { el, svg } from '../../../shared/dist/dom-utils.js';
 
 export interface SearchHandle {
   destroy(): void;

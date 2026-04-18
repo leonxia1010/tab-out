@@ -1,8 +1,5 @@
-// Tab Out dashboard — pure helpers extracted from app.js (Phase 2 PR B).
-//
-// Everything here is side-effect-free; callers pass state in (no hidden reads
-// from a module-level `openTabs`). Depended on by app.js via the window.utils
-// bridge (see src/index.ts) and directly imported by tests/dashboard/utils.test.js.
+// Pure dashboard helpers. Side-effect-free; callers pass state in
+// (no hidden reads from a module-level `openTabs`).
 
 export interface Tab {
   url?: string;
@@ -128,9 +125,13 @@ export function capitalize(str: string | null | undefined): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-export function friendlyDomain(hostname: string | null | undefined): string {
-  if (!hostname) return '';
+// Memoize by hostname — the universe of hostnames a given dashboard
+// ever sees is small (the user's open + saved tabs), and renderDomainCard
+// calls this every repaint. Bounded cache in practice by the same ceiling
+// the underlying browser has on concurrent tabs.
+const friendlyDomainCache = new Map<string, string>();
 
+function computeFriendlyDomain(hostname: string): string {
   if (FRIENDLY_DOMAINS[hostname]) return FRIENDLY_DOMAINS[hostname];
 
   if (hostname.endsWith('.substack.com') && hostname !== 'substack.com') {
@@ -151,6 +152,15 @@ export function friendlyDomain(hostname: string | null | undefined): string {
     .split('.')
     .map((part) => capitalize(part))
     .join(' ');
+}
+
+export function friendlyDomain(hostname: string | null | undefined): string {
+  if (!hostname) return '';
+  const cached = friendlyDomainCache.get(hostname);
+  if (cached !== undefined) return cached;
+  const resolved = computeFriendlyDomain(hostname);
+  friendlyDomainCache.set(hostname, resolved);
+  return resolved;
 }
 
 export function stripTitleNoise(title: string | null | undefined): string {
@@ -269,9 +279,9 @@ export function smartTitle(
   return title || url;
 }
 
-// All three tab helpers now take the tab array as an argument so the module
-// stays pure; app.js passes the module-level openTabs in explicitly. state.ts
-// lands in PR C.
+// Tab helpers take the array as an argument so the module stays pure —
+// no hidden module-level reads — and tests can feed fixtures without
+// stubbing state.
 
 // Allowlist filter: keep tabs the dashboard should render. We drop other-
 // browser internals (about/edge/brave) and Tab Out's own newtab pages so the

@@ -9,7 +9,7 @@
 // rebuilds the Intl formatter and forces an immediate tick so an
 // options-page toggle reflects before the next second elapses.
 
-import { el } from '../dom-utils.js';
+import { el } from '../../../shared/dist/dom-utils.js';
 import type { ClockFormat } from '../../../shared/dist/settings.js';
 
 export interface ClockHandle {

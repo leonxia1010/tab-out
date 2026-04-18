@@ -1,7 +1,4 @@
-// extension/dashboard/src/api.ts
-//
-// Phase 3 PR J — Tab Out data layer backed by chrome.storage.local.
-// Phase 4 PR-A — mission surface removed; deferred-tabs is the only feature.
+// Tab Out data layer backed by chrome.storage.local.
 //
 // KV layout:
 //   deferredTabs   DeferredTab[]          ← saved-for-later list
@@ -13,6 +10,15 @@
 // The 30-day age-out for deferred tabs runs as a read-time side effect inside
 // getDeferred(): the first call after midnight on day 31 archives the row and
 // writes the result back. This mirrors the old SQL ageOutDeferred behaviour.
+
+import { createLock, storage } from '../../shared/dist/storage.js';
+
+export {
+  UPDATE_STATUS_KEY,
+  dismissUpdateBanner,
+  getUpdateStatus,
+  type UpdateStatus,
+} from './api/update-status.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -49,12 +55,6 @@ export interface DeferInput {
   source_mission?: string | null;
 }
 
-export interface UpdateStatus {
-  updateAvailable: boolean;
-  currentTag?: string;
-  checkedAt?: string;
-}
-
 export interface SaveDeferResult {
   success: true;
   // Rows that did not exist in the active list before this call.
@@ -76,13 +76,6 @@ export interface SearchDeferredResult {
 }
 
 // ─── chrome.storage.local helpers ──────────────────────────────────────────
-
-function storage(): chrome.storage.StorageArea {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    throw new Error('chrome.storage.local unavailable');
-  }
-  return chrome.storage.local;
-}
 
 async function readArray<T>(key: string): Promise<T[]> {
   const result = await storage().get(key);
@@ -124,17 +117,12 @@ async function readDeferredTabs(): Promise<DeferredTab[]> {
 //   B writes back minus row B — but B's snapshot still contained row A,
 //     so A just resurrected.
 //
-// withLock chains each write onto the previous one's completion. The failure
-// path re-invokes fn on the next call (so one rejected write doesn't poison
-// the chain) while still surfacing this call's own error through the
-// returned promise. Reads that don't mutate (searchDeferred, getUpdateStatus)
-// stay lock-free.
-let pendingWrite: Promise<unknown> = Promise.resolve();
-function withLock<T>(fn: () => Promise<T>): Promise<T> {
-  const next = pendingWrite.then(fn, fn);
-  pendingWrite = next.catch(() => {});
-  return next;
-}
+// createLock chains each write onto the previous one's completion. The
+// failure path re-invokes fn on the next call (so one rejected write
+// doesn't poison the chain) while still surfacing this call's own error
+// through the returned promise. Reads that don't mutate (searchDeferred,
+// getUpdateStatus) stay lock-free.
+const withLock = createLock();
 
 // ─── ID generation (replaces SQLite AUTOINCREMENT) ─────────────────────────
 // Date.now()*1000 + random is the *candidate* for a fresh id. We then bump
@@ -185,64 +173,6 @@ function newId(): number {
   lastId = next;
   writeStoredLastId(next);
   return next;
-}
-
-// ─── Update status ──────────────────────────────────────────────────────────
-
-// Single source of truth for the update-banner storage key. Previously
-// lived as a private constant in both api.ts and index.ts; exporting
-// here means reads (getUpdateStatus), writes (dismissUpdateBanner),
-// and the background.js writer all reference one name.
-export const UPDATE_STATUS_KEY = 'tabout:updateStatus';
-
-// Shape written by background.js checkForUpdate(). All fields optional
-// because a fresh install may have no key yet. Tags (release tag_name)
-// rather than commit shas so non-release pushes don't trigger the banner.
-interface UpdateStatusStorage {
-  updateAvailable?: boolean;
-  latestTag?: string;
-  currentTag?: string;
-  checkedAt?: string;
-  dismissedTag?: string | null;
-}
-
-export async function getUpdateStatus(): Promise<UpdateStatus> {
-  try {
-    if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-      return { updateAvailable: false };
-    }
-    const result = await chrome.storage.local.get(UPDATE_STATUS_KEY);
-    const s = (result as Record<string, UpdateStatusStorage>)[UPDATE_STATUS_KEY];
-    if (!s) return { updateAvailable: false };
-    // Banner stays dismissed until a *new* release comes out (dismissedTag
-    // tracks the last latestTag the user dismissed against).
-    const suppressedByDismiss = s.dismissedTag != null && s.dismissedTag === s.latestTag;
-    return {
-      updateAvailable: Boolean(s.updateAvailable) && !suppressedByDismiss,
-      currentTag: s.currentTag,
-      checkedAt: s.checkedAt,
-    };
-  } catch {
-    return { updateAvailable: false };
-  }
-}
-
-// Persist banner dismissal: read the latest update record and stamp
-// dismissedTag = latestTag so the banner stays hidden until a new
-// release lands. Silent on failure — the UI already removed the banner
-// element; storage persistence is a best-effort concern.
-export async function dismissUpdateBanner(): Promise<void> {
-  try {
-    if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
-    const result = await chrome.storage.local.get(UPDATE_STATUS_KEY);
-    const s = (result as Record<string, UpdateStatusStorage | undefined>)[UPDATE_STATUS_KEY];
-    if (!s?.latestTag) return;
-    await chrome.storage.local.set({
-      [UPDATE_STATUS_KEY]: { ...s, dismissedTag: s.latestTag },
-    });
-  } catch {
-    // noop
-  }
 }
 
 // ─── Deferred-tabs endpoints ────────────────────────────────────────────────

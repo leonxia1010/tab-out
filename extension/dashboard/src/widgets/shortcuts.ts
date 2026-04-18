@@ -1,7 +1,7 @@
 // Shortcut bar widget — up to 10 circular favicon tiles below the
 // search widget, mirroring Chrome's native NTP "Most visited" row.
 //
-// Sources merge order (locked convention, see plan zazzy-puzzling-narwhal):
+// Sources merge order (locked convention):
 //   [...pins, ...topSites.filter(!pinned && !hidden)].slice(0, 10)
 // Pins always come first; topSites fills the remainder. Hides apply to
 // topSites only — a pinned URL is never hidden (user's explicit pin
@@ -28,9 +28,9 @@
 // and re-renders with the new pins/hides. Dashboard bootstrap calls
 // applySettings from onSettingsChange so pin/hide actions reflect live.
 
-import { el, svg } from '../dom-utils.js';
+import { anchorPopoverTo, el, iconNode } from '../../../shared/dist/dom-utils.js';
 import { faviconUrl } from '../favicon.js';
-import { canonicalUrl } from '../../../shared/dist/url.js';
+import { canonicalUrl, extractHostname } from '../../../shared/dist/url.js';
 import type { ToutSettings, ShortcutPin } from '../../../shared/dist/settings.js';
 
 const MAX_TILES = 10;
@@ -56,11 +56,7 @@ interface TopSite {
 }
 
 function hostOf(rawUrl: string): string {
-  try {
-    return new URL(rawUrl).hostname;
-  } catch {
-    return '';
-  }
+  return extractHostname(rawUrl) ?? '';
 }
 
 // Loopback/local-dev hosts — filtered out of topSites at the source so
@@ -119,12 +115,6 @@ function buildList(
     })
     .map((s) => ({ url: s.url, title: s.title }));
   return [...pins, ...filler].slice(0, MAX_TILES);
-}
-
-function iconNode(svgString: string): Element {
-  const node = svg(svgString);
-  if (!node) throw new Error('shortcuts widget: failed to parse icon SVG');
-  return node;
 }
 
 // Per-tile popover id counter. Each popover needs a unique id because
@@ -224,32 +214,10 @@ function renderTile(entry: ShortcutPin, isPinned: boolean): HTMLElement {
     role: 'menu',
   }, menuItems) as HTMLElement;
 
-  // Position the popover under the trigger on every open (same pattern
-  // as widgets/theme.ts). Native popover lives in the top layer at
-  // origin (0,0) by default; we set fixed coords off the trigger's
-  // bounding rect. Scroll / resize closes the menu to match the
-  // theme popover's behavior.
-  const dismiss = (): void => {
-    if (typeof popover.hidePopover === 'function') popover.hidePopover();
-  };
-  popover.addEventListener('toggle', (ev) => {
-    const e = ev as ToggleEvent;
-    if (e.newState === 'open') {
-      const tr = menuTrigger.getBoundingClientRect();
-      const pw = popover.offsetWidth;
-      const vw = window.innerWidth;
-      let left = tr.right - pw;
-      if (left < 8) left = 8;
-      if (left + pw > vw - 8) left = vw - pw - 8;
-      popover.style.top = `${tr.bottom + 4}px`;
-      popover.style.left = `${left}px`;
-      window.addEventListener('scroll', dismiss, { capture: true, passive: true });
-      window.addEventListener('resize', dismiss, { passive: true });
-    } else {
-      window.removeEventListener('scroll', dismiss, { capture: true });
-      window.removeEventListener('resize', dismiss);
-    }
-  });
+  // Native popover lives in the top layer at origin (0,0); anchor it
+  // under the trigger on open and dismiss on scroll/resize so it never
+  // floats detached from its anchor. Shared with widgets/theme.ts.
+  anchorPopoverTo(menuTrigger, popover, 4);
 
   const tile = el('div', {
     className: isPinned ? 'shortcut-tile is-pinned' : 'shortcut-tile',

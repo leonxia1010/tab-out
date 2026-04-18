@@ -1,13 +1,13 @@
-// Tab Out dashboard — event delegation handlers (Phase 2 PR F).
+// Single document-level click + input listeners, dispatched to a
+// data-action handler by a switch in dispatchClick. Every new
+// interactive surface adds a `data-action="..."` dataset and a case
+// below — no per-button addEventListener sprawl.
 //
-// Single document-level click + input listeners, dispatched to one of 10
-// data-action handlers.
-//
-// Lifecycle: src/index.ts calls attachListeners() exactly once on module
-// load. attachListeners is idempotent so accidental re-imports do not
-// double-fire handlers.
+// Lifecycle: src/index.ts calls attachListeners() exactly once on
+// module load. attachListeners is idempotent so accidental re-imports
+// don't double-fire handlers.
 
-import { el, mount } from './dom-utils.js';
+import { el, mount } from '../../shared/dist/dom-utils.js';
 import { friendlyDomain } from './utils.js';
 import {
   getDomainGroups,
@@ -465,10 +465,12 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
   const actionEl = target?.closest<HTMLElement>('[data-action]') ?? null;
   if (!actionEl) return;
 
-  const action = actionEl.dataset.action;
-  const card   = actionEl.closest<HTMLElement>('.domain-card');
+  // `.domain-card` lookup is only needed for two branches; compute it
+  // lazily so the other ~20 actions don't pay for an unused ancestor
+  // walk on every click.
+  const card = (): HTMLElement | null => actionEl.closest<HTMLElement>('.domain-card');
 
-  switch (action) {
+  switch (actionEl.dataset.action) {
     case 'close-tabout-dupes': return handleCloseTabOutDupes();
     case 'expand-chips':       return handleExpandChips(actionEl);
     case 'focus-tab':          return handleFocusTab(actionEl);
@@ -477,8 +479,8 @@ async function dispatchClick(e: MouseEvent): Promise<void> {
     case 'check-deferred':     return handleCheckDeferred(actionEl);
     case 'dismiss-deferred':   return handleDismissDeferred(actionEl);
     case 'open-saved':         return handleOpenSaved(e, actionEl);
-    case 'close-domain-tabs':  return handleCloseDomainTabs(actionEl, card);
-    case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card);
+    case 'close-domain-tabs':  return handleCloseDomainTabs(actionEl, card());
+    case 'dedup-keep-one':     return handleDedupKeepOne(actionEl, card());
     case 'close-all-open-tabs':return handleCloseAllOpenTabs();
     case 'delete-archived':    return handleDeleteArchived(actionEl);
     case 'restore-archived':   return handleRestoreArchived(actionEl);

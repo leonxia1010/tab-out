@@ -5,7 +5,7 @@
 //   - bootstrap: renderDashboard() + checkForUpdates() on load
 //   - event listener attach (handlers.attachListeners is idempotent)
 //
-// Update banner (phase 4 PR-B): background.js writes update state to
+// Update banner: background.js writes update state to
 // chrome.storage.local['tabout:updateStatus'] every 48h; we read it here,
 // render the banner via dom-utils.el() so no innerHTML touches user data,
 // and let the user dismiss it against the current latestTag.
@@ -14,7 +14,7 @@ import * as handlers from './handlers.js';
 import { renderDashboard } from './renderers.js';
 import { attachTabsListeners } from './refresh.js';
 import { dismissUpdateBanner, getUpdateStatus } from './api.js';
-import { el, svg } from './dom-utils.js';
+import { el, svg } from '../../shared/dist/dom-utils.js';
 import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
 import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
 import { mountClock, type ClockHandle } from './widgets/clock.js';

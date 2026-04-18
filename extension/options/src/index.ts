@@ -8,6 +8,8 @@ import {
   type Layout,
   type ShortcutPin,
 } from '../../shared/dist/settings.js';
+import { el } from '../../shared/dist/dom-utils.js';
+import { extractHostname } from '../../shared/dist/url.js';
 
 function radios(name: string): NodeListOf<HTMLInputElement> {
   return document.querySelectorAll<HTMLInputElement>(`input[type="radio"][name="${name}"]`);
@@ -20,43 +22,33 @@ function setRadioValue(name: string, value: string): void {
 }
 
 function hostOf(rawUrl: string): string {
-  try {
-    return new URL(rawUrl).hostname;
-  } catch {
-    return rawUrl;
-  }
+  // Fall back to the raw string so a malformed stored URL still renders
+  // something readable in the pinned/hidden lists instead of an empty cell.
+  return extractHostname(rawUrl) ?? rawUrl;
 }
 
-// Shortcut list rendering is done with textContent + createElement so
-// hostile site titles (from chrome.topSites via pin action) can't inject
-// HTML — same discipline as dashboard/dom-utils.ts.
+// Shortcut list rendering routes every user-supplied string through
+// shared/dom-utils el() so hostile titles (chrome.topSites → pin action)
+// can't inject HTML — same discipline the dashboard widgets use.
 function renderPinnedList(pins: ShortcutPin[]): void {
   const list = document.getElementById('pinnedList');
   if (!list) return;
   list.replaceChildren(
     ...pins.map((pin) => {
-      const title = document.createElement('span');
-      title.className = 'settings-list-item-title';
-      title.textContent = pin.title || hostOf(pin.url);
-
-      const url = document.createElement('span');
-      url.className = 'settings-list-item-url';
-      url.textContent = pin.url;
-
-      const remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'settings-list-remove';
-      remove.textContent = 'Remove';
+      const remove = el('button', {
+        type: 'button',
+        className: 'settings-list-remove',
+      }, ['Remove']) as HTMLButtonElement;
       remove.addEventListener('click', () => {
         void setSettings({
           shortcutPins: pins.filter((p) => p.url !== pin.url),
         });
       });
-
-      const li = document.createElement('li');
-      li.className = 'settings-list-item';
-      li.append(title, url, remove);
-      return li;
+      return el('li', { className: 'settings-list-item' }, [
+        el('span', { className: 'settings-list-item-title' }, [pin.title || hostOf(pin.url)]),
+        el('span', { className: 'settings-list-item-url' }, [pin.url]),
+        remove,
+      ]);
     }),
   );
 }
@@ -66,28 +58,20 @@ function renderHiddenList(hides: string[]): void {
   if (!list) return;
   list.replaceChildren(
     ...hides.map((url) => {
-      const title = document.createElement('span');
-      title.className = 'settings-list-item-title';
-      title.textContent = hostOf(url);
-
-      const urlNode = document.createElement('span');
-      urlNode.className = 'settings-list-item-url';
-      urlNode.textContent = url;
-
-      const restore = document.createElement('button');
-      restore.type = 'button';
-      restore.className = 'settings-list-remove';
-      restore.textContent = 'Unhide';
+      const restore = el('button', {
+        type: 'button',
+        className: 'settings-list-remove',
+      }, ['Unhide']) as HTMLButtonElement;
       restore.addEventListener('click', () => {
         void setSettings({
           shortcutHides: hides.filter((u) => u !== url),
         });
       });
-
-      const li = document.createElement('li');
-      li.className = 'settings-list-item';
-      li.append(title, urlNode, restore);
-      return li;
+      return el('li', { className: 'settings-list-item' }, [
+        el('span', { className: 'settings-list-item-title' }, [hostOf(url)]),
+        el('span', { className: 'settings-list-item-url' }, [url]),
+        restore,
+      ]);
     }),
   );
 }
