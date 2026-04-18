@@ -355,7 +355,7 @@ export function renderOpenTabsHeader(sortedGroups: DomainGroup[], realTabsCount:
       className: 'action-btn',
       style: 'font-size:11px;padding:3px 10px;margin-left:6px;',
       dataset: { action: 'close-all-dupes-global', totalDupes: String(totalDupes), dupeGroups: String(dupeGroups) },
-    }, [svg(ICONS.close), ` Close ${totalDupes} duplicate${totalDupes !== 1 ? 's' : ''}`]);
+    }, [svg(ICONS.close), ` Close all ${totalDupes} duplicate${totalDupes !== 1 ? 's' : ''}`]);
     children.push(closeDupesBtn);
   }
   // v2.5.0 — Organize button reorders the current window's tab bar to
