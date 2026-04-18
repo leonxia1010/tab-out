@@ -7,6 +7,9 @@
  *   2. Weather refresher — poll Open-Meteo every 30min (when enabled)
  *      and on demand via runtime.sendMessage, write current temperature
  *      + WMO code to chrome.storage.local.
+ *   3. Countdown completer — when a countdown alarm fires, clear the
+ *      persisted state and raise a chrome.notifications entry so the
+ *      user sees the timer finished even outside the dashboard tab.
  *
  * chrome.alarms is used instead of setInterval because service workers
  * can be suspended at any time; alarms survive the suspension.
@@ -100,6 +103,42 @@ async function fetchWeatherNow() {
   }
 }
 
+// ─── Countdown completer ───────────────────────────────────────────────────
+
+const COUNTDOWN_ALARM = 'tabout-countdown-complete';
+const COUNTDOWN_STORAGE_KEY = 'tabout:countdownState';
+// Browser-restart case: the alarm API can fire a late alarm whose
+// `endsAt` is hours or days in the past. Firing a "your timer is done"
+// notification in that window would feel like spam, so we silently
+// drop state for anything older than 24h.
+const COUNTDOWN_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+const COUNTDOWN_NOTIFICATION_ID = 'tabout-countdown-done';
+
+async function handleCountdownComplete() {
+  try {
+    const stored = await chrome.storage.local.get(COUNTDOWN_STORAGE_KEY);
+    const state = stored[COUNTDOWN_STORAGE_KEY];
+    if (!state) return; // user reset before alarm fired
+    await chrome.storage.local.remove(COUNTDOWN_STORAGE_KEY);
+
+    const endsAt = typeof state.endsAt === 'number' ? state.endsAt : 0;
+    if (Date.now() - endsAt > COUNTDOWN_STALE_THRESHOLD_MS) return;
+
+    const durationMin = Math.max(1, Math.round((state.durationMs || 0) / 60_000));
+    if (chrome.notifications && chrome.notifications.create) {
+      chrome.notifications.create(COUNTDOWN_NOTIFICATION_ID, {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon48.png'),
+        title: 'Countdown complete',
+        message: `Your ${durationMin}-minute timer finished.`,
+        requireInteraction: false,
+      });
+    }
+  } catch {
+    // storage or notifications unavailable — silent degrade.
+  }
+}
+
 // ─── Service-worker wiring ─────────────────────────────────────────────────
 // Guarded so importing this file from vitest (where chrome is mocked but
 // listener registration is irrelevant) does not crash.
@@ -119,6 +158,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onInstalle
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === UPDATE_ALARM) void checkForUpdate();
     else if (alarm.name === WEATHER_ALARM) void fetchWeatherNow();
+    else if (alarm.name === COUNTDOWN_ALARM) void handleCountdownComplete();
   });
 
   // Dashboard widget → SW refresh trigger. `force` is informational; the
@@ -148,8 +188,17 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onInstalle
     }
   });
 
+  // Tapping the notification just dismisses it — the dashboard already
+  // routes the user's attention back on its own when they switch tabs.
+  if (chrome.notifications && chrome.notifications.onClicked) {
+    chrome.notifications.onClicked.addListener((notifId) => {
+      if (notifId === COUNTDOWN_NOTIFICATION_ID) {
+        chrome.notifications.clear(notifId);
+      }
+    });
+  }
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { checkForUpdate, fetchWeatherNow };
+  module.exports = { checkForUpdate, fetchWeatherNow, handleCountdownComplete };
 }

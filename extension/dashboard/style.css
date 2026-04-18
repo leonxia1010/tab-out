@@ -1885,6 +1885,194 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   text-decoration: underline;
 }
 
+/* Countdown widget — matching shape with weather-widget so the
+   info cluster reads uniform. Running state gets a subtle accent
+   border so the user's peripheral vision can pick up "timer is
+   alive" without reading the numbers. */
+.countdown-widget {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 18px;
+  cursor: pointer;
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+
+.countdown-widget:hover {
+  border-color: var(--warm-gray);
+  background: var(--paper);
+}
+
+.countdown-widget-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+}
+
+.countdown-widget-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.countdown-widget-label {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.countdown-widget.countdown-running {
+  border-color: var(--accent-amber, var(--muted));
+  color: var(--accent-amber, var(--ink));
+}
+
+.countdown-widget.countdown-running .countdown-widget-icon {
+  color: var(--accent-amber, var(--ink));
+}
+
+.countdown-widget.countdown-paused {
+  border-color: var(--warm-gray);
+  color: var(--muted);
+}
+
+.countdown-popover {
+  position: fixed;
+  margin: 0;
+  padding: 14px;
+  min-width: 240px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 8px 32px var(--shadow);
+  color: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  inset: auto;
+}
+
+.countdown-popover::backdrop {
+  background: transparent;
+}
+
+.countdown-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.countdown-popover-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.countdown-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.countdown-preset {
+  padding: 8px 0;
+  border: 1px solid var(--warm-gray);
+  background: var(--card-bg);
+  color: var(--ink);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.countdown-preset:hover {
+  background: var(--paper);
+  border-color: var(--ink);
+}
+
+.countdown-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.countdown-custom-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.countdown-custom-input:focus {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.countdown-custom-unit {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.countdown-start-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.countdown-start-btn:hover {
+  opacity: 0.85;
+}
+
+.countdown-popover-row {
+  display: flex;
+  gap: 8px;
+}
+
+.countdown-popover-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.countdown-popover-btn-muted {
+  background: var(--card-bg);
+  color: var(--ink);
+  border-color: var(--warm-gray);
+}
+
+.countdown-popover-btn:hover {
+  opacity: 0.85;
+}
+
 /* ============================================================
    Dark theme palette (v2.1.0).
    Applies when:
