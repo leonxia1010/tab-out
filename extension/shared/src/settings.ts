@@ -13,6 +13,8 @@
 // so absent key ≡ masonry, and the stylesheet's base rule handles it.
 // Only 'grid' writes to the cache.
 
+import { createLock, storage } from './storage.js';
+
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ClockFormat = '12h' | '24h';
 export type Layout = 'masonry' | 'grid';
@@ -50,13 +52,6 @@ export function defaultSettings(): ToutSettings {
     shortcutPins: [],
     shortcutHides: [],
   };
-}
-
-function storage(): chrome.storage.StorageArea {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    throw new Error('chrome.storage.local unavailable');
-  }
-  return chrome.storage.local;
 }
 
 function isTheme(v: unknown): v is ThemeMode {
@@ -139,14 +134,9 @@ export async function getSettings(): Promise<ToutSettings> {
 //   dashboard set  ← snapshot A + pin
 //   options set    ← snapshot A + unhide — wipes the pin
 //
-// Same race api.ts#withLock solves for deferredTabs; same fix here.
-// Reads (getSettings) stay lock-free.
-let pendingWrite: Promise<unknown> = Promise.resolve();
-function withLock<T>(fn: () => Promise<T>): Promise<T> {
-  const next = pendingWrite.then(fn, fn);
-  pendingWrite = next.catch(() => {});
-  return next;
-}
+// Reads (getSettings) stay lock-free; deferredTabs uses its own lock in
+// api.ts so the two write streams don't starve each other.
+const withLock = createLock();
 
 export function setSettings(patch: Partial<ToutSettings>): Promise<ToutSettings> {
   return withLock(async () => {

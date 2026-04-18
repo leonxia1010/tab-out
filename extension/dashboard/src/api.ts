@@ -1,7 +1,4 @@
-// extension/dashboard/src/api.ts
-//
-// Phase 3 PR J — Tab Out data layer backed by chrome.storage.local.
-// Phase 4 PR-A — mission surface removed; deferred-tabs is the only feature.
+// Tab Out data layer backed by chrome.storage.local.
 //
 // KV layout:
 //   deferredTabs   DeferredTab[]          ← saved-for-later list
@@ -13,6 +10,8 @@
 // The 30-day age-out for deferred tabs runs as a read-time side effect inside
 // getDeferred(): the first call after midnight on day 31 archives the row and
 // writes the result back. This mirrors the old SQL ageOutDeferred behaviour.
+
+import { createLock, storage } from '../../shared/dist/storage.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -77,13 +76,6 @@ export interface SearchDeferredResult {
 
 // ─── chrome.storage.local helpers ──────────────────────────────────────────
 
-function storage(): chrome.storage.StorageArea {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    throw new Error('chrome.storage.local unavailable');
-  }
-  return chrome.storage.local;
-}
-
 async function readArray<T>(key: string): Promise<T[]> {
   const result = await storage().get(key);
   const value = (result as Record<string, unknown>)[key];
@@ -124,17 +116,12 @@ async function readDeferredTabs(): Promise<DeferredTab[]> {
 //   B writes back minus row B — but B's snapshot still contained row A,
 //     so A just resurrected.
 //
-// withLock chains each write onto the previous one's completion. The failure
-// path re-invokes fn on the next call (so one rejected write doesn't poison
-// the chain) while still surfacing this call's own error through the
-// returned promise. Reads that don't mutate (searchDeferred, getUpdateStatus)
-// stay lock-free.
-let pendingWrite: Promise<unknown> = Promise.resolve();
-function withLock<T>(fn: () => Promise<T>): Promise<T> {
-  const next = pendingWrite.then(fn, fn);
-  pendingWrite = next.catch(() => {});
-  return next;
-}
+// createLock chains each write onto the previous one's completion. The
+// failure path re-invokes fn on the next call (so one rejected write
+// doesn't poison the chain) while still surfacing this call's own error
+// through the returned promise. Reads that don't mutate (searchDeferred,
+// getUpdateStatus) stay lock-free.
+const withLock = createLock();
 
 // ─── ID generation (replaces SQLite AUTOINCREMENT) ─────────────────────────
 // Date.now()*1000 + random is the *candidate* for a fresh id. We then bump

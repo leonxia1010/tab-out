@@ -14,7 +14,7 @@ import * as handlers from './handlers.js';
 import { renderDashboard } from './renderers.js';
 import { attachTabsListeners } from './refresh.js';
 import { dismissUpdateBanner, getUpdateStatus } from './api.js';
-import { el, svg } from './dom-utils.js';
+import { el, svg } from '../../shared/dist/dom-utils.js';
 import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
 import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
 import { mountClock, type ClockHandle } from './widgets/clock.js';

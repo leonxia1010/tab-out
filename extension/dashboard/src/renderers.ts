@@ -11,7 +11,7 @@
 // animations slice stays renderer-free. PR G removes both the wrapper and
 // the window.renderers bridge in one shot.
 
-import { el, mount, svg } from './dom-utils.js';
+import { el, mount, svg } from '../../shared/dist/dom-utils.js';
 import { faviconUrl } from './favicon.js';
 import {
   cleanTitle,

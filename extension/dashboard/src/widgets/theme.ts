@@ -31,7 +31,7 @@
 // bounding rect each time it opens, so the menu stays anchored under
 // the button (right-aligned).
 
-import { el, svg } from '../dom-utils.js';
+import { anchorPopoverTo, el, iconNode } from '../../../shared/dist/dom-utils.js';
 import { effectiveTheme } from '../../../shared/dist/settings.js';
 import type { ThemeMode } from '../../../shared/dist/settings.js';
 
@@ -83,12 +83,6 @@ export function applyTheme(theme: ThemeMode): void {
 // system glyph — that glyph only appears inside the dropdown.
 function triggerIconSvg(theme: ThemeMode): string {
   return effectiveTheme(theme) === 'dark' ? SVG_MOON : SVG_SUN;
-}
-
-function iconNode(svgString: string): Element {
-  const node = svg(svgString);
-  if (!node) throw new Error('theme widget: failed to parse icon SVG');
-  return node;
 }
 
 function optionButton(opt: Option): HTMLButtonElement {
@@ -149,37 +143,10 @@ export function mountThemeToggle(
   // can refresh the icon when we're on 'system'.
   let current: ThemeMode = initialTheme;
 
-  // Anchor the popover under the trigger every time it opens. We keep
-  // this cheap: only runs on open, so tab hide/show doesn't leak.
-  //
-  // Scroll/resize → close. The popover lives in the browser top layer
-  // with position: fixed, so without this it would hover at the old
-  // viewport coords while the page scrolls underneath — and could end
-  // up detached from its trigger. Native <select> + OS menus close on
-  // scroll; match that. Listener is attached on open and removed on
-  // close, so we pay nothing while the menu is hidden.
-  const dismissOnScroll = (): void => {
-    if (typeof popover.hidePopover === 'function') popover.hidePopover();
-  };
-  popover.addEventListener('toggle', (ev) => {
-    const e = ev as ToggleEvent;
-    if (e.newState === 'open') {
-      const tr = trigger.getBoundingClientRect();
-      const pw = popover.offsetWidth;
-      const vw = window.innerWidth;
-      let left = tr.right - pw;           // align right edges
-      if (left < 8) left = 8;             // clamp against viewport edge
-      if (left + pw > vw - 8) left = vw - pw - 8;
-      popover.style.top = `${tr.bottom + POPOVER_GAP_PX}px`;
-      popover.style.left = `${left}px`;
-      // Capture phase so nested scroll containers also trigger dismissal.
-      window.addEventListener('scroll', dismissOnScroll, { capture: true, passive: true });
-      window.addEventListener('resize', dismissOnScroll, { passive: true });
-    } else {
-      window.removeEventListener('scroll', dismissOnScroll, { capture: true });
-      window.removeEventListener('resize', dismissOnScroll);
-    }
-  });
+  // Anchor the popover under the trigger on open, dismissing on
+  // scroll/resize so the top-layer element doesn't float detached from
+  // its anchor. Shared with widgets/shortcuts.ts.
+  anchorPopoverTo(trigger, popover, POPOVER_GAP_PX);
 
   // Keep the icon in sync when the user is on 'system' and the OS
   // preference flips. We only add the listener when matchMedia exists

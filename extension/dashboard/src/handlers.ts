@@ -7,7 +7,7 @@
 // load. attachListeners is idempotent so accidental re-imports do not
 // double-fire handlers.
 
-import { el, mount } from './dom-utils.js';
+import { el, mount } from '../../shared/dist/dom-utils.js';
 import { friendlyDomain } from './utils.js';
 import {
   getDomainGroups,
