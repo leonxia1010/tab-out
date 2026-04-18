@@ -1,6 +1,6 @@
 {
   "name": "tab-out",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "Keep tabs on your tabs -- new tab page that groups your open tabs by domain and lets you close them with style",
   "scripts": {
     "build": "tsc -b",

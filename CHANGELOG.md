@@ -6,6 +6,23 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [2.6.2] — 2026-04-18
+
+Follow-up patch for v2.6.1: the ipapi.co auto-detect path wasn't
+actually firing on fresh installs.
+
+### Fixed
+
+- **IP-geo auto-detect actually runs on first install.** A fresh
+  install leaves `tabout:settings` absent from storage until the
+  options page writes something. The background refresher was
+  early-returning on that case, so the ipapi.co seed never ran for
+  a user who just opened a new tab. It now synthesizes defaults,
+  seeds a location, and writes it back; the dashboard widget also
+  pings the service worker on mount when no location is set, so
+  the "Set weather location" prompt flips to an actual reading
+  within a second or two of opening the tab.
+
 ## [2.6.1] — 2026-04-18
 
 UX polish pass after shipping v2.6.0.
@@ -29,15 +46,6 @@ UX polish pass after shipping v2.6.0.
   clears lat/lon/label from the draft and Save lands a null
   location. The dashboard widget returns to the "Set weather
   location" prompt the same way a fresh install looks.
-- **IP-geo auto-detect actually runs on first install.** A fresh
-  install leaves `tabout:settings` absent from storage until the
-  options page writes something. The background refresher was
-  early-returning on that case, so the ipapi.co seed never ran for
-  a user who just opened a new tab. It now synthesizes defaults,
-  seeds a location, and writes it back; the dashboard widget also
-  pings the service worker on mount when no location is set, so
-  the "Set weather location" prompt flips to an actual reading
-  within a second or two of opening the tab.
 
 ## [2.6.0] — 2026-04-18
 
