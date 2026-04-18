@@ -340,14 +340,18 @@ body {
   color: var(--ink);
 }
 
+/* Same amber "commit" palette used by close-extras on the dashboard
+   and the Set button in the countdown popover — one consistent colour
+   across the app for "apply this action, finish the flow". */
 .settings-btn-primary {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
+  background: var(--accent-amber);
+  color: white;
+  border-color: var(--accent-amber);
 }
 
 .settings-btn-primary:hover:not(:disabled) {
   opacity: 0.85;
+  transform: translateY(-1px);
 }
 
 .settings-btn-primary:disabled {
