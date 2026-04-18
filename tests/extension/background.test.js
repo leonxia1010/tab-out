@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-let checkForUpdate, fetchWeatherNow, handleCountdownComplete;
+let checkForUpdate, fetchWeatherNow, handleCountdownComplete, tryIpGeolocate, ensureLocationConfigured;
 
 function installChrome() {
   vi.stubGlobal('chrome', {
@@ -41,8 +41,13 @@ beforeEach(async () => {
   // Stub chrome BEFORE import so the SW wiring at module bottom finds it.
   installChrome();
   vi.resetModules();
-  ({ checkForUpdate, fetchWeatherNow, handleCountdownComplete } =
-    await import('../../extension/background.js'));
+  ({
+    checkForUpdate,
+    fetchWeatherNow,
+    handleCountdownComplete,
+    tryIpGeolocate,
+    ensureLocationConfigured,
+  } = await import('../../extension/background.js'));
   await Promise.resolve();
 });
 
@@ -189,13 +194,49 @@ describe('fetchWeatherNow', () => {
     expect(storageSet).not.toHaveBeenCalled();
   });
 
-  it('is a no-op when latitude is missing (not yet configured)', async () => {
+  it('auto-configures location via IP geo when lat/lon are null, then fetches weather', async () => {
+    storageGet.mockResolvedValue({
+      'tabout:settings': { weather: { enabled: true, latitude: null, longitude: null, locationLabel: null, unit: 'C' } },
+    });
+    fetchMock
+      .mockResolvedValueOnce({
+        // ipapi.co first
+        ok: true,
+        json: async () => ({ latitude: 5, longitude: 10, city: 'Anywhere', country_code: 'US' }),
+      })
+      .mockResolvedValueOnce({
+        // open-meteo second
+        ok: true,
+        json: async () => ({ current: { temperature_2m: 20, weather_code: 1 } }),
+      });
+
+    await fetchWeatherNow();
+
+    // Two network calls: ipapi.co, then open-meteo.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipapi\.co/);
+    expect(fetchMock.mock.calls[1][0]).toMatch(/api\.open-meteo\.com/);
+
+    // Two storage writes: settings update (with new lat/lon), then weather data.
+    const settingsWrite = storageSet.mock.calls.find((c) => 'tabout:settings' in c[0]);
+    expect(settingsWrite[0]['tabout:settings'].weather.latitude).toBe(5);
+    const weatherWrite = storageSet.mock.calls.find((c) => 'tabout:weatherData' in c[0]);
+    expect(weatherWrite[0]['tabout:weatherData']).toEqual(
+      expect.objectContaining({ temperatureC: 20, weatherCode: 1 }),
+    );
+  });
+
+  it('is a no-op when lat/lon are null and IP geo also fails', async () => {
     storageGet.mockResolvedValue({
       'tabout:settings': { weather: { enabled: true, latitude: null, longitude: null, unit: 'C' } },
     });
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
     await fetchWeatherNow();
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(storageSet).not.toHaveBeenCalled();
+    // Only the ipapi.co call happened; open-meteo never ran.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipapi\.co/);
+    const weatherWrite = storageSet.mock.calls.find((c) => 'tabout:weatherData' in c[0]);
+    expect(weatherWrite).toBeUndefined();
   });
 
   it('swallows network errors without writing storage', async () => {
@@ -226,6 +267,120 @@ describe('fetchWeatherNow', () => {
     });
     await fetchWeatherNow();
     expect(storageSet).not.toHaveBeenCalled();
+  });
+});
+
+// ── IP geolocation fallback (v2.6.0) ────────────────────────────────────────
+describe('tryIpGeolocate', () => {
+  let fetchMock;
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  it('returns lat/lon/label from a successful ipapi.co response', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        latitude: 42.36,
+        longitude: -71.06,
+        city: 'Boston',
+        region: 'Massachusetts',
+        country_code: 'US',
+      }),
+    });
+    const geo = await tryIpGeolocate();
+    expect(geo).toEqual({
+      latitude: 42.36,
+      longitude: -71.06,
+      locationLabel: 'Boston, Massachusetts, US',
+    });
+  });
+
+  it('returns null when ipapi.co reports rate-limit (200 + error flag)', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ error: true, reason: 'RateLimited' }),
+    });
+    expect(await tryIpGeolocate()).toBeNull();
+  });
+
+  it('returns null on network failure', async () => {
+    fetchMock.mockRejectedValue(new Error('offline'));
+    expect(await tryIpGeolocate()).toBeNull();
+  });
+
+  it('returns null when latitude is missing or non-numeric', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ latitude: 'nope', longitude: 0, city: 'X' }),
+    });
+    expect(await tryIpGeolocate()).toBeNull();
+  });
+
+  it('falls back to "Your location" when city/region/country are absent', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ latitude: 1, longitude: 2 }),
+    });
+    const geo = await tryIpGeolocate();
+    expect(geo.locationLabel).toBe('Your location');
+  });
+});
+
+describe('ensureLocationConfigured', () => {
+  let fetchMock, storageSet;
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    storageSet = vi.fn(async () => {});
+    // eslint-disable-next-line no-undef
+    chrome.storage.local.set = storageSet;
+  });
+
+  it('fills in missing lat/lon from IP geo and writes the result back', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ latitude: 1.1, longitude: 2.2, city: 'A' }),
+    });
+
+    const next = await ensureLocationConfigured({
+      weather: { enabled: true, latitude: null, longitude: null, locationLabel: null, unit: 'C' },
+    });
+    expect(next.weather.latitude).toBe(1.1);
+    expect(next.weather.longitude).toBe(2.2);
+    expect(next.weather.locationLabel).toBe('A');
+    expect(storageSet).toHaveBeenCalled();
+  });
+
+  it('does NOT overwrite a manually-picked location', async () => {
+    const orig = {
+      weather: { enabled: true, latitude: 35, longitude: 139, locationLabel: 'Tokyo', unit: 'C' },
+    };
+    const next = await ensureLocationConfigured(orig);
+    expect(next).toBe(orig); // same reference, no rewrite
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(storageSet).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op when weather is disabled', async () => {
+    const orig = {
+      weather: { enabled: false, latitude: null, longitude: null, unit: 'C' },
+    };
+    const next = await ensureLocationConfigured(orig);
+    expect(next).toBe(orig);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves an existing locationLabel even when IP geo has a different city', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ latitude: 1, longitude: 2, city: 'IpCity' }),
+    });
+    const next = await ensureLocationConfigured({
+      weather: { enabled: true, latitude: null, longitude: null, locationLabel: 'Saved label', unit: 'C' },
+    });
+    expect(next.weather.locationLabel).toBe('Saved label');
   });
 });
 

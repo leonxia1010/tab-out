@@ -71,11 +71,69 @@ const WEATHER_ALARM = 'tabout-weather-refresh';
 const WEATHER_STORAGE_KEY = 'tabout:weatherData';
 const WEATHER_REFRESH_PERIOD_MIN = 30;
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
+// ipapi.co: free tier is 1k req/day without an API key, well above
+// anything this extension will ever issue (one call per install when
+// no manual location exists yet).
+const IP_GEO_URL = 'https://ipapi.co/json/';
+
+async function tryIpGeolocate() {
+  try {
+    const res = await fetch(IP_GEO_URL);
+    if (!res.ok) return null;
+    const body = await res.json();
+    // ipapi.co 429 / quota rejections return 200 with { error: true,
+    // reason: 'RateLimited' }, so the !res.ok guard alone isn't enough.
+    if (!body || body.error) return null;
+    const latitude = typeof body.latitude === 'number' ? body.latitude : null;
+    const longitude = typeof body.longitude === 'number' ? body.longitude : null;
+    if (latitude == null || longitude == null) return null;
+    const parts = [];
+    if (body.city) parts.push(body.city);
+    if (body.region) parts.push(body.region);
+    if (body.country_code) parts.push(body.country_code);
+    const locationLabel = parts.length > 0 ? parts.join(', ') : 'Your location';
+    return { latitude, longitude, locationLabel };
+  } catch {
+    return null;
+  }
+}
+
+// Writes IP-derived lat/lon into tabout:settings when the user hasn't
+// picked a location yet. Manual picks always win — this only fills in
+// null-valued fields so a user who typed "Tokyo" never sees their
+// setting overwritten by an IP-guess. Returns the (possibly unchanged)
+// settings so the caller can use them without a second read.
+async function ensureLocationConfigured(settings) {
+  const w = settings && settings.weather;
+  if (!w || !w.enabled) return settings;
+  if (typeof w.latitude === 'number' && typeof w.longitude === 'number') return settings;
+  const geo = await tryIpGeolocate();
+  if (!geo) return settings;
+  const next = {
+    ...settings,
+    weather: {
+      ...w,
+      latitude: geo.latitude,
+      longitude: geo.longitude,
+      locationLabel: w.locationLabel || geo.locationLabel,
+    },
+  };
+  await chrome.storage.local.set({ [SETTINGS_KEY]: next });
+  return next;
+}
 
 async function fetchWeatherNow() {
   try {
     const stored = await chrome.storage.local.get(SETTINGS_KEY);
-    const w = stored[SETTINGS_KEY] && stored[SETTINGS_KEY].weather;
+    let settings = stored[SETTINGS_KEY];
+    if (!settings) return;
+    // Opportunistic IP-geo fallback: a first-run user with
+    // weather.enabled=true but no manual location picks gets a
+    // reasonable starting point so the widget hydrates without a
+    // trip through Settings. Subsequent calls are a cheap field
+    // check — no extra network once a location is set.
+    settings = await ensureLocationConfigured(settings);
+    const w = settings && settings.weather;
     if (!w || !w.enabled) return;
     if (typeof w.latitude !== 'number' || typeof w.longitude !== 'number') return;
 
@@ -200,5 +258,11 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onInstalle
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { checkForUpdate, fetchWeatherNow, handleCountdownComplete };
+  module.exports = {
+    checkForUpdate,
+    fetchWeatherNow,
+    handleCountdownComplete,
+    tryIpGeolocate,
+    ensureLocationConfigured,
+  };
 }
