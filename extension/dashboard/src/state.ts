@@ -52,11 +52,3 @@ export function setDomainGroups(groups: DomainGroup[]): void {
   domainGroups = groups;
 }
 
-// --- duplicateTabs: legacy slot, currently unwritten; preserved for parity ---
-let duplicateTabs: Tab[] = [];
-export function getDuplicateTabs(): ReadonlyArray<Tab> {
-  return duplicateTabs;
-}
-export function setDuplicateTabs(tabs: Tab[]): void {
-  duplicateTabs = tabs;
-}
