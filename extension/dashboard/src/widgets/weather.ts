@@ -70,8 +70,23 @@ export function formatWeatherReadout(
   return `${formatTemperature(data.temperatureC, unit)} \u00b7 ${conditionTextForWeatherCode(data.weatherCode)}`;
 }
 
+// The widget mounts whenever the feature is enabled. Location gating
+// lives in renderDisplay → when it's null, we surface a "Set weather
+// location" prompt that drops the user straight into Settings.
 function shouldRender(settings: WeatherSettings): boolean {
-  return settings.enabled && settings.latitude !== null && settings.longitude !== null;
+  return settings.enabled;
+}
+
+function hasLocation(settings: WeatherSettings): boolean {
+  return settings.latitude !== null && settings.longitude !== null;
+}
+
+function openOptionsPage(): void {
+  try {
+    chrome.runtime?.openOptionsPage?.();
+  } catch {
+    // options page not reachable in this context; nothing to do.
+  }
 }
 
 async function readWeatherData(): Promise<WeatherData | null> {
@@ -125,12 +140,21 @@ export function mountWeather(
 
   function buildTrigger(): HTMLButtonElement {
     readoutSlot = el('span', { className: 'weather-widget-readout' }, ['\u2014']);
-    return el('button', {
+    const btn = el('button', {
       type: 'button',
       className: 'weather-widget',
       'aria-label': 'Weather',
-      popovertarget: POPOVER_ID,
     }, [readoutSlot]) as HTMLButtonElement;
+    // Click routes dynamically: in setup mode it opens Settings
+    // directly (the readout acts as a prompt); otherwise it opens the
+    // native popover. We toggle the popovertarget attribute in
+    // renderDisplay() instead of carrying both paths in one handler
+    // so the native popover keybinding (Escape, click-outside) keeps
+    // working when the popover is actually the right destination.
+    btn.addEventListener('click', () => {
+      if (btn.dataset.mode === 'setup') openOptionsPage();
+    });
+    return btn;
   }
 
   function buildPopover(): HTMLElement {
@@ -143,11 +167,7 @@ export function mountWeather(
     }, ['Open settings to change location']);
     hint.addEventListener('click', (e) => {
       e.preventDefault();
-      try {
-        chrome.runtime?.openOptionsPage?.();
-      } catch {
-        // options page not reachable in this context; nothing to do.
-      }
+      openOptionsPage();
     });
     return el('div', {
       id: POPOVER_ID,
@@ -159,6 +179,23 @@ export function mountWeather(
 
   function renderDisplay(): void {
     if (!trigger || !readoutSlot || !popoverLocation || !popoverTemp) return;
+
+    if (!hasLocation(settings)) {
+      // Setup mode: prompt the user to configure a location. The
+      // button becomes a direct Settings shortcut (no popover step).
+      readoutSlot.textContent = 'Set weather location';
+      trigger.removeAttribute('popovertarget');
+      trigger.dataset.mode = 'setup';
+      trigger.classList.add('weather-widget-prompt');
+      popoverLocation.textContent = '\u2014';
+      popoverTemp.textContent = '';
+      return;
+    }
+
+    trigger.setAttribute('popovertarget', POPOVER_ID);
+    delete trigger.dataset.mode;
+    trigger.classList.remove('weather-widget-prompt');
+
     if (!data) {
       readoutSlot.textContent = '\u2014';
       popoverLocation.textContent = settings.locationLabel ?? '\u2014';

@@ -1829,6 +1829,20 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   white-space: nowrap;
 }
 
+/* Pre-configuration state — the readout becomes a clickable prompt
+   that opens Settings directly. Dashed underline hints at "not yet
+   data, click to configure" without adding an explicit link glyph. */
+.weather-widget-prompt {
+  color: var(--accent-amber, var(--muted));
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+}
+
+.weather-widget-prompt:hover {
+  color: var(--accent-amber, var(--ink));
+  text-decoration: underline;
+}
+
 .weather-popover {
   position: fixed;
   margin: 0;
@@ -2037,20 +2051,26 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   color: var(--muted);
 }
 
+/* Same amber fill as the close-extras button in the tab-cleanup
+   banner — both are "apply this action" primaries, and keeping the
+   palette consistent gives users one Pavlovian signal for
+   commit-style controls across the dashboard. */
 .countdown-custom-apply {
-  padding: 6px 12px;
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--paper);
+  padding: 6px 14px;
+  border: none;
+  background: var(--accent-amber);
+  color: white;
   border-radius: 6px;
   cursor: pointer;
   font-family: inherit;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
+  transition: opacity 0.15s, transform 0.15s;
 }
 
 .countdown-custom-apply:hover {
   opacity: 0.85;
+  transform: translateY(-1px);
 }
 
 /* ============================================================

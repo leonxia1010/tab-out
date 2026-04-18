@@ -420,10 +420,13 @@ describe('options page — beforeunload guard', () => {
 });
 
 describe('options page — weather section (v2.6.0)', () => {
-  it('enabling the weather toggle marks the form dirty', async () => {
+  it('toggling the weather checkbox marks the form dirty', async () => {
+    // defaultInitial() omits weather entirely → normalizeSettings hydrates
+    // with the defaults (enabled:true). Flipping it off should mark dirty.
     await boot(defaultInitial());
     const enabled = document.getElementById('weatherEnabled');
-    enabled.checked = true;
+    expect(enabled.checked).toBe(true);
+    enabled.checked = false;
     enabled.dispatchEvent(new Event('change', { bubbles: true }));
     expect(document.getElementById('saveBtn').disabled).toBe(false);
   });

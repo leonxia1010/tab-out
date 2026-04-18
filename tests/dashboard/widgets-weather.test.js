@@ -199,12 +199,19 @@ describe('mountWeather — gating', () => {
     expect(slot.querySelector('.weather-widget')).toBeNull();
   });
 
-  it('does not append a node when latitude is null', async () => {
-    installChrome();
+  it('mounts a "Set weather location" prompt when latitude is null and enabled', async () => {
+    const { openOptionsPage } = installChrome();
     const slot = document.getElementById('slot');
-    mountWeather(slot, { ...CONFIGURED, latitude: null });
+    mountWeather(slot, { ...CONFIGURED, latitude: null, longitude: null });
     await flush();
-    expect(slot.querySelector('.weather-widget')).toBeNull();
+    const btn = slot.querySelector('.weather-widget');
+    expect(btn).not.toBeNull();
+    expect(btn.classList.contains('weather-widget-prompt')).toBe(true);
+    expect(btn.querySelector('.weather-widget-readout').textContent).toBe('Set weather location');
+    expect(btn.hasAttribute('popovertarget')).toBe(false);
+
+    btn.click();
+    expect(openOptionsPage).toHaveBeenCalled();
   });
 
   it('appends a button when enabled with latitude/longitude set', async () => {

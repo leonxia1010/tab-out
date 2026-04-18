@@ -70,7 +70,12 @@ export function defaultSettings(): ToutSettings {
     shortcutPins: [],
     shortcutHides: [],
     weather: {
-      enabled: false,
+      // Default ON so a fresh install surfaces the "Set location"
+      // onboarding hint in the header. Location still starts null —
+      // the widget shows a clickable prompt that opens Settings
+      // directly. Users who don't want a weather readout can flip
+      // the toggle off in Settings, which unmounts the node entirely.
+      enabled: true,
       locationLabel: null,
       latitude: null,
       longitude: null,

@@ -78,11 +78,13 @@ describe('defaultSettings', () => {
     expect(defaultSettings().layout).toBe('masonry');
   });
 
-  it('defaults weather to disabled-with-no-location (v2.6.0)', () => {
+  it('defaults weather to enabled with no location (v2.6.0)', () => {
     installMocks();
     const d = defaultSettings();
+    // enabled:true means a fresh install surfaces the "Set location"
+    // prompt in the header instead of hiding the widget entirely.
     expect(d.weather).toEqual({
-      enabled: false,
+      enabled: true,
       locationLabel: null,
       latitude: null,
       longitude: null,
@@ -140,7 +142,7 @@ describe('normalizeSettings', () => {
       shortcutPins: [],
       shortcutHides: [],
       weather: {
-        enabled: false,
+        enabled: true,
         locationLabel: null,
         latitude: null,
         longitude: null,
@@ -249,9 +251,9 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings({ weather: { locationLabel: '' } }).weather.locationLabel).toBeNull();
   });
 
-  it('non-boolean enabled flag falls back to default false', () => {
+  it('non-boolean enabled flag falls back to the enabled-by-default true', () => {
     installMocks();
-    expect(normalizeSettings({ weather: { enabled: 'yes' } }).weather.enabled).toBe(false);
+    expect(normalizeSettings({ weather: { enabled: 'yes' } }).weather.enabled).toBe(true);
   });
 
   // ── countdown (v2.6.0) ────────────────────────────────────────────────────
@@ -318,7 +320,7 @@ describe('getSettings', () => {
       shortcutPins: [],
       shortcutHides: [],
       weather: {
-        enabled: false,
+        enabled: true,
         locationLabel: null,
         latitude: null,
         longitude: null,
@@ -347,7 +349,7 @@ describe('setSettings', () => {
       shortcutPins: [],
       shortcutHides: [],
       weather: {
-        enabled: false,
+        enabled: true,
         locationLabel: null,
         latitude: null,
         longitude: null,
@@ -560,7 +562,7 @@ describe('onSettingsChange', () => {
       shortcutPins: [],
       shortcutHides: [],
       weather: {
-        enabled: false,
+        enabled: true,
         locationLabel: null,
         latitude: null,
         longitude: null,
