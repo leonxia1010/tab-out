@@ -17,6 +17,16 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- Focus sink (v2.6.1) — Chrome forces omnibox focus on every new-tab
+     open, which leaves the cursor sitting in the URL bar asking for a
+     URL even when the user just wanted to look at Tab Out. `autofocus`
+     on a visually-hidden, tab-index-excluded button hands focus to
+     this sink instead, so the visible state reads as "no focus" — no
+     omnibox caret, no search-box caret, no Tab trap (tabindex=-1
+     keeps it out of the tab cycle). The first real click / keyboard
+     press naturally hands focus back to whichever control the user
+     actually touched. -->
+<button type="button" class="focus-sink" autofocus tabindex="-1" aria-hidden="true"></button>
 <div class="container">
 
 
