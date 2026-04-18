@@ -10,7 +10,7 @@
 // service worker so the dashboard tab can't deny/slow the request and
 // so background alarms remain the single refresh source of truth.
 
-import { anchorPopoverTo, el, iconNode } from '../../../shared/dist/dom-utils.js';
+import { anchorPopoverTo, el } from '../../../shared/dist/dom-utils.js';
 import type { TemperatureUnit, WeatherSettings } from '../../../shared/dist/settings.js';
 
 export interface WeatherHandle {
@@ -31,39 +31,43 @@ const STALE_MS = 30 * 60 * 1000;
 const POPOVER_ID = 'taboutWeatherPopover';
 const POPOVER_GAP_PX = 8;
 
-// Stroke-width 1.5 to match Heroicons outline family (sun, cloud, moon
-// already ship there — we draw the weather-specific glyphs in the same
-// visual register so the header set reads uniform).
-const SVG_BASE = 'xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"';
-
-// 8-bucket WMO code → icon map. Condensing the full WMO table to 8
-// glyphs trades resolution for header clarity — a user can tell
-// "sunny vs. rainy vs. snowing" at a glance but doesn't need "light
-// drizzle vs. moderate drizzle" parsed off a 16x16 icon.
-const SVG_SUN = `<svg ${SVG_BASE} data-icon="sun"><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21M5.636 5.636l1.061 1.061M17.303 17.303l1.061 1.061M5.636 18.364l1.061-1.061M17.303 6.697l1.061-1.061"/></svg>`;
-const SVG_PARTLY = `<svg ${SVG_BASE} data-icon="partly-cloudy"><circle cx="8" cy="8" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 3v1M3 8h1M4.9 4.9l.7.7M11.1 4.9l-.7.7M13.5 11a4 4 0 1 1 3.5 6H8a3.5 3.5 0 0 1 0-7 4 4 0 0 1 5.5 1Z"/></svg>`;
-const SVG_CLOUD = `<svg ${SVG_BASE} data-icon="cloud"><path stroke-linecap="round" stroke-linejoin="round" d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.8-1A4 4 0 0 1 17 18H7Z"/></svg>`;
-const SVG_FOG = `<svg ${SVG_BASE} data-icon="fog"><path stroke-linecap="round" stroke-linejoin="round" d="M7 14a4 4 0 0 1 0-8 5 5 0 0 1 9.8-1A4 4 0 0 1 17 14H7ZM3 18h18M5 21h14"/></svg>`;
-const SVG_RAIN = `<svg ${SVG_BASE} data-icon="rain"><path stroke-linecap="round" stroke-linejoin="round" d="M7 14a4 4 0 0 1 0-8 5 5 0 0 1 9.8-1A4 4 0 0 1 17 14H7ZM9 18l-1 3M13 18l-1 3M17 18l-1 3"/></svg>`;
-const SVG_SNOW = `<svg ${SVG_BASE} data-icon="snow"><path stroke-linecap="round" stroke-linejoin="round" d="M7 14a4 4 0 0 1 0-8 5 5 0 0 1 9.8-1A4 4 0 0 1 17 14H7ZM8 18v3M8 19.5l-1 .5M8 19.5l1 .5M12 18v3M12 19.5l-1 .5M12 19.5l1 .5M16 18v3M16 19.5l-1 .5M16 19.5l1 .5"/></svg>`;
-const SVG_SHOWER = `<svg ${SVG_BASE} data-icon="shower"><path stroke-linecap="round" stroke-linejoin="round" d="M7 14a4 4 0 0 1 0-8 5 5 0 0 1 9.8-1A4 4 0 0 1 17 14H7ZM8 17l-2 4M12 17l-2 4M16 17l-2 4"/></svg>`;
-const SVG_STORM = `<svg ${SVG_BASE} data-icon="storm"><path stroke-linecap="round" stroke-linejoin="round" d="M7 14a4 4 0 0 1 0-8 5 5 0 0 1 9.8-1A4 4 0 0 1 17 14H7ZM13 15l-3 4h3l-2 3"/></svg>`;
-
-export function iconSvgForWeatherCode(code: number): string {
-  if (code === 0) return SVG_SUN;
-  if (code >= 1 && code <= 3) return SVG_PARTLY;
-  if (code === 45 || code === 48) return SVG_FOG;
-  if (code >= 51 && code <= 67) return SVG_RAIN;
-  if (code >= 71 && code <= 77) return SVG_SNOW;
-  if (code >= 80 && code <= 82) return SVG_SHOWER;
-  if (code >= 85 && code <= 86) return SVG_SNOW;
-  if (code >= 95 && code <= 99) return SVG_STORM;
-  return SVG_CLOUD;
+// WMO code → human-readable condition text. Condensed from the full
+// WMO table to ~10 buckets covering the atmospheric phenomena users
+// actually care about in a header readout. The widget shows this
+// alongside the temperature ("+77°F · Partly cloudy"), so we reach for
+// words instead of glyphs — words render identically across platforms
+// and don't need a legend.
+export function conditionTextForWeatherCode(code: number): string {
+  if (code === 0) return 'Clear';
+  if (code === 1) return 'Mostly clear';
+  if (code === 2) return 'Partly cloudy';
+  if (code === 3) return 'Overcast';
+  if (code === 45 || code === 48) return 'Fog';
+  if (code >= 51 && code <= 57) return 'Drizzle';
+  if (code >= 61 && code <= 65) return 'Rain';
+  if (code === 66 || code === 67) return 'Freezing rain';
+  if (code >= 71 && code <= 77) return 'Snow';
+  if (code >= 80 && code <= 82) return 'Rain showers';
+  if (code >= 85 && code <= 86) return 'Snow showers';
+  if (code >= 95 && code <= 99) return 'Thunderstorm';
+  return '\u2014';
 }
 
+// Temperature readout matches the header mock: "+77°F" / "-5°C" /
+// "0°C" (no prefix for zero). Rounded to the nearest integer; JS
+// turns `-0` into `'0'` on coercion, so there's no stray "-0".
 export function formatTemperature(tempC: number, unit: TemperatureUnit): string {
   const v = unit === 'F' ? tempC * 1.8 + 32 : tempC;
-  return `${Math.round(v)}\u00b0`;
+  const rounded = Math.round(v);
+  const prefix = rounded > 0 ? '+' : '';
+  return `${prefix}${rounded}\u00b0${unit}`;
+}
+
+export function formatWeatherReadout(
+  data: Pick<WeatherData, 'temperatureC' | 'weatherCode'>,
+  unit: TemperatureUnit,
+): string {
+  return `${formatTemperature(data.temperatureC, unit)} \u00b7 ${conditionTextForWeatherCode(data.weatherCode)}`;
 }
 
 function shouldRender(settings: WeatherSettings): boolean {
@@ -115,20 +119,18 @@ export function mountWeather(
   // configured so the header cluster doesn't reserve empty width.
   let trigger: HTMLButtonElement | null = null;
   let popover: HTMLElement | null = null;
-  let iconSlot: HTMLElement | null = null;
-  let tempSlot: HTMLElement | null = null;
+  let readoutSlot: HTMLElement | null = null;
   let popoverLocation: HTMLElement | null = null;
   let popoverTemp: HTMLElement | null = null;
 
   function buildTrigger(): HTMLButtonElement {
-    iconSlot = el('span', { className: 'weather-widget-icon', 'aria-hidden': 'true' });
-    tempSlot = el('span', { className: 'weather-widget-temp' }, ['\u2014']);
+    readoutSlot = el('span', { className: 'weather-widget-readout' }, ['\u2014']);
     return el('button', {
       type: 'button',
       className: 'weather-widget',
       'aria-label': 'Weather',
       popovertarget: POPOVER_ID,
-    }, [iconSlot, tempSlot]) as HTMLButtonElement;
+    }, [readoutSlot]) as HTMLButtonElement;
   }
 
   function buildPopover(): HTMLElement {
@@ -156,16 +158,14 @@ export function mountWeather(
   }
 
   function renderDisplay(): void {
-    if (!trigger || !iconSlot || !tempSlot || !popoverLocation || !popoverTemp) return;
+    if (!trigger || !readoutSlot || !popoverLocation || !popoverTemp) return;
     if (!data) {
-      iconSlot.replaceChildren(iconNode(SVG_CLOUD));
-      tempSlot.textContent = '\u2014';
+      readoutSlot.textContent = '\u2014';
       popoverLocation.textContent = settings.locationLabel ?? '\u2014';
       popoverTemp.textContent = 'Loading\u2026';
       return;
     }
-    iconSlot.replaceChildren(iconNode(iconSvgForWeatherCode(data.weatherCode)));
-    tempSlot.textContent = formatTemperature(data.temperatureC, settings.unit);
+    readoutSlot.textContent = formatWeatherReadout(data, settings.unit);
     popoverLocation.textContent = settings.locationLabel ?? '\u2014';
     popoverTemp.textContent = formatTemperature(data.temperatureC, settings.unit);
   }
@@ -185,8 +185,7 @@ export function mountWeather(
     popover?.remove();
     trigger = null;
     popover = null;
-    iconSlot = null;
-    tempSlot = null;
+    readoutSlot = null;
     popoverLocation = null;
     popoverTemp = null;
   }

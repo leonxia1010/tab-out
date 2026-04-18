@@ -1,4 +1,9 @@
-// Countdown widget — single-timer MVP in the header cluster.
+// Countdown widget — inline `MM:SS ▶ ↺` in the header cluster.
+//
+// Trigger layout: three elements side by side inside one pill:
+//   1. time display  (MM:SS, click to open preset picker)
+//   2. play/pause    (▶ in idle+paused, ⏸ in running)
+//   3. reset         (↺, always shown)
 //
 // State lives in chrome.storage.local['tabout:countdownState']:
 //
@@ -42,14 +47,23 @@ const COUNTDOWN_ALARM = 'tabout-countdown-complete';
 const POPOVER_ID = 'taboutCountdownPopover';
 const POPOVER_GAP_PX = 8;
 
-// 25 = pomodoro, 45 = deep-work block, 60 = default meeting length.
-// The 5/10/15 row covers quick reminders (stretch, tea, coffee timer).
+// 10 min is a good default: long enough for a focused stretch /
+// coffee-timer use, short enough that hitting ▶ without thinking
+// doesn't trap you for 25 minutes. Users can pick a different preset
+// via the time-click popover (25 = pomodoro, 45 = deep-work block,
+// 60 = default meeting length, 5/15 = quick reminders).
+export const DEFAULT_MINUTES = 10;
 export const PRESET_MINUTES = [5, 10, 15, 25, 45, 60] as const;
-const DEFAULT_CUSTOM_MINUTES = 20;
 
-const SVG_BASE = 'xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"';
-// Heroicons v2 outline clock.
-const SVG_CLOCK = `<svg ${SVG_BASE} data-icon="clock"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>`;
+const SVG_BASE = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"';
+const SVG_STROKE_BASE = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+// Filled glyphs for play/pause so they read as affordances at 14px,
+// matching the visual weight of the reset chevron below.
+const SVG_PLAY = `<svg ${SVG_BASE} data-icon="play"><path d="M8 5.5v13a1 1 0 0 0 1.53.848l11-6.5a1 1 0 0 0 0-1.696l-11-6.5A1 1 0 0 0 8 5.5Z"/></svg>`;
+const SVG_PAUSE = `<svg ${SVG_BASE} data-icon="pause"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></svg>`;
+// Circular-arrow reset (counter-clockwise) — Heroicons v2 arrow-path
+// family, simplified to a single stroke.
+const SVG_RESET = `<svg ${SVG_STROKE_BASE} data-icon="reset"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4v4h4"/></svg>`;
 
 export function formatCountdownMMSS(remainingMs: number): string {
   const total = Math.max(0, Math.ceil(remainingMs / 1000));
@@ -129,31 +143,52 @@ export function mountCountdown(
 ): CountdownHandle {
   let settings: CountdownSettings = initialSettings;
   let state: CountdownState | null = null;
+  // Last-used duration in the current session. Reset to DEFAULT_MINUTES
+  // on destroy; intentionally not persisted — the default-10 hint is
+  // that "open Tab Out, hit play, get a 10-min timer" is the baseline
+  // experience and lingering 45-min picks would erode it.
+  let selectedMinutes: number = DEFAULT_MINUTES;
   let destroyed = false;
   let tickInterval: ReturnType<typeof setInterval> | null = null;
 
-  let trigger: HTMLButtonElement | null = null;
+  let widget: HTMLElement | null = null;
+  let timeBtn: HTMLButtonElement | null = null;
+  let playBtn: HTMLButtonElement | null = null;
+  let resetBtn: HTMLButtonElement | null = null;
   let popover: HTMLElement | null = null;
-  let triggerLabel: HTMLElement | null = null;
 
-  function buildTrigger(): HTMLButtonElement {
-    triggerLabel = el('span', { className: 'countdown-widget-label' }, ['Timer']);
-    return el('button', {
+  function buildTrigger(): HTMLElement {
+    timeBtn = el('button', {
       type: 'button',
-      className: 'countdown-widget countdown-idle',
-      'aria-label': 'Countdown timer',
+      className: 'countdown-time-btn',
+      'aria-label': 'Countdown duration',
       popovertarget: POPOVER_ID,
-    }, [
-      el('span', { className: 'countdown-widget-icon', 'aria-hidden': 'true' }, [iconNode(SVG_CLOCK)]),
-      triggerLabel,
-    ]) as HTMLButtonElement;
+    }, ['00:00']) as HTMLButtonElement;
+
+    playBtn = el('button', {
+      type: 'button',
+      className: 'countdown-icon-btn',
+      'aria-label': 'Start',
+    }, [iconNode(SVG_PLAY)]) as HTMLButtonElement;
+    playBtn.addEventListener('click', () => { void togglePlay(); });
+
+    resetBtn = el('button', {
+      type: 'button',
+      className: 'countdown-icon-btn countdown-icon-btn-muted',
+      'aria-label': 'Reset',
+    }, [iconNode(SVG_RESET)]) as HTMLButtonElement;
+    resetBtn.addEventListener('click', () => { void resetTimer(); });
+
+    return el('div', {
+      className: 'countdown-widget countdown-idle',
+    }, [timeBtn, playBtn, resetBtn]);
   }
 
   function dismissPopover(): void {
     popover?.hidePopover?.();
   }
 
-  function renderIdlePopover(): HTMLElement {
+  function buildPopover(): HTMLElement {
     const presetGrid = el('div', { className: 'countdown-presets' },
       PRESET_MINUTES.map((min) => {
         const b = el('button', {
@@ -162,7 +197,8 @@ export function mountCountdown(
           'data-minutes': String(min),
         }, [`${min} min`]) as HTMLButtonElement;
         b.addEventListener('click', () => {
-          void start(min);
+          selectedMinutes = min;
+          updateTimeDisplay();
           dismissPopover();
         });
         return b;
@@ -174,108 +210,82 @@ export function mountCountdown(
       className: 'countdown-custom-input',
       min: '1',
       max: '600',
-      value: String(DEFAULT_CUSTOM_MINUTES),
+      value: String(selectedMinutes),
       'aria-label': 'Custom minutes',
     }) as HTMLInputElement;
-    const startBtn = el('button', {
-      type: 'button',
-      className: 'countdown-start-btn',
-    }, ['Start']) as HTMLButtonElement;
-    startBtn.addEventListener('click', () => {
+    const applyCustom = (): void => {
       const val = Number(customInput.value);
       if (!Number.isFinite(val) || val < 1 || val > 600) return;
-      void start(Math.floor(val));
+      selectedMinutes = Math.floor(val);
+      updateTimeDisplay();
       dismissPopover();
-    });
+    };
+    const applyBtn = el('button', {
+      type: 'button',
+      className: 'countdown-custom-apply',
+    }, ['Set']) as HTMLButtonElement;
+    applyBtn.addEventListener('click', applyCustom);
     customInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        startBtn.click();
+        applyCustom();
       }
     });
 
-    return el('div', { className: 'countdown-popover-body' }, [
-      el('div', { className: 'countdown-popover-title' }, ['Start a countdown']),
+    return el('div', {
+      id: POPOVER_ID,
+      className: 'countdown-popover',
+      popover: 'auto',
+      role: 'dialog',
+    }, [
+      el('div', { className: 'countdown-popover-title' }, ['Countdown duration']),
       presetGrid,
       el('div', { className: 'countdown-custom-row' }, [
         customInput,
         el('span', { className: 'countdown-custom-unit' }, ['min']),
-        startBtn,
+        applyBtn,
       ]),
-    ]);
+    ]) as HTMLElement;
   }
 
-  function renderRunningPopover(): HTMLElement {
-    const pauseBtn = el('button', {
-      type: 'button',
-      className: 'countdown-popover-btn',
-    }, ['Pause']) as HTMLButtonElement;
-    pauseBtn.addEventListener('click', () => {
-      void pause();
-      dismissPopover();
-    });
-    const resetBtn = el('button', {
-      type: 'button',
-      className: 'countdown-popover-btn countdown-popover-btn-muted',
-    }, ['Reset']) as HTMLButtonElement;
-    resetBtn.addEventListener('click', () => {
-      void reset();
-      dismissPopover();
-    });
-    return el('div', { className: 'countdown-popover-body' }, [
-      el('div', { className: 'countdown-popover-title' }, ['Timer running']),
-      el('div', { className: 'countdown-popover-row' }, [pauseBtn, resetBtn]),
-    ]);
-  }
-
-  function renderPausedPopover(): HTMLElement {
-    const resumeBtn = el('button', {
-      type: 'button',
-      className: 'countdown-popover-btn',
-    }, ['Resume']) as HTMLButtonElement;
-    resumeBtn.addEventListener('click', () => {
-      void resume();
-      dismissPopover();
-    });
-    const resetBtn = el('button', {
-      type: 'button',
-      className: 'countdown-popover-btn countdown-popover-btn-muted',
-    }, ['Reset']) as HTMLButtonElement;
-    resetBtn.addEventListener('click', () => {
-      void reset();
-      dismissPopover();
-    });
-    return el('div', { className: 'countdown-popover-body' }, [
-      el('div', { className: 'countdown-popover-title' }, ['Timer paused']),
-      el('div', { className: 'countdown-popover-row' }, [resumeBtn, resetBtn]),
-    ]);
-  }
-
-  function rebuildPopover(): void {
-    if (!popover) return;
-    const mode = modeFromState(state);
-    let body: HTMLElement;
-    if (mode === 'idle') body = renderIdlePopover();
-    else if (mode === 'paused') body = renderPausedPopover();
-    else body = renderRunningPopover();
-    popover.replaceChildren(body);
-  }
-
-  function updateTriggerDisplay(): void {
-    if (!trigger || !triggerLabel) return;
-    const mode = modeFromState(state);
-    trigger.classList.toggle('countdown-idle', mode === 'idle');
-    trigger.classList.toggle('countdown-running', mode === 'running');
-    trigger.classList.toggle('countdown-paused', mode === 'paused');
-
+  function updateTimeDisplay(): void {
+    if (!timeBtn) return;
     if (!state) {
-      triggerLabel.textContent = 'Timer';
+      timeBtn.textContent = formatCountdownMMSS(selectedMinutes * 60_000);
       return;
     }
     const remaining = state.paused
       ? state.pauseRemainingMs ?? 0
       : Math.max(0, state.endsAt - Date.now());
-    triggerLabel.textContent = formatCountdownMMSS(remaining);
+    timeBtn.textContent = formatCountdownMMSS(remaining);
+  }
+
+  function updateButtons(): void {
+    if (!widget || !playBtn || !timeBtn) return;
+    const mode = modeFromState(state);
+    widget.classList.toggle('countdown-idle', mode === 'idle');
+    widget.classList.toggle('countdown-running', mode === 'running');
+    widget.classList.toggle('countdown-paused', mode === 'paused');
+
+    // Popover is only useful in idle mode — picking a new duration
+    // mid-timer would just be confusing. Disable the trigger in
+    // running/paused so clicking the time doesn't open the picker.
+    const isIdle = mode === 'idle';
+    timeBtn.disabled = !isIdle;
+    if (isIdle) {
+      timeBtn.setAttribute('popovertarget', POPOVER_ID);
+    } else {
+      timeBtn.removeAttribute('popovertarget');
+    }
+
+    const playingNow = mode === 'running';
+    playBtn.replaceChildren(iconNode(playingNow ? SVG_PAUSE : SVG_PLAY));
+    playBtn.setAttribute('aria-label', playingNow ? 'Pause' : mode === 'paused' ? 'Resume' : 'Start');
+  }
+
+  function render(): void {
+    updateTimeDisplay();
+    updateButtons();
   }
 
   function ensureTicker(): void {
@@ -284,7 +294,7 @@ export function mountCountdown(
       if (tickInterval == null) {
         tickInterval = setInterval(() => {
           if (destroyed) return;
-          updateTriggerDisplay();
+          updateTimeDisplay();
         }, 1000);
       }
     } else if (tickInterval != null) {
@@ -294,19 +304,13 @@ export function mountCountdown(
   }
 
   function mount(): void {
-    if (trigger) return;
-    trigger = buildTrigger();
-    popover = el('div', {
-      id: POPOVER_ID,
-      className: 'countdown-popover',
-      popover: 'auto',
-      role: 'dialog',
-    }) as HTMLElement;
-    container.appendChild(trigger);
+    if (widget) return;
+    widget = buildTrigger();
+    popover = buildPopover();
+    container.appendChild(widget);
     container.appendChild(popover);
-    anchorPopoverTo(trigger, popover, POPOVER_GAP_PX);
-    rebuildPopover();
-    updateTriggerDisplay();
+    if (timeBtn) anchorPopoverTo(timeBtn, popover, POPOVER_GAP_PX);
+    render();
     ensureTicker();
   }
 
@@ -315,11 +319,13 @@ export function mountCountdown(
       clearInterval(tickInterval);
       tickInterval = null;
     }
-    trigger?.remove();
+    widget?.remove();
     popover?.remove();
-    trigger = null;
+    widget = null;
+    timeBtn = null;
+    playBtn = null;
+    resetBtn = null;
     popover = null;
-    triggerLabel = null;
   }
 
   async function start(minutes: number): Promise<void> {
@@ -328,12 +334,11 @@ export function mountCountdown(
     const next: CountdownState = { endsAt, durationMs, paused: false };
     await writeState(next);
     createAlarm(endsAt);
-    // Optimistic local update so the trigger flips to running before the
-    // onChanged round-trip. onChanged will fire and end up here again but
-    // it's idempotent.
+    // Optimistic local update so the trigger flips to running before
+    // onChanged round-trips. onChanged will fire and end up here again
+    // but the render is idempotent.
     state = next;
-    rebuildPopover();
-    updateTriggerDisplay();
+    render();
     ensureTicker();
   }
 
@@ -349,8 +354,7 @@ export function mountCountdown(
     await writeState(next);
     clearAlarm();
     state = next;
-    rebuildPopover();
-    updateTriggerDisplay();
+    render();
     ensureTicker();
   }
 
@@ -358,7 +362,7 @@ export function mountCountdown(
     if (!state || !state.paused) return;
     const remaining = state.pauseRemainingMs ?? 0;
     if (remaining <= 0) {
-      await reset();
+      await resetTimer();
       return;
     }
     const endsAt = Date.now() + remaining;
@@ -370,18 +374,30 @@ export function mountCountdown(
     await writeState(next);
     createAlarm(endsAt);
     state = next;
-    rebuildPopover();
-    updateTriggerDisplay();
+    render();
     ensureTicker();
   }
 
-  async function reset(): Promise<void> {
-    clearAlarm();
-    await clearState();
-    state = null;
-    rebuildPopover();
-    updateTriggerDisplay();
+  async function resetTimer(): Promise<void> {
+    if (state) {
+      clearAlarm();
+      await clearState();
+      state = null;
+    } else if (selectedMinutes !== DEFAULT_MINUTES) {
+      // idle + user-picked a longer duration → snap back to the 10-min
+      // default (matches what a reset would mean if they'd never picked
+      // a different preset).
+      selectedMinutes = DEFAULT_MINUTES;
+    }
+    render();
     ensureTicker();
+  }
+
+  async function togglePlay(): Promise<void> {
+    const mode = modeFromState(state);
+    if (mode === 'running') await pause();
+    else if (mode === 'paused') await resume();
+    else await start(selectedMinutes);
   }
 
   // onChanged drives every cross-source state transition: completion
@@ -398,8 +414,7 @@ export function mountCountdown(
     const prevState = state;
     const nextState = safeReadState(entry.newValue);
     state = nextState;
-    rebuildPopover();
-    updateTriggerDisplay();
+    render();
     ensureTicker();
 
     // Completion edge: storage transitioned running → cleared. Only the
@@ -435,8 +450,7 @@ export function mountCountdown(
       await clearState();
       state = null;
     }
-    rebuildPopover();
-    updateTriggerDisplay();
+    render();
     ensureTicker();
   })();
 

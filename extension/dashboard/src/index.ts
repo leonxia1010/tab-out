@@ -106,16 +106,17 @@ async function bootstrapSettings(): Promise<void> {
   let weather: WeatherHandle | null = null;
   let countdown: CountdownHandle | null = null;
   if (slot) {
-    clock = mountClock(slot, settings.clock.format);
-    // Weather sits between clock (time) and theme (visual affordance)
-    // so the info-bearing widgets cluster on the left of the right
-    // group and controls cluster on the right.
+    // Header cluster reads left → right: textual context (weather),
+    // transient action (countdown), visual controls (theme, settings),
+    // and the anchor-point clock at the far right. This puts the most
+    // actively-scanned items — temperature + timer — nearest the
+    // greeting on the left, and the always-there clock in the eye's
+    // natural "what time is it?" parking spot on the right.
     weather = mountWeather(slot, settings.weather);
     countdown = mountCountdown(slot, settings.countdown);
     themeToggle = mountThemeToggle(slot, settings.theme);
-    // Settings is a meta tool (go configure, come back) — parked
-    // rightmost in the cluster so the common-use widgets read first.
     mountSettingsLink(slot);
+    clock = mountClock(slot, settings.clock.format);
   }
   let shortcuts: ShortcutsHandle | null = null;
   if (middleSlot) {

@@ -1797,50 +1797,36 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   height: 14px;
 }
 
-/* Weather widget — temperature readout pill + popover. Sits between
-   clock and theme so the info-bearing widgets cluster on the left
-   side of the right group. Visual register is deliberately lighter
-   than the theme button (no circular border) — weather is passive
-   display, the theme toggle is a control. */
+/* Weather widget — compact "+77°F · Partly cloudy" text readout.
+   Leftmost in the header cluster so the left-to-right narrative reads:
+   here's the weather → here's your timer → controls → clock. No
+   border / no hover fill — weather is passive display, not an
+   affordance; colour darkens on hover as the only cue that it's
+   clickable (popover opens on click). */
 .weather-widget {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   height: 36px;
-  padding: 0 10px;
-  border: 1px solid transparent;
+  padding: 0 4px;
+  border: none;
   background: transparent;
-  border-radius: 18px;
   cursor: pointer;
-  color: var(--ink);
+  color: var(--muted);
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
+  font-weight: 400;
   line-height: 1;
-  transition: border-color 0.2s, background 0.2s;
+  letter-spacing: 0.01em;
+  transition: color 0.15s;
 }
 
 .weather-widget:hover {
-  border-color: var(--warm-gray);
-  background: var(--paper);
+  color: var(--ink);
 }
 
-.weather-widget-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  color: var(--muted);
-}
-
-.weather-widget-icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.weather-widget-temp {
+.weather-widget-readout {
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  white-space: nowrap;
 }
 
 .weather-popover {
@@ -1885,63 +1871,89 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   text-decoration: underline;
 }
 
-/* Countdown widget — matching shape with weather-widget so the
-   info cluster reads uniform. Running state gets a subtle accent
-   border so the user's peripheral vision can pick up "timer is
-   alive" without reading the numbers. */
+/* Countdown widget — inline "MM:SS ▶ ↺" pill with three hit targets:
+   the time label opens the duration picker (idle only), play toggles
+   run/pause, reset returns to idle. Rounded rectangle + subtle border
+   differentiate the pill from the surrounding textual widgets (weather
+   left, clock right) and reinforce its role as the cluster's
+   single action. */
 .countdown-widget {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   height: 36px;
-  padding: 0 10px;
-  border: 1px solid transparent;
-  background: transparent;
-  border-radius: 18px;
-  cursor: pointer;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--warm-gray);
+  background: var(--card-bg);
+  border-radius: 10px;
   color: var(--ink);
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   line-height: 1;
-  transition: border-color 0.2s, background 0.2s, color 0.2s;
+  transition: border-color 0.2s, background 0.2s;
 }
 
 .countdown-widget:hover {
-  border-color: var(--warm-gray);
-  background: var(--paper);
+  border-color: var(--muted);
 }
 
-.countdown-widget-icon {
+.countdown-time-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  min-width: 3.6em;
+  text-align: left;
+}
+
+.countdown-time-btn:disabled {
+  cursor: default;
+  color: var(--ink);
+}
+
+.countdown-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.countdown-icon-btn:hover {
+  background: var(--paper);
+}
+
+.countdown-icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.countdown-icon-btn-muted {
   color: var(--muted);
 }
 
-.countdown-widget-icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.countdown-widget-label {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
+.countdown-icon-btn-muted:hover {
+  color: var(--ink);
 }
 
 .countdown-widget.countdown-running {
   border-color: var(--accent-amber, var(--muted));
-  color: var(--accent-amber, var(--ink));
 }
 
-.countdown-widget.countdown-running .countdown-widget-icon {
+.countdown-widget.countdown-running .countdown-time-btn {
   color: var(--accent-amber, var(--ink));
-}
-
-.countdown-widget.countdown-paused {
-  border-color: var(--warm-gray);
-  color: var(--muted);
 }
 
 .countdown-popover {
@@ -1962,13 +1974,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: transparent;
 }
 
-.countdown-popover-body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .countdown-popover-title {
+  margin-bottom: 10px;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1980,6 +1987,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
+  margin-bottom: 10px;
 }
 
 .countdown-preset {
@@ -2029,7 +2037,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   color: var(--muted);
 }
 
-.countdown-start-btn {
+.countdown-custom-apply {
   padding: 6px 12px;
   border: 1px solid var(--ink);
   background: var(--ink);
@@ -2041,35 +2049,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   font-weight: 500;
 }
 
-.countdown-start-btn:hover {
-  opacity: 0.85;
-}
-
-.countdown-popover-row {
-  display: flex;
-  gap: 8px;
-}
-
-.countdown-popover-btn {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--paper);
-  border-radius: 6px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.countdown-popover-btn-muted {
-  background: var(--card-bg);
-  color: var(--ink);
-  border-color: var(--warm-gray);
-}
-
-.countdown-popover-btn:hover {
+.countdown-custom-apply:hover {
   opacity: 0.85;
 }
 

@@ -28,6 +28,7 @@ vi.mock('../../extension/dashboard/src/animations.ts', () => ({
 
 import {
   COUNTDOWN_STORAGE_KEY,
+  DEFAULT_MINUTES,
   formatCountdownMMSS,
   mountCountdown,
   PRESET_MINUTES,
@@ -113,18 +114,33 @@ describe('formatCountdownMMSS', () => {
   it('exposes the 6 preset minutes in known order', () => {
     expect([...PRESET_MINUTES]).toEqual([5, 10, 15, 25, 45, 60]);
   });
+  it('DEFAULT_MINUTES is 10', () => {
+    expect(DEFAULT_MINUTES).toBe(10);
+  });
 });
 
 describe('mountCountdown — idle', () => {
-  it('appends a widget button showing "Timer" when enabled', async () => {
+  it('appends a widget pill showing 10:00 by default', async () => {
     installChrome();
     mountCountdown(document.getElementById('slot'), { enabled: true, soundEnabled: true });
     await flush();
-    const btn = document.querySelector('.countdown-widget');
-    expect(btn).not.toBeNull();
-    expect(btn.classList.contains('countdown-idle')).toBe(true);
-    const label = btn.querySelector('.countdown-widget-label');
-    expect(label.textContent).toBe('Timer');
+    const widget = document.querySelector('.countdown-widget');
+    expect(widget).not.toBeNull();
+    expect(widget.classList.contains('countdown-idle')).toBe(true);
+    const time = widget.querySelector('.countdown-time-btn');
+    expect(time.textContent).toBe('10:00');
+  });
+
+  it('renders a play button and a reset button in idle', async () => {
+    installChrome();
+    mountCountdown(document.getElementById('slot'), { enabled: true, soundEnabled: true });
+    await flush();
+    const play = document.querySelector('.countdown-icon-btn[aria-label="Start"]');
+    expect(play).not.toBeNull();
+    expect(play.querySelector('[data-icon="play"]')).not.toBeNull();
+    const reset = document.querySelector('.countdown-icon-btn[aria-label="Reset"]');
+    expect(reset).not.toBeNull();
+    expect(reset.querySelector('[data-icon="reset"]')).not.toBeNull();
   });
 
   it('does NOT mount when disabled', async () => {
@@ -134,70 +150,99 @@ describe('mountCountdown — idle', () => {
     expect(document.querySelector('.countdown-widget')).toBeNull();
   });
 
-  it('popover body renders the 6 preset buttons + custom input', async () => {
+  it('popover body renders the 6 preset buttons + custom input + Set', async () => {
     installChrome();
     mountCountdown(document.getElementById('slot'), { enabled: true, soundEnabled: true });
     await flush();
     const presets = document.querySelectorAll('.countdown-preset');
     expect(presets).toHaveLength(PRESET_MINUTES.length);
     expect(document.querySelector('.countdown-custom-input')).not.toBeNull();
-    expect(document.querySelector('.countdown-start-btn')).not.toBeNull();
+    expect(document.querySelector('.countdown-custom-apply')).not.toBeNull();
   });
 });
 
-describe('mountCountdown — start', () => {
-  it('clicking a preset writes storage, creates the alarm, flips running', async () => {
+describe('mountCountdown — preset picker', () => {
+  it('clicking a preset updates the time display but does NOT start', async () => {
     const env = installChrome();
     mountCountdown(document.getElementById('slot'), { enabled: true, soundEnabled: true });
     await flush();
 
-    const fivePreset = Array.from(document.querySelectorAll('.countdown-preset'))
-      .find((b) => b.textContent.trim() === '5 min');
-    fivePreset.click();
+    const p25 = Array.from(document.querySelectorAll('.countdown-preset'))
+      .find((b) => b.textContent.trim() === '25 min');
+    p25.click();
     await flush();
 
-    const state = env.store.get(COUNTDOWN_STORAGE_KEY);
-    expect(state).toBeDefined();
-    expect(state.durationMs).toBe(5 * 60_000);
-    expect(state.paused).toBe(false);
-    expect(env.alarmsCreate).toHaveBeenCalledTimes(1);
-    const btn = document.querySelector('.countdown-widget');
-    expect(btn.classList.contains('countdown-running')).toBe(true);
+    expect(document.querySelector('.countdown-time-btn').textContent).toBe('25:00');
+    expect(env.store.get(COUNTDOWN_STORAGE_KEY)).toBeUndefined();
+    expect(env.alarmsCreate).not.toHaveBeenCalled();
   });
 
-  it('custom input starts a timer with the given minutes', async () => {
+  it('custom input Set updates the display without starting', async () => {
     const env = installChrome();
     mountCountdown(document.getElementById('slot'), { enabled: true, soundEnabled: true });
     await flush();
 
     const input = document.querySelector('.countdown-custom-input');
     input.value = '12';
-    document.querySelector('.countdown-start-btn').click();
+    document.querySelector('.countdown-custom-apply').click();
     await flush();
 
-    expect(env.store.get(COUNTDOWN_STORAGE_KEY).durationMs).toBe(12 * 60_000);
+    expect(document.querySelector('.countdown-time-btn').textContent).toBe('12:00');
+    expect(env.store.get(COUNTDOWN_STORAGE_KEY)).toBeUndefined();
   });
 
-  it('custom input rejects non-numeric / out-of-range values silently', async () => {
-    const env = installChrome();
+  it('custom input rejects out-of-range values silently (display unchanged)', async () => {
+    installChrome();
     mountCountdown(document.getElementById('slot'), { enabled: true, soundEnabled: true });
     await flush();
 
     const input = document.querySelector('.countdown-custom-input');
     input.value = '0';
-    document.querySelector('.countdown-start-btn').click();
+    document.querySelector('.countdown-custom-apply').click();
     await flush();
-    expect(env.store.get(COUNTDOWN_STORAGE_KEY)).toBeUndefined();
+    expect(document.querySelector('.countdown-time-btn').textContent).toBe('10:00');
 
     input.value = 'abc';
-    document.querySelector('.countdown-start-btn').click();
+    document.querySelector('.countdown-custom-apply').click();
     await flush();
-    expect(env.store.get(COUNTDOWN_STORAGE_KEY)).toBeUndefined();
+    expect(document.querySelector('.countdown-time-btn').textContent).toBe('10:00');
   });
 });
 
-describe('mountCountdown — pause / resume / reset', () => {
-  it('pause writes paused state + clears the alarm', async () => {
+describe('mountCountdown — play / pause / resume / reset', () => {
+  it('clicking play in idle writes state + creates alarm with selectedMinutes', async () => {
+    const env = installChrome();
+    mountCountdown(document.getElementById('slot'), { enabled: true, soundEnabled: true });
+    await flush();
+
+    // pick 5 via preset, then hit play
+    const p5 = Array.from(document.querySelectorAll('.countdown-preset'))
+      .find((b) => b.textContent.trim() === '5 min');
+    p5.click();
+    await flush();
+
+    document.querySelector('.countdown-icon-btn[aria-label="Start"]').click();
+    await flush();
+
+    const state = env.store.get(COUNTDOWN_STORAGE_KEY);
+    expect(state).toBeDefined();
+    expect(state.durationMs).toBe(5 * 60_000);
+    expect(env.alarmsCreate).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.countdown-widget').classList.contains('countdown-running')).toBe(true);
+  });
+
+  it('default 10-minute start when user never changes duration', async () => {
+    const env = installChrome();
+    mountCountdown(document.getElementById('slot'), { enabled: true, soundEnabled: true });
+    await flush();
+
+    document.querySelector('.countdown-icon-btn[aria-label="Start"]').click();
+    await flush();
+
+    expect(env.store.get(COUNTDOWN_STORAGE_KEY).durationMs).toBe(10 * 60_000);
+  });
+
+  it('running state → play button becomes Pause + clicking it pauses', async () => {
     const env = installChrome({
       endsAt: Date.now() + 5 * 60_000,
       durationMs: 5 * 60_000,
@@ -207,8 +252,10 @@ describe('mountCountdown — pause / resume / reset', () => {
     await flush();
     await flush();
 
-    const pauseBtn = Array.from(document.querySelectorAll('.countdown-popover-btn'))
-      .find((b) => b.textContent === 'Pause');
+    const pauseBtn = document.querySelector('.countdown-icon-btn[aria-label="Pause"]');
+    expect(pauseBtn).not.toBeNull();
+    expect(pauseBtn.querySelector('[data-icon="pause"]')).not.toBeNull();
+
     pauseBtn.click();
     await flush();
 
@@ -218,7 +265,7 @@ describe('mountCountdown — pause / resume / reset', () => {
     expect(env.alarmsClear).toHaveBeenCalled();
   });
 
-  it('resume writes a fresh endsAt + re-creates the alarm', async () => {
+  it('paused state → play button becomes Resume + clicking it resumes', async () => {
     const env = installChrome({
       endsAt: Date.now() + 2 * 60_000,
       durationMs: 5 * 60_000,
@@ -229,8 +276,8 @@ describe('mountCountdown — pause / resume / reset', () => {
     await flush();
     await flush();
 
-    const resumeBtn = Array.from(document.querySelectorAll('.countdown-popover-btn'))
-      .find((b) => b.textContent === 'Resume');
+    const resumeBtn = document.querySelector('.countdown-icon-btn[aria-label="Resume"]');
+    expect(resumeBtn).not.toBeNull();
     resumeBtn.click();
     await flush();
 
@@ -240,7 +287,7 @@ describe('mountCountdown — pause / resume / reset', () => {
     expect(env.alarmsCreate).toHaveBeenCalled();
   });
 
-  it('reset deletes storage + clears the alarm', async () => {
+  it('reset in running state deletes storage + clears alarm + flips idle', async () => {
     const env = installChrome({
       endsAt: Date.now() + 5 * 60_000,
       durationMs: 5 * 60_000,
@@ -250,14 +297,28 @@ describe('mountCountdown — pause / resume / reset', () => {
     await flush();
     await flush();
 
-    const resetBtn = Array.from(document.querySelectorAll('.countdown-popover-btn'))
-      .find((b) => b.textContent === 'Reset');
-    resetBtn.click();
+    document.querySelector('.countdown-icon-btn[aria-label="Reset"]').click();
     await flush();
 
     expect(env.store.has(COUNTDOWN_STORAGE_KEY)).toBe(false);
     expect(env.alarmsClear).toHaveBeenCalled();
     expect(document.querySelector('.countdown-widget').classList.contains('countdown-idle')).toBe(true);
+  });
+
+  it('reset in idle (non-default selection) snaps back to 10:00', async () => {
+    installChrome();
+    mountCountdown(document.getElementById('slot'), { enabled: true, soundEnabled: true });
+    await flush();
+
+    const p45 = Array.from(document.querySelectorAll('.countdown-preset'))
+      .find((b) => b.textContent.trim() === '45 min');
+    p45.click();
+    await flush();
+    expect(document.querySelector('.countdown-time-btn').textContent).toBe('45:00');
+
+    document.querySelector('.countdown-icon-btn[aria-label="Reset"]').click();
+    await flush();
+    expect(document.querySelector('.countdown-time-btn').textContent).toBe('10:00');
   });
 });
 
@@ -400,5 +461,20 @@ describe('mountCountdown — lifecycle', () => {
 
     expect(env.store.has(COUNTDOWN_STORAGE_KEY)).toBe(false);
     expect(document.querySelector('.countdown-widget').classList.contains('countdown-idle')).toBe(true);
+  });
+
+  it('time button is disabled while running (popover not reachable)', async () => {
+    installChrome({
+      endsAt: Date.now() + 5 * 60_000,
+      durationMs: 5 * 60_000,
+      paused: false,
+    });
+    mountCountdown(document.getElementById('slot'), { enabled: true, soundEnabled: true });
+    await flush();
+    await flush();
+
+    const timeBtn = document.querySelector('.countdown-time-btn');
+    expect(timeBtn.disabled).toBe(true);
+    expect(timeBtn.hasAttribute('popovertarget')).toBe(false);
   });
 });
