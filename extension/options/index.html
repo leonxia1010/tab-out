@@ -12,8 +12,7 @@
 <body>
   <main class="settings-container">
     <header class="settings-header">
-      <h1>Tab Out</h1>
-      <p class="settings-subtitle">Settings save automatically.</p>
+      <h1>Tab Out <span class="settings-heading-accent">— Settings</span><span class="dirty-dot" id="dirtyDot" hidden aria-hidden="true"></span></h1>
     </header>
 
     <section class="settings-section" aria-labelledby="appearance-heading">
@@ -64,6 +63,12 @@
         <p class="settings-list-empty" id="hiddenEmpty">Nothing hidden.</p>
       </div>
     </section>
+
+    <footer class="settings-footer">
+      <span class="dirty-text" id="dirtyText" hidden>Unsaved changes</span>
+      <button type="button" id="cancelBtn" class="settings-btn settings-btn-muted">Cancel</button>
+      <button type="button" id="saveBtn" class="settings-btn settings-btn-primary" disabled>Save &amp; Close</button>
+    </footer>
   </main>
   <script type="module" src="dist/index.js"></script>
 </body>

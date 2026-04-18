@@ -11,7 +11,11 @@
   --card-bg: #fffdf9;
   --ink: #1a1613;
   --muted: #9a918a;
+  --warm-gray: #e8e2da;
+  --accent-amber: #c8713a;
+  --accent-sage: #5a7a62;
   --border: rgba(26, 22, 19, 0.08);
+  --shadow: rgba(26, 22, 19, 0.06);
 }
 
 html[data-theme="dark"] {
@@ -20,7 +24,11 @@ html[data-theme="dark"] {
   --card-bg: #241f1a;
   --ink: #ebe8e3;
   --muted: #8a847d;
+  --warm-gray: #3a342e;
+  --accent-amber: #d98a50;
+  --accent-sage: #7fa388;
   --border: rgba(235, 232, 227, 0.10);
+  --shadow: rgba(0, 0, 0, 0.3);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -30,7 +38,11 @@ html[data-theme="dark"] {
     --card-bg: #241f1a;
     --ink: #ebe8e3;
     --muted: #8a847d;
+    --warm-gray: #3a342e;
+    --accent-amber: #d98a50;
+    --accent-sage: #7fa388;
     --border: rgba(235, 232, 227, 0.10);
+    --shadow: rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -50,17 +62,36 @@ body {
   margin: 0 auto;
 }
 
+.settings-header {
+  margin-bottom: 40px;
+}
+
 .settings-header h1 {
   font-family: 'Newsreader', serif;
   font-weight: 400;
   font-size: 32px;
-  margin: 0 0 8px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.settings-subtitle {
+.settings-heading-accent {
   color: var(--muted);
-  margin: 0 0 40px;
-  font-size: 14px;
+}
+
+/* Dirty indicator (variant A): amber dot beside the heading. */
+.dirty-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-amber);
+  margin-left: 4px;
+}
+
+.dirty-dot[hidden] {
+  display: none;
 }
 
 .settings-section {
@@ -94,7 +125,9 @@ body {
 }
 
 .settings-field label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 0;
   cursor: pointer;
   font-size: 14px;
@@ -102,9 +135,8 @@ body {
 }
 
 .settings-field input[type="radio"] {
-  margin-right: 8px;
-  vertical-align: middle;
   cursor: pointer;
+  margin: 0;
 }
 
 /* ============================================================
@@ -198,4 +230,77 @@ body {
 
 .settings-list:not(:empty) + .settings-list-empty {
   display: none;
+}
+
+/* ============================================================
+   Save / Cancel footer (v2.4.0)
+   ============================================================ */
+.settings-footer {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Dirty indicator (variant B): footer text next to the buttons. */
+.dirty-text {
+  margin-right: auto;
+  font-size: 13px;
+  color: var(--accent-amber);
+  font-style: italic;
+}
+
+.dirty-text[hidden] {
+  display: none;
+}
+
+.settings-btn {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--warm-gray);
+  background: var(--card-bg);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-btn:hover {
+  border-color: var(--ink);
+}
+
+.settings-btn:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 2px;
+}
+
+.settings-btn-muted {
+  color: var(--muted);
+}
+
+.settings-btn-muted:hover {
+  color: var(--ink);
+}
+
+.settings-btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.settings-btn-primary:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.settings-btn-primary:disabled {
+  background: var(--warm-gray);
+  color: var(--muted);
+  border-color: var(--warm-gray);
+  cursor: not-allowed;
+  opacity: 1;
 }

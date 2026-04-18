@@ -1653,6 +1653,35 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--paper);
 }
 
+/* Settings gear — mirrors theme-toggle-btn sizing for visual pairing.
+   Icon color is muted by default so the settings cluster doesn't
+   compete with clock/theme; ink on hover. */
+.settings-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--warm-gray);
+  background: var(--card-bg);
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  color: var(--muted);
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+
+.settings-link-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.settings-link-btn:hover {
+  border-color: var(--muted);
+  background: var(--paper);
+  color: var(--ink);
+}
+
 .theme-popover {
   /* theme.ts anchors the popover under the trigger on each `toggle`
      event by computing getBoundingClientRect and setting top/left.
