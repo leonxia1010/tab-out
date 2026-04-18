@@ -78,6 +78,24 @@ describe('defaultSettings', () => {
     expect(defaultSettings().layout).toBe('masonry');
   });
 
+  it('defaults weather to disabled-with-no-location (v2.6.0)', () => {
+    installMocks();
+    const d = defaultSettings();
+    expect(d.weather).toEqual({
+      enabled: false,
+      locationLabel: null,
+      latitude: null,
+      longitude: null,
+      unit: 'C',
+    });
+  });
+
+  it('defaults countdown to enabled with sound on (v2.6.0)', () => {
+    installMocks();
+    const d = defaultSettings();
+    expect(d.countdown).toEqual({ enabled: true, soundEnabled: true });
+  });
+
   it('picks 12h when navigator.language is en-US', () => {
     vi.stubGlobal('navigator', { language: 'en-US' });
     expect(defaultSettings().clock.format).toBe('12h');
@@ -180,6 +198,77 @@ describe('normalizeSettings', () => {
       shortcutHides: ['https://a/', '', 'https://b/', null, 42],
     });
     expect(r.shortcutHides).toEqual(['https://a/', 'https://b/']);
+  });
+
+  // ── weather (v2.6.0) ──────────────────────────────────────────────────────
+  it('keeps valid weather values', () => {
+    installMocks();
+    const r = normalizeSettings({
+      weather: {
+        enabled: true,
+        locationLabel: 'Boston, MA, US',
+        latitude: 42.3601,
+        longitude: -71.0589,
+        unit: 'F',
+      },
+    });
+    expect(r.weather).toEqual({
+      enabled: true,
+      locationLabel: 'Boston, MA, US',
+      latitude: 42.3601,
+      longitude: -71.0589,
+      unit: 'F',
+    });
+  });
+
+  it('rejects out-of-range latitude/longitude and falls back to null', () => {
+    installMocks();
+    const r = normalizeSettings({
+      weather: { enabled: true, latitude: 999, longitude: -200, unit: 'C' },
+    });
+    expect(r.weather.latitude).toBeNull();
+    expect(r.weather.longitude).toBeNull();
+  });
+
+  it('rejects non-finite latitude (NaN, string) and clamps to null', () => {
+    installMocks();
+    const r = normalizeSettings({
+      weather: { enabled: true, latitude: NaN, longitude: 'nope', unit: 'C' },
+    });
+    expect(r.weather.latitude).toBeNull();
+    expect(r.weather.longitude).toBeNull();
+  });
+
+  it('rejects invalid unit and falls back to C', () => {
+    installMocks();
+    expect(normalizeSettings({ weather: { unit: 'K' } }).weather.unit).toBe('C');
+  });
+
+  it('empty locationLabel string coerces to null', () => {
+    installMocks();
+    expect(normalizeSettings({ weather: { locationLabel: '' } }).weather.locationLabel).toBeNull();
+  });
+
+  it('non-boolean enabled flag falls back to default false', () => {
+    installMocks();
+    expect(normalizeSettings({ weather: { enabled: 'yes' } }).weather.enabled).toBe(false);
+  });
+
+  // ── countdown (v2.6.0) ────────────────────────────────────────────────────
+  it('keeps valid countdown values', () => {
+    installMocks();
+    const r = normalizeSettings({
+      countdown: { enabled: false, soundEnabled: false },
+    });
+    expect(r.countdown).toEqual({ enabled: false, soundEnabled: false });
+  });
+
+  it('countdown non-boolean fields fall back to defaults', () => {
+    installMocks();
+    const r = normalizeSettings({
+      countdown: { enabled: 'true', soundEnabled: 1 },
+    });
+    expect(r.countdown).toEqual({ enabled: true, soundEnabled: true });
   });
 });
 
@@ -349,6 +438,48 @@ describe('setSettings', () => {
     const saved = store.get(SETTINGS_KEY);
     expect(saved.shortcutPins).toEqual([{ url: 'https://a/', title: 'A' }]);
     expect(saved.shortcutHides).toEqual(['https://b/']);
+  });
+
+  // v2.6.0 — spread-merge on the new nested keys. Without the spread,
+  // a `{ weather: { unit: 'F' } }` patch would drop lat/lon/enabled.
+  it('weather spread-merge preserves siblings when unit changes', async () => {
+    const { store } = installMocks({
+      [SETTINGS_KEY]: {
+        theme: 'system',
+        clock: { format: '12h' },
+        layout: 'masonry',
+        weather: {
+          enabled: true,
+          locationLabel: 'Boston, MA, US',
+          latitude: 42.36,
+          longitude: -71.06,
+          unit: 'C',
+        },
+      },
+    });
+    await setSettings({ weather: { unit: 'F' } });
+    const saved = store.get(SETTINGS_KEY);
+    expect(saved.weather).toEqual({
+      enabled: true,
+      locationLabel: 'Boston, MA, US',
+      latitude: 42.36,
+      longitude: -71.06,
+      unit: 'F',
+    });
+  });
+
+  it('countdown spread-merge preserves siblings', async () => {
+    const { store } = installMocks({
+      [SETTINGS_KEY]: {
+        theme: 'system',
+        clock: { format: '12h' },
+        layout: 'masonry',
+        countdown: { enabled: true, soundEnabled: true },
+      },
+    });
+    await setSettings({ countdown: { soundEnabled: false } });
+    const saved = store.get(SETTINGS_KEY);
+    expect(saved.countdown).toEqual({ enabled: true, soundEnabled: false });
   });
 });
 

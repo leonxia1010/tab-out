@@ -46,6 +46,22 @@ const OPTIONS_HTML = `
       </fieldset>
     </section>
     <section>
+      <label class="settings-toggle"><input type="checkbox" id="weatherEnabled"> Show weather widget</label>
+      <div class="settings-field">
+        <input type="text" id="weatherLocation">
+        <button type="button" id="weatherLocationSearch">Find</button>
+        <span id="weatherLocationFeedback"></span>
+      </div>
+      <fieldset class="settings-field">
+        <label><input type="radio" name="weatherUnit" value="C"> Celsius</label>
+        <label><input type="radio" name="weatherUnit" value="F"> Fahrenheit</label>
+      </fieldset>
+    </section>
+    <section>
+      <label class="settings-toggle"><input type="checkbox" id="countdownEnabled"> Show countdown widget</label>
+      <label class="settings-toggle"><input type="checkbox" id="countdownSound"> Play sound</label>
+    </section>
+    <section>
       <ul class="settings-list" id="pinnedList"></ul>
       <ul class="settings-list" id="hiddenList"></ul>
     </section>
@@ -400,6 +416,115 @@ describe('options page — beforeunload guard', () => {
     window.dispatchEvent(evt);
 
     expect(evt.defaultPrevented).toBe(false);
+  });
+});
+
+describe('options page — weather section (v2.6.0)', () => {
+  it('enabling the weather toggle marks the form dirty', async () => {
+    await boot(defaultInitial());
+    const enabled = document.getElementById('weatherEnabled');
+    enabled.checked = true;
+    enabled.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
+  });
+
+  it('switching the unit radio marks dirty', async () => {
+    await boot(defaultInitial());
+    const f = document.querySelector('input[name="weatherUnit"][value="F"]');
+    f.checked = true;
+    f.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
+  });
+
+  it('Find populates draft from a geocoding hit', async () => {
+    const mocks = await boot(defaultInitial({
+      weather: { enabled: true, locationLabel: null, latitude: null, longitude: null, unit: 'C' },
+    }));
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [{
+          name: 'Boston', admin1: 'Massachusetts', country_code: 'US',
+          latitude: 42.3601, longitude: -71.0589,
+        }],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const input = document.getElementById('weatherLocation');
+    input.value = 'Boston';
+    document.getElementById('weatherLocationSearch').click();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(document.getElementById('weatherLocationFeedback').textContent).toMatch(/Using/);
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
+
+    document.getElementById('saveBtn').click();
+    await new Promise((r) => setTimeout(r, 0));
+    const saved = mocks.storageLocal.set.mock.calls.find((c) => SETTINGS_KEY in c[0])[0][SETTINGS_KEY];
+    expect(saved.weather.latitude).toBeCloseTo(42.3601, 4);
+    expect(saved.weather.longitude).toBeCloseTo(-71.0589, 4);
+    expect(saved.weather.locationLabel).toMatch(/Boston/);
+  });
+
+  it('Find with no matches reports "Location not found" and leaves draft clean', async () => {
+    await boot(defaultInitial());
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const input = document.getElementById('weatherLocation');
+    input.value = 'Zzzzzzzzzz';
+    document.getElementById('weatherLocationSearch').click();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(document.getElementById('weatherLocationFeedback').textContent).toBe('Location not found.');
+    expect(document.getElementById('saveBtn').disabled).toBe(true);
+  });
+
+  it('Find with empty input prompts to enter something', async () => {
+    await boot(defaultInitial());
+    document.getElementById('weatherLocation').value = '   ';
+    document.getElementById('weatherLocationSearch').click();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.getElementById('weatherLocationFeedback').textContent).toBe('Enter a city or ZIP first.');
+  });
+});
+
+describe('options page — countdown section (v2.6.0)', () => {
+  it('toggling countdownEnabled marks dirty', async () => {
+    await boot(defaultInitial());
+    const cb = document.getElementById('countdownEnabled');
+    // default is enabled=true, flip to false
+    cb.checked = false;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
+  });
+
+  it('toggling countdownSound marks dirty', async () => {
+    await boot(defaultInitial());
+    const cb = document.getElementById('countdownSound');
+    cb.checked = false;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
+  });
+
+  it('Save persists countdown settings', async () => {
+    const mocks = await boot(defaultInitial());
+    const cb = document.getElementById('countdownSound');
+    cb.checked = false;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+    document.getElementById('saveBtn').click();
+    await new Promise((r) => setTimeout(r, 0));
+    const saved = mocks.storageLocal.set.mock.calls.find((c) => SETTINGS_KEY in c[0])[0][SETTINGS_KEY];
+    expect(saved.countdown.soundEnabled).toBe(false);
+    expect(saved.countdown.enabled).toBe(true);
   });
 });
 

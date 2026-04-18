@@ -12,7 +12,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { showActionToast, showToast } from '../../extension/dashboard/src/animations.ts';
+import {
+  playCompletionSound,
+  showActionToast,
+  showToast,
+} from '../../extension/dashboard/src/animations.ts';
 
 beforeEach(() => {
   document.body.innerHTML = `
@@ -112,5 +116,80 @@ describe('showActionToast', () => {
       60_000,
     );
     expect(() => dismiss()).not.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// playCompletionSound (v2.6.0) — C5-E5-G5 rising triad played when a
+// countdown finishes. We stub AudioContext so the test doesn't depend on
+// jsdom's (absent) Web Audio support. Shape-only coverage: oscillators
+// created, frequencies set, graph connected, silent no-op without audio.
+describe('playCompletionSound', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('plays three oscillators when AudioContext is available', () => {
+    const oscillators = [];
+    const destination = {};
+    const makeGain = () => {
+      const g = {
+        gain: {
+          setValueAtTime: vi.fn(),
+          linearRampToValueAtTime: vi.fn(),
+          exponentialRampToValueAtTime: vi.fn(),
+        },
+        connect: vi.fn(() => destination),
+      };
+      return g;
+    };
+    let pendingGain = null;
+    const ctx = {
+      state: 'running',
+      currentTime: 0,
+      destination,
+      resume: vi.fn(),
+      createOscillator: vi.fn(() => {
+        const osc = {
+          type: 'square',
+          frequency: { value: 0 },
+          connect: vi.fn(() => pendingGain),
+          start: vi.fn(),
+          stop: vi.fn(),
+        };
+        oscillators.push(osc);
+        return osc;
+      }),
+      createGain: vi.fn(() => {
+        pendingGain = makeGain();
+        return pendingGain;
+      }),
+    };
+    vi.stubGlobal('window', { AudioContext: vi.fn(() => ctx) });
+
+    playCompletionSound();
+
+    expect(ctx.createOscillator).toHaveBeenCalledTimes(3);
+    const freqs = oscillators.map((o) => o.frequency.value);
+    // C5 E5 G5 triad (±0.01 tolerance for safety).
+    expect(freqs[0]).toBeCloseTo(523.25, 1);
+    expect(freqs[1]).toBeCloseTo(659.25, 1);
+    expect(freqs[2]).toBeCloseTo(783.99, 1);
+    expect(oscillators[0].start).toHaveBeenCalled();
+    expect(oscillators[0].stop).toHaveBeenCalled();
+  });
+
+  it('is a silent no-op when no AudioContext constructor is available', () => {
+    vi.stubGlobal('window', {});
+    expect(() => playCompletionSound()).not.toThrow();
+  });
+
+  it('swallows thrown errors from the Web Audio graph', () => {
+    vi.stubGlobal('window', {
+      AudioContext: vi.fn(() => {
+        throw new Error('audio disabled');
+      }),
+    });
+    expect(() => playCompletionSound()).not.toThrow();
   });
 });
