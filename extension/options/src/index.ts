@@ -28,6 +28,8 @@ function cloneSettings(s: ToutSettings): ToutSettings {
     layout: s.layout,
     shortcutPins: s.shortcutPins.map((p) => ({ ...p })),
     shortcutHides: [...s.shortcutHides],
+    weather: { ...s.weather },
+    countdown: { ...s.countdown },
   };
 }
 

@@ -121,6 +121,14 @@ describe('normalizeSettings', () => {
       layout: 'grid',
       shortcutPins: [],
       shortcutHides: [],
+      weather: {
+        enabled: false,
+        locationLabel: null,
+        latitude: null,
+        longitude: null,
+        unit: 'C',
+      },
+      countdown: { enabled: true, soundEnabled: true },
     });
   });
 
@@ -220,6 +228,14 @@ describe('getSettings', () => {
       layout: 'grid',
       shortcutPins: [],
       shortcutHides: [],
+      weather: {
+        enabled: false,
+        locationLabel: null,
+        latitude: null,
+        longitude: null,
+        unit: 'C',
+      },
+      countdown: { enabled: true, soundEnabled: true },
     });
   });
 
@@ -241,6 +257,14 @@ describe('setSettings', () => {
       layout: 'masonry',
       shortcutPins: [],
       shortcutHides: [],
+      weather: {
+        enabled: false,
+        locationLabel: null,
+        latitude: null,
+        longitude: null,
+        unit: 'C',
+      },
+      countdown: { enabled: true, soundEnabled: true },
     });
   });
 
@@ -404,6 +428,14 @@ describe('onSettingsChange', () => {
       layout: 'grid',
       shortcutPins: [],
       shortcutHides: [],
+      weather: {
+        enabled: false,
+        locationLabel: null,
+        latitude: null,
+        longitude: null,
+        unit: 'C',
+      },
+      countdown: { enabled: true, soundEnabled: true },
     });
   });
 
