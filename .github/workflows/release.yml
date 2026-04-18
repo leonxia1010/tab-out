@@ -73,8 +73,19 @@ jobs:
             echo "::error::no CHANGELOG section for $tag — add '## [$tag]' before tagging"
             exit 1
           fi
+          # Prepend a short install hint so visitors on the Release page
+          # grab the right asset. GitHub auto-attaches `Source code
+          # (zip/tar.gz)` to every tag — those are raw-repo snapshots
+          # without a compiled `dist/`, so `load unpacked` on them
+          # renders nothing. There's no API to hide the auto-attachments;
+          # this hint is the cheapest way to steer users correctly.
           {
             echo 'body<<EOF'
+            echo "> **Install:** download \`tab-out-${GITHUB_REF_NAME}.zip\` below."
+            echo "> GitHub also auto-attaches _Source code (zip/tar.gz)_ — those are"
+            echo "> repo snapshots without the compiled \`dist/\` output, so they will"
+            echo "> **not** load as an unpacked extension. Ignore them."
+            echo ''
             echo "$body"
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
