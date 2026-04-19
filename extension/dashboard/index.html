@@ -25,8 +25,10 @@
      omnibox caret, no search-box caret, no Tab trap (tabindex=-1
      keeps it out of the tab cycle). The first real click / keyboard
      press naturally hands focus back to whichever control the user
-     actually touched. -->
-<button type="button" class="focus-sink" autofocus tabindex="-1" aria-hidden="true"></button>
+     actually touched. `aria-label` gives AT users a meaningful
+     announcement (v2.6.2 — earlier `aria-hidden` tripped Chrome's
+     "focus must not be hidden from AT" a11y rule). -->
+<button type="button" class="focus-sink" autofocus tabindex="-1" aria-label="Tab Out dashboard"></button>
 <div class="container">
 
 

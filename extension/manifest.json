@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tab Out",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "Keep tabs on your tabs. New tab page that groups your open tabs by domain and lets you close them with style.",
   "minimum_chrome_version": "114",
   "permissions": ["tabs", "storage", "alarms", "search", "topSites", "favicon", "notifications"],
@@ -9,6 +9,8 @@
     "https://api.github.com/*",
     "https://api.open-meteo.com/*",
     "https://geocoding-api.open-meteo.com/*",
+    "https://ipwho.is/*",
+    "https://get.geojs.io/*",
     "https://ipapi.co/*"
   ],
   "content_security_policy": {

@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-let checkForUpdate, fetchWeatherNow, handleCountdownComplete, tryIpGeolocate, ensureLocationConfigured;
+let checkForUpdate, fetchWeatherNow, handleCountdownComplete, tryIpGeolocate, ensureLocationConfigured, isVersionNewer;
 
 function installChrome() {
   vi.stubGlobal('chrome', {
@@ -15,6 +15,7 @@ function installChrome() {
       onInstalled: { addListener: vi.fn() },
       onMessage: { addListener: vi.fn() },
       getURL: vi.fn((p) => `chrome-extension://test/${p}`),
+      getManifest: vi.fn(() => ({ version: '2.6.2' })),
     },
     alarms: {
       create: vi.fn(),
@@ -47,6 +48,7 @@ beforeEach(async () => {
     handleCountdownComplete,
     tryIpGeolocate,
     ensureLocationConfigured,
+    isVersionNewer,
   } = await import('../../extension/background.js'));
   await Promise.resolve();
 });
@@ -70,54 +72,81 @@ describe('checkForUpdate', () => {
     vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('writes updateAvailable:true when fetched tag differs from stored currentTag', async () => {
+  it('writes updateAvailable:true when GitHub latest is newer than the installed manifest version', async () => {
+    // Default mock: manifest.version = '2.6.2' → installedTag = 'v2.6.2'.
+    chrome.runtime.getManifest.mockReturnValue({ version: '2.6.2' });
     storageGet.mockResolvedValue({
-      'tabout:updateStatus': { currentTag: 'v2.0.0', dismissedTag: null },
+      'tabout:updateStatus': { dismissedTag: null },
     });
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ tag_name: 'v2.0.1' }),
+      json: async () => ({ tag_name: 'v2.7.0' }),
     });
     await checkForUpdate();
     expect(storageSet).toHaveBeenCalledWith({
       'tabout:updateStatus': expect.objectContaining({
         updateAvailable: true,
-        latestTag: 'v2.0.1',
-        currentTag: 'v2.0.0',
+        latestTag: 'v2.7.0',
+        currentTag: 'v2.6.2',
       }),
     });
   });
 
-  it('writes updateAvailable:false when fetched tag matches stored currentTag', async () => {
+  it('writes updateAvailable:false when installed version matches GitHub latest', async () => {
+    chrome.runtime.getManifest.mockReturnValue({ version: '2.6.0' });
     storageGet.mockResolvedValue({
-      'tabout:updateStatus': { currentTag: 'v2.0.0', dismissedTag: null },
+      'tabout:updateStatus': { dismissedTag: null },
     });
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ tag_name: 'v2.0.0' }),
+      json: async () => ({ tag_name: 'v2.6.0' }),
     });
     await checkForUpdate();
     expect(storageSet).toHaveBeenCalledWith({
       'tabout:updateStatus': expect.objectContaining({
         updateAvailable: false,
-        latestTag: 'v2.0.0',
-        currentTag: 'v2.0.0',
+        latestTag: 'v2.6.0',
+        currentTag: 'v2.6.0',
       }),
     });
   });
 
-  it('seeds currentTag = latestTag on first run so the banner does not flash on install', async () => {
+  it('writes updateAvailable:false when the installed version is AHEAD of the latest GitHub release', async () => {
+    // Regression guard: before the v2.6.2 rewrite, a dev build ahead
+    // of the public release (currentTag frozen at first-check snapshot)
+    // would show a perpetual "update available" banner. Now the
+    // manifest-driven currentTag makes the compare honest.
+    chrome.runtime.getManifest.mockReturnValue({ version: '2.6.2' });
+    storageGet.mockResolvedValue({
+      'tabout:updateStatus': { dismissedTag: null },
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: 'v2.6.0' }),
+    });
+    await checkForUpdate();
+    expect(storageSet).toHaveBeenCalledWith({
+      'tabout:updateStatus': expect.objectContaining({
+        updateAvailable: false,
+        latestTag: 'v2.6.0',
+        currentTag: 'v2.6.2',
+      }),
+    });
+  });
+
+  it('uses installed manifest version on first run so currentTag reflects reality from day 1', async () => {
+    chrome.runtime.getManifest.mockReturnValue({ version: '2.6.0' });
     storageGet.mockResolvedValue({});
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ tag_name: 'v2.0.0' }),
+      json: async () => ({ tag_name: 'v2.6.0' }),
     });
     await checkForUpdate();
     expect(storageSet).toHaveBeenCalledWith({
       'tabout:updateStatus': expect.objectContaining({
         updateAvailable: false,
-        latestTag: 'v2.0.0',
-        currentTag: 'v2.0.0',
+        latestTag: 'v2.6.0',
+        currentTag: 'v2.6.0',
       }),
     });
   });
@@ -132,6 +161,34 @@ describe('checkForUpdate', () => {
     fetchMock.mockResolvedValue({ ok: false, status: 404, json: async () => ({}) });
     await checkForUpdate();
     expect(storageSet).not.toHaveBeenCalled();
+  });
+});
+
+describe('isVersionNewer', () => {
+  it('returns true when the left version is strictly newer', () => {
+    expect(isVersionNewer('v2.7.0', 'v2.6.2')).toBe(true);
+    expect(isVersionNewer('v2.6.2', 'v2.6.1')).toBe(true);
+    expect(isVersionNewer('v3.0.0', 'v2.99.99')).toBe(true);
+  });
+
+  it('returns false for equal versions', () => {
+    expect(isVersionNewer('v2.6.2', 'v2.6.2')).toBe(false);
+  });
+
+  it('returns false when the left version is older', () => {
+    expect(isVersionNewer('v2.6.0', 'v2.6.2')).toBe(false);
+    expect(isVersionNewer('v2.6.0', 'v3.0.0')).toBe(false);
+  });
+
+  it('handles tags with or without the leading v', () => {
+    expect(isVersionNewer('2.6.2', 'v2.6.1')).toBe(true);
+    expect(isVersionNewer('v2.6.2', '2.6.1')).toBe(true);
+  });
+
+  it('returns false when either input is missing', () => {
+    expect(isVersionNewer(null, 'v2.6.0')).toBe(false);
+    expect(isVersionNewer('v2.6.0', null)).toBe(false);
+    expect(isVersionNewer('', 'v2.6.0')).toBe(false);
   });
 });
 
@@ -183,6 +240,60 @@ describe('fetchWeatherNow', () => {
     expect(url).toMatch(/longitude=-71\.06/);
   });
 
+  it('seeds IP geo even when tabout:settings has not been written yet (fresh install)', async () => {
+    // Storage returns `{}` — the key was never written because the
+    // user hasn't touched Settings. This is the exact shape a brand-
+    // new install shows when the weather alarm fires 15s after install.
+    storageGet.mockResolvedValue({});
+    fetchMock
+      .mockResolvedValueOnce({
+        // ipwho.is (primary provider)
+        ok: true,
+        json: async () => ({ success: true, latitude: 40.71, longitude: -74.0, city: 'New York', country_code: 'US' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ current: { temperature_2m: 15, weather_code: 2 } }),
+      });
+
+    await fetchWeatherNow();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipwho\.is/);
+    expect(fetchMock.mock.calls[1][0]).toMatch(/api\.open-meteo\.com/);
+    const settingsWrite = storageSet.mock.calls.find((c) => 'tabout:settings' in c[0]);
+    expect(settingsWrite[0]['tabout:settings'].weather.latitude).toBe(40.71);
+  });
+
+  it('seeds IP geo on pre-v2.6 upgrade (settings exists but has no weather key)', async () => {
+    // Legacy shape from v2.5.x and earlier: the settings object is
+    // present but predates the weather feature, so `weather` is
+    // undefined. ensureLocationConfigured used to bail on `!w`;
+    // fetchWeatherNow now backfills defaults so the IP seed still
+    // runs for an upgraded user who never touches Settings.
+    storageGet.mockResolvedValue({
+      'tabout:settings': { theme: 'dark', clock: { format: '24h' } },
+    });
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, latitude: -33.87, longitude: 151.21, city: 'Sydney', country_code: 'AU' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ current: { temperature_2m: 18, weather_code: 0 } }),
+      });
+
+    await fetchWeatherNow();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipwho\.is/);
+    const settingsWrite = storageSet.mock.calls.find((c) => 'tabout:settings' in c[0]);
+    expect(settingsWrite[0]['tabout:settings'].weather.latitude).toBe(-33.87);
+    // Pre-existing theme/clock preserved through the synthesis.
+    expect(settingsWrite[0]['tabout:settings'].theme).toBe('dark');
+  });
+
   it('is a no-op when weather.enabled is false', async () => {
     storageGet.mockResolvedValue({
       'tabout:settings': {
@@ -200,9 +311,9 @@ describe('fetchWeatherNow', () => {
     });
     fetchMock
       .mockResolvedValueOnce({
-        // ipapi.co first
+        // ipwho.is first (primary provider)
         ok: true,
-        json: async () => ({ latitude: 5, longitude: 10, city: 'Anywhere', country_code: 'US' }),
+        json: async () => ({ success: true, latitude: 5, longitude: 10, city: 'Anywhere', country_code: 'US' }),
       })
       .mockResolvedValueOnce({
         // open-meteo second
@@ -212,9 +323,9 @@ describe('fetchWeatherNow', () => {
 
     await fetchWeatherNow();
 
-    // Two network calls: ipapi.co, then open-meteo.
+    // Two network calls: ipwho.is, then open-meteo.
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0][0]).toMatch(/ipapi\.co/);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipwho\.is/);
     expect(fetchMock.mock.calls[1][0]).toMatch(/api\.open-meteo\.com/);
 
     // Two storage writes: settings update (with new lat/lon), then weather data.
@@ -226,15 +337,15 @@ describe('fetchWeatherNow', () => {
     );
   });
 
-  it('is a no-op when lat/lon are null and IP geo also fails', async () => {
+  it('is a no-op when lat/lon are null and every IP-geo provider fails', async () => {
     storageGet.mockResolvedValue({
       'tabout:settings': { weather: { enabled: true, latitude: null, longitude: null, unit: 'C' } },
     });
+    // Same 500 response for all three providers; open-meteo never runs.
     fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
     await fetchWeatherNow();
-    // Only the ipapi.co call happened; open-meteo never ran.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toMatch(/ipapi\.co/);
+    // Three provider attempts (ipwho.is, geojs.io, ipapi.co), then stops.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const weatherWrite = storageSet.mock.calls.find((c) => 'tabout:weatherData' in c[0]);
     expect(weatherWrite).toBeUndefined();
   });
@@ -278,10 +389,11 @@ describe('tryIpGeolocate', () => {
     vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('returns lat/lon/label from a successful ipapi.co response', async () => {
+  it('returns lat/lon/label from a successful ipwho.is response', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({
+        success: true,
         latitude: 42.36,
         longitude: -71.06,
         city: 'Boston',
@@ -297,23 +409,34 @@ describe('tryIpGeolocate', () => {
     });
   });
 
-  it('returns null when ipapi.co reports rate-limit (200 + error flag)', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ error: true, reason: 'RateLimited' }),
+  it('falls through ipwho.is → geojs.io when the primary blocks the request', async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({}) })
+      .mockResolvedValueOnce({
+        ok: true,
+        // geojs returns strings for coords; parser must cast.
+        json: async () => ({ latitude: '35.68', longitude: '139.69', city: 'Tokyo', country_code: 'JP' }),
+      });
+    const geo = await tryIpGeolocate();
+    expect(geo).toEqual({
+      latitude: 35.68,
+      longitude: 139.69,
+      locationLabel: 'Tokyo, JP',
     });
-    expect(await tryIpGeolocate()).toBeNull();
+    expect(fetchMock.mock.calls[0][0]).toMatch(/ipwho\.is/);
+    expect(fetchMock.mock.calls[1][0]).toMatch(/geojs\.io/);
   });
 
-  it('returns null on network failure', async () => {
+  it('returns null on network failure across all providers', async () => {
     fetchMock.mockRejectedValue(new Error('offline'));
     expect(await tryIpGeolocate()).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('returns null when latitude is missing or non-numeric', async () => {
+  it('returns null when latitude is missing or non-numeric in every provider', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ latitude: 'nope', longitude: 0, city: 'X' }),
+      json: async () => ({ success: true, latitude: 'nope', longitude: 0, city: 'X' }),
     });
     expect(await tryIpGeolocate()).toBeNull();
   });
@@ -321,7 +444,7 @@ describe('tryIpGeolocate', () => {
   it('falls back to "Your location" when city/region/country are absent', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ latitude: 1, longitude: 2 }),
+      json: async () => ({ success: true, latitude: 1, longitude: 2 }),
     });
     const geo = await tryIpGeolocate();
     expect(geo.locationLabel).toBe('Your location');

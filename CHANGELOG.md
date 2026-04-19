@@ -6,6 +6,51 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [2.6.2] — 2026-04-18
+
+Follow-up patch for v2.6.1: the ipapi.co auto-detect path wasn't
+actually firing on fresh installs.
+
+### Fixed
+
+- **IP-geo auto-detect actually runs on first install and upgrades.**
+  Two storage shapes were skipping the ipapi.co seed:
+  (1) fresh installs, where `tabout:settings` isn't written until the
+  options page saves something; and (2) pre-v2.6 upgrades, where the
+  legacy record has no `weather` key. Both paths now synthesize a
+  default-weather object so `ensureLocationConfigured` runs and
+  persists a location. The dashboard widget also pings the service
+  worker on mount when no location is set, so the "Set weather
+  location" prompt flips to a real reading within a second or two.
+- **Update banner compares against the installed version, not a
+  first-check snapshot.** `checkForUpdate` used to seed `currentTag`
+  to whatever GitHub's `tag_name` was on the very first poll and
+  never touch it again, which meant any user who first ran at an
+  older release saw a persistent "new version available" banner
+  forever — even after they pulled the new version, because the
+  comparison still referenced the frozen old tag. `currentTag` now
+  reads from `chrome.runtime.getManifest().version` on every tick,
+  and `updateAvailable` uses a real numeric-segment version compare
+  so a dev/pre-release build running ahead of the public release
+  doesn't falsely flag an update either.
+- **Focus sink no longer trips Chrome's a11y engine.** The v2.6.1
+  sink used `aria-hidden="true"` to stay out of screen readers, but
+  Chrome's a11y rule forbids `aria-hidden` on a focused element or
+  its ancestor. The sink now carries `aria-label="Tab Out dashboard"`
+  instead, so AT users hear a brief, meaningful landmark
+  announcement on new-tab open instead of a WAI-ARIA violation.
+  `inert` isn't usable here because it would block the very focus
+  absorption that stops the omnibox caret.
+- **IP-geo no longer single-sourced on ipapi.co.** Field reports
+  showed ipapi.co returning HTTP 403 (bot-detection / regional
+  block) for extension-issued requests, leaving the widget stuck
+  in setup mode. The SW now tries three providers in order —
+  ipwho.is → geojs.io → ipapi.co — and stops at the first that
+  returns usable coordinates. Failure paths log per-provider
+  reasons to the service worker console (`chrome://extensions` →
+  Tab Out → inspect service worker) so users can diagnose why IP
+  detection didn't resolve.
+
 ## [2.6.1] — 2026-04-18
 
 UX polish pass after shipping v2.6.0.

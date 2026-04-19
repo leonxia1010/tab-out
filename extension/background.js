@@ -34,6 +34,36 @@ const UPDATE_STORAGE_KEY = 'tabout:updateStatus';
 const GITHUB_RELEASE_URL = 'https://api.github.com/repos/leonxia1010/tab-out/releases/latest';
 const UPDATE_CHECK_PERIOD_MIN = 60 * 48; // 48h — once-per-user rate is ~0.02 req/h, nowhere near GitHub's 60 req/h/IP anon limit.
 
+// Compare two "vX.Y.Z"-style tags. Returns true iff `a` > `b`.
+// Missing segments count as 0; non-numeric parts (e.g. rc suffixes)
+// coerce to NaN and break the tie in favor of equality, which is
+// intentionally conservative — we'd rather under-banner than spam.
+function isVersionNewer(a, b) {
+  if (!a || !b) return false;
+  const pa = String(a).replace(/^v/, '').split('.').map((s) => parseInt(s, 10));
+  const pb = String(b).replace(/^v/, '').split('.').map((s) => parseInt(s, 10));
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const x = Number.isFinite(pa[i]) ? pa[i] : 0;
+    const y = Number.isFinite(pb[i]) ? pb[i] : 0;
+    if (x > y) return true;
+    if (x < y) return false;
+  }
+  return false;
+}
+
+// Resolve the installed version from the manifest. Tag format on
+// GitHub is "vX.Y.Z"; manifest.version is "X.Y.Z"; normalize to the
+// former so tag comparisons are apples-to-apples.
+function installedTag() {
+  try {
+    const v = chrome.runtime.getManifest().version;
+    return v ? `v${v}` : null;
+  } catch {
+    return null;
+  }
+}
+
 async function checkForUpdate() {
   try {
     const res = await fetch(GITHUB_RELEASE_URL);
@@ -46,10 +76,15 @@ async function checkForUpdate() {
 
     const stored = await chrome.storage.local.get(UPDATE_STORAGE_KEY);
     const state = stored[UPDATE_STORAGE_KEY] || {};
-    // First run after install: seed currentTag = latestTag so we don't flash
-    // an update banner on day one.
-    const currentTag = state.currentTag || latestTag;
-    const updateAvailable = currentTag !== latestTag;
+    // currentTag = the extension version actually installed right now,
+    // not a frozen first-check snapshot. Before v2.6.2 we seeded
+    // currentTag = latestTag on first run and never updated it, so a
+    // user who installed at v2.5.0 saw an "update available" banner
+    // indefinitely once v2.6.0 was released — even after they pulled
+    // v2.6.0 themselves. Reading the manifest on every tick keeps the
+    // banner honest about the local/remote delta.
+    const currentTag = installedTag() || state.currentTag || latestTag;
+    const updateAvailable = isVersionNewer(latestTag, currentTag);
 
     await chrome.storage.local.set({
       [UPDATE_STORAGE_KEY]: {
@@ -71,31 +106,94 @@ const WEATHER_ALARM = 'tabout-weather-refresh';
 const WEATHER_STORAGE_KEY = 'tabout:weatherData';
 const WEATHER_REFRESH_PERIOD_MIN = 30;
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
-// ipapi.co: free tier is 1k req/day without an API key, well above
-// anything this extension will ever issue (one call per install when
-// no manual location exists yet).
-const IP_GEO_URL = 'https://ipapi.co/json/';
+// Multi-provider fallback: ipapi.co blocks some regions / bot-detects
+// extension User-Agents (observed HTTP 403 on v2.6.2 field reports).
+// ipwho.is is the primary now because it's the most permissive;
+// geojs.io and ipapi.co are fallbacks so one regional block doesn't
+// leave the widget stuck at "Set weather location".
+const IP_GEO_PROVIDERS = [
+  {
+    name: 'ipwho.is',
+    url: 'https://ipwho.is/',
+    // { success: true/false, latitude, longitude, city, region, country_code }
+    parse: (body) => {
+      if (!body || body.success === false) return null;
+      return {
+        latitude: body.latitude,
+        longitude: body.longitude,
+        city: body.city,
+        region: body.region,
+        country_code: body.country_code,
+      };
+    },
+  },
+  {
+    name: 'geojs.io',
+    url: 'https://get.geojs.io/v1/ip/geo.json',
+    // Numeric fields arrive as strings here; cast before range checks.
+    parse: (body) => {
+      if (!body) return null;
+      const lat = typeof body.latitude === 'string' ? parseFloat(body.latitude) : body.latitude;
+      const lon = typeof body.longitude === 'string' ? parseFloat(body.longitude) : body.longitude;
+      return {
+        latitude: lat,
+        longitude: lon,
+        city: body.city,
+        region: body.region,
+        country_code: body.country_code,
+      };
+    },
+  },
+  {
+    name: 'ipapi.co',
+    url: 'https://ipapi.co/json/',
+    // 429 / quota rejections return 200 with { error: true, reason: ... }.
+    parse: (body) => {
+      if (!body || body.error) return null;
+      return {
+        latitude: body.latitude,
+        longitude: body.longitude,
+        city: body.city,
+        region: body.region,
+        country_code: body.country_code,
+      };
+    },
+  },
+];
 
 async function tryIpGeolocate() {
-  try {
-    const res = await fetch(IP_GEO_URL);
-    if (!res.ok) return null;
-    const body = await res.json();
-    // ipapi.co 429 / quota rejections return 200 with { error: true,
-    // reason: 'RateLimited' }, so the !res.ok guard alone isn't enough.
-    if (!body || body.error) return null;
-    const latitude = typeof body.latitude === 'number' ? body.latitude : null;
-    const longitude = typeof body.longitude === 'number' ? body.longitude : null;
-    if (latitude == null || longitude == null) return null;
-    const parts = [];
-    if (body.city) parts.push(body.city);
-    if (body.region) parts.push(body.region);
-    if (body.country_code) parts.push(body.country_code);
-    const locationLabel = parts.length > 0 ? parts.join(', ') : 'Your location';
-    return { latitude, longitude, locationLabel };
-  } catch {
-    return null;
+  for (const provider of IP_GEO_PROVIDERS) {
+    try {
+      const res = await fetch(provider.url);
+      if (!res.ok) {
+        console.warn(`[tab-out] ip-geo ${provider.name}: HTTP`, res.status);
+        continue;
+      }
+      const body = await res.json();
+      const parsed = provider.parse(body);
+      if (!parsed) {
+        console.warn(`[tab-out] ip-geo ${provider.name}: rejected body`, body && (body.reason || body.message));
+        continue;
+      }
+      const latitude = typeof parsed.latitude === 'number' && Number.isFinite(parsed.latitude) ? parsed.latitude : null;
+      const longitude = typeof parsed.longitude === 'number' && Number.isFinite(parsed.longitude) ? parsed.longitude : null;
+      if (latitude == null || longitude == null) {
+        console.warn(`[tab-out] ip-geo ${provider.name}: missing coords`, parsed);
+        continue;
+      }
+      const parts = [];
+      if (parsed.city) parts.push(parsed.city);
+      if (parsed.region) parts.push(parsed.region);
+      if (parsed.country_code) parts.push(parsed.country_code);
+      const locationLabel = parts.length > 0 ? parts.join(', ') : 'Your location';
+      console.info(`[tab-out] ip-geo ${provider.name}: OK`, locationLabel, latitude, longitude);
+      return { latitude, longitude, locationLabel };
+    } catch (e) {
+      console.warn(`[tab-out] ip-geo ${provider.name}: exception`, e && e.message);
+    }
   }
+  console.warn('[tab-out] ip-geo: all providers exhausted');
+  return null;
 }
 
 // Writes IP-derived lat/lon into tabout:settings when the user hasn't
@@ -126,7 +224,27 @@ async function fetchWeatherNow() {
   try {
     const stored = await chrome.storage.local.get(SETTINGS_KEY);
     let settings = stored[SETTINGS_KEY];
-    if (!settings) return;
+    // Two shapes both need the default-weather backfill:
+    //   1. Fresh install — `tabout:settings` isn't written until the
+    //      options page saves, so storage is `{}`.
+    //   2. Pre-v2.6 upgrade — the old record exists (theme/clock/etc.)
+    //      but carries no `weather` key; `ensureLocationConfigured`
+    //      bails on `!w` before the IP-geo seed can run.
+    // Merge a defaults-shaped weather object in either case so the rest
+    // of the pipeline has something to work with.
+    if (!settings || !settings.weather) {
+      const baseline = settings && typeof settings === 'object' ? settings : {};
+      settings = {
+        ...baseline,
+        weather: {
+          enabled: true,
+          locationLabel: null,
+          latitude: null,
+          longitude: null,
+          unit: 'C',
+        },
+      };
+    }
     // Opportunistic IP-geo fallback: a first-run user with
     // weather.enabled=true but no manual location picks gets a
     // reasonable starting point so the widget hydrates without a
@@ -264,5 +382,6 @@ if (typeof module !== 'undefined' && module.exports) {
     handleCountdownComplete,
     tryIpGeolocate,
     ensureLocationConfigured,
+    isVersionNewer,
   };
 }
