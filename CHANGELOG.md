@@ -22,6 +22,14 @@ actually firing on fresh installs.
   persists a location. The dashboard widget also pings the service
   worker on mount when no location is set, so the "Set weather
   location" prompt flips to a real reading within a second or two.
+- **Focus sink no longer trips Chrome's a11y engine.** The v2.6.1
+  sink used `aria-hidden="true"` to stay out of screen readers, but
+  Chrome's a11y rule forbids `aria-hidden` on a focused element or
+  its ancestor. The sink now carries `aria-label="Tab Out dashboard"`
+  instead, so AT users hear a brief, meaningful landmark
+  announcement on new-tab open instead of a WAI-ARIA violation.
+  `inert` isn't usable here because it would block the very focus
+  absorption that stops the omnibox caret.
 - **IP-geo no longer single-sourced on ipapi.co.** Field reports
   showed ipapi.co returning HTTP 403 (bot-detection / regional
   block) for extension-issued requests, leaving the widget stuck
