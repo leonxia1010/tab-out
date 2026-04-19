@@ -34,6 +34,36 @@ const UPDATE_STORAGE_KEY = 'tabout:updateStatus';
 const GITHUB_RELEASE_URL = 'https://api.github.com/repos/leonxia1010/tab-out/releases/latest';
 const UPDATE_CHECK_PERIOD_MIN = 60 * 48; // 48h — once-per-user rate is ~0.02 req/h, nowhere near GitHub's 60 req/h/IP anon limit.
 
+// Compare two "vX.Y.Z"-style tags. Returns true iff `a` > `b`.
+// Missing segments count as 0; non-numeric parts (e.g. rc suffixes)
+// coerce to NaN and break the tie in favor of equality, which is
+// intentionally conservative — we'd rather under-banner than spam.
+function isVersionNewer(a, b) {
+  if (!a || !b) return false;
+  const pa = String(a).replace(/^v/, '').split('.').map((s) => parseInt(s, 10));
+  const pb = String(b).replace(/^v/, '').split('.').map((s) => parseInt(s, 10));
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const x = Number.isFinite(pa[i]) ? pa[i] : 0;
+    const y = Number.isFinite(pb[i]) ? pb[i] : 0;
+    if (x > y) return true;
+    if (x < y) return false;
+  }
+  return false;
+}
+
+// Resolve the installed version from the manifest. Tag format on
+// GitHub is "vX.Y.Z"; manifest.version is "X.Y.Z"; normalize to the
+// former so tag comparisons are apples-to-apples.
+function installedTag() {
+  try {
+    const v = chrome.runtime.getManifest().version;
+    return v ? `v${v}` : null;
+  } catch {
+    return null;
+  }
+}
+
 async function checkForUpdate() {
   try {
     const res = await fetch(GITHUB_RELEASE_URL);
@@ -46,10 +76,15 @@ async function checkForUpdate() {
 
     const stored = await chrome.storage.local.get(UPDATE_STORAGE_KEY);
     const state = stored[UPDATE_STORAGE_KEY] || {};
-    // First run after install: seed currentTag = latestTag so we don't flash
-    // an update banner on day one.
-    const currentTag = state.currentTag || latestTag;
-    const updateAvailable = currentTag !== latestTag;
+    // currentTag = the extension version actually installed right now,
+    // not a frozen first-check snapshot. Before v2.6.2 we seeded
+    // currentTag = latestTag on first run and never updated it, so a
+    // user who installed at v2.5.0 saw an "update available" banner
+    // indefinitely once v2.6.0 was released — even after they pulled
+    // v2.6.0 themselves. Reading the manifest on every tick keeps the
+    // banner honest about the local/remote delta.
+    const currentTag = installedTag() || state.currentTag || latestTag;
+    const updateAvailable = isVersionNewer(latestTag, currentTag);
 
     await chrome.storage.local.set({
       [UPDATE_STORAGE_KEY]: {
@@ -347,5 +382,6 @@ if (typeof module !== 'undefined' && module.exports) {
     handleCountdownComplete,
     tryIpGeolocate,
     ensureLocationConfigured,
+    isVersionNewer,
   };
 }

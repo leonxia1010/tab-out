@@ -22,6 +22,17 @@ actually firing on fresh installs.
   persists a location. The dashboard widget also pings the service
   worker on mount when no location is set, so the "Set weather
   location" prompt flips to a real reading within a second or two.
+- **Update banner compares against the installed version, not a
+  first-check snapshot.** `checkForUpdate` used to seed `currentTag`
+  to whatever GitHub's `tag_name` was on the very first poll and
+  never touch it again, which meant any user who first ran at an
+  older release saw a persistent "new version available" banner
+  forever — even after they pulled the new version, because the
+  comparison still referenced the frozen old tag. `currentTag` now
+  reads from `chrome.runtime.getManifest().version` on every tick,
+  and `updateAvailable` uses a real numeric-segment version compare
+  so a dev/pre-release build running ahead of the public release
+  doesn't falsely flag an update either.
 - **Focus sink no longer trips Chrome's a11y engine.** The v2.6.1
   sink used `aria-hidden="true"` to stay out of screen readers, but
   Chrome's a11y rule forbids `aria-hidden` on a focused element or

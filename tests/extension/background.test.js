@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-let checkForUpdate, fetchWeatherNow, handleCountdownComplete, tryIpGeolocate, ensureLocationConfigured;
+let checkForUpdate, fetchWeatherNow, handleCountdownComplete, tryIpGeolocate, ensureLocationConfigured, isVersionNewer;
 
 function installChrome() {
   vi.stubGlobal('chrome', {
@@ -15,6 +15,7 @@ function installChrome() {
       onInstalled: { addListener: vi.fn() },
       onMessage: { addListener: vi.fn() },
       getURL: vi.fn((p) => `chrome-extension://test/${p}`),
+      getManifest: vi.fn(() => ({ version: '2.6.2' })),
     },
     alarms: {
       create: vi.fn(),
@@ -47,6 +48,7 @@ beforeEach(async () => {
     handleCountdownComplete,
     tryIpGeolocate,
     ensureLocationConfigured,
+    isVersionNewer,
   } = await import('../../extension/background.js'));
   await Promise.resolve();
 });
@@ -70,54 +72,81 @@ describe('checkForUpdate', () => {
     vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('writes updateAvailable:true when fetched tag differs from stored currentTag', async () => {
+  it('writes updateAvailable:true when GitHub latest is newer than the installed manifest version', async () => {
+    // Default mock: manifest.version = '2.6.2' → installedTag = 'v2.6.2'.
+    chrome.runtime.getManifest.mockReturnValue({ version: '2.6.2' });
     storageGet.mockResolvedValue({
-      'tabout:updateStatus': { currentTag: 'v2.0.0', dismissedTag: null },
+      'tabout:updateStatus': { dismissedTag: null },
     });
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ tag_name: 'v2.0.1' }),
+      json: async () => ({ tag_name: 'v2.7.0' }),
     });
     await checkForUpdate();
     expect(storageSet).toHaveBeenCalledWith({
       'tabout:updateStatus': expect.objectContaining({
         updateAvailable: true,
-        latestTag: 'v2.0.1',
-        currentTag: 'v2.0.0',
+        latestTag: 'v2.7.0',
+        currentTag: 'v2.6.2',
       }),
     });
   });
 
-  it('writes updateAvailable:false when fetched tag matches stored currentTag', async () => {
+  it('writes updateAvailable:false when installed version matches GitHub latest', async () => {
+    chrome.runtime.getManifest.mockReturnValue({ version: '2.6.0' });
     storageGet.mockResolvedValue({
-      'tabout:updateStatus': { currentTag: 'v2.0.0', dismissedTag: null },
+      'tabout:updateStatus': { dismissedTag: null },
     });
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ tag_name: 'v2.0.0' }),
+      json: async () => ({ tag_name: 'v2.6.0' }),
     });
     await checkForUpdate();
     expect(storageSet).toHaveBeenCalledWith({
       'tabout:updateStatus': expect.objectContaining({
         updateAvailable: false,
-        latestTag: 'v2.0.0',
-        currentTag: 'v2.0.0',
+        latestTag: 'v2.6.0',
+        currentTag: 'v2.6.0',
       }),
     });
   });
 
-  it('seeds currentTag = latestTag on first run so the banner does not flash on install', async () => {
+  it('writes updateAvailable:false when the installed version is AHEAD of the latest GitHub release', async () => {
+    // Regression guard: before the v2.6.2 rewrite, a dev build ahead
+    // of the public release (currentTag frozen at first-check snapshot)
+    // would show a perpetual "update available" banner. Now the
+    // manifest-driven currentTag makes the compare honest.
+    chrome.runtime.getManifest.mockReturnValue({ version: '2.6.2' });
+    storageGet.mockResolvedValue({
+      'tabout:updateStatus': { dismissedTag: null },
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: 'v2.6.0' }),
+    });
+    await checkForUpdate();
+    expect(storageSet).toHaveBeenCalledWith({
+      'tabout:updateStatus': expect.objectContaining({
+        updateAvailable: false,
+        latestTag: 'v2.6.0',
+        currentTag: 'v2.6.2',
+      }),
+    });
+  });
+
+  it('uses installed manifest version on first run so currentTag reflects reality from day 1', async () => {
+    chrome.runtime.getManifest.mockReturnValue({ version: '2.6.0' });
     storageGet.mockResolvedValue({});
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ tag_name: 'v2.0.0' }),
+      json: async () => ({ tag_name: 'v2.6.0' }),
     });
     await checkForUpdate();
     expect(storageSet).toHaveBeenCalledWith({
       'tabout:updateStatus': expect.objectContaining({
         updateAvailable: false,
-        latestTag: 'v2.0.0',
-        currentTag: 'v2.0.0',
+        latestTag: 'v2.6.0',
+        currentTag: 'v2.6.0',
       }),
     });
   });
@@ -132,6 +161,34 @@ describe('checkForUpdate', () => {
     fetchMock.mockResolvedValue({ ok: false, status: 404, json: async () => ({}) });
     await checkForUpdate();
     expect(storageSet).not.toHaveBeenCalled();
+  });
+});
+
+describe('isVersionNewer', () => {
+  it('returns true when the left version is strictly newer', () => {
+    expect(isVersionNewer('v2.7.0', 'v2.6.2')).toBe(true);
+    expect(isVersionNewer('v2.6.2', 'v2.6.1')).toBe(true);
+    expect(isVersionNewer('v3.0.0', 'v2.99.99')).toBe(true);
+  });
+
+  it('returns false for equal versions', () => {
+    expect(isVersionNewer('v2.6.2', 'v2.6.2')).toBe(false);
+  });
+
+  it('returns false when the left version is older', () => {
+    expect(isVersionNewer('v2.6.0', 'v2.6.2')).toBe(false);
+    expect(isVersionNewer('v2.6.0', 'v3.0.0')).toBe(false);
+  });
+
+  it('handles tags with or without the leading v', () => {
+    expect(isVersionNewer('2.6.2', 'v2.6.1')).toBe(true);
+    expect(isVersionNewer('v2.6.2', '2.6.1')).toBe(true);
+  });
+
+  it('returns false when either input is missing', () => {
+    expect(isVersionNewer(null, 'v2.6.0')).toBe(false);
+    expect(isVersionNewer('v2.6.0', null)).toBe(false);
+    expect(isVersionNewer('', 'v2.6.0')).toBe(false);
   });
 });
 
