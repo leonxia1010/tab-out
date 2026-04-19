@@ -11,6 +11,7 @@
 // so background alarms remain the single refresh source of truth.
 
 import { anchorPopoverTo, el } from '../../../shared/dist/dom-utils.js';
+import { setSettings } from '../../../shared/dist/settings.js';
 import type { TemperatureUnit, WeatherSettings } from '../../../shared/dist/settings.js';
 
 export interface WeatherHandle {
@@ -128,6 +129,32 @@ function requestRefresh(force = false): void {
   } catch {
     // chrome.runtime absent (dev pages, tests without stub) — nothing to do.
   }
+}
+
+// navigator.geolocation — v2.6.3 replaces the previous IP-geo fallback
+// chain. Returns null on denial / timeout / missing API so callers can
+// fall back to the manual-location prompt. One attempt per widget
+// mount; Chrome caches the permission decision across tabs, so the
+// prompt only fires once per install.
+function tryBrowserGeolocate(): Promise<{ latitude: number; longitude: number } | null> {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        }),
+        () => resolve(null),
+        { timeout: 10_000, maximumAge: 60 * 60 * 1000 },
+      );
+    } catch {
+      resolve(null);
+    }
+  });
 }
 
 export function mountWeather(
@@ -316,13 +343,41 @@ export function mountWeather(
     data = await readWeatherData();
     if (destroyed) return;
     renderDisplay();
-    // Ping the SW on mount if we either have no location yet (first-
-    // run IP-geo seed happens in fetchWeatherNow) or the cached reading
-    // is stale. Without the no-location case, a user who never opens
-    // Settings would wait up to 30min for the next alarm tick.
-    if (shouldRender(settings) && (!hasLocation(settings) || isStale(data))) {
-      requestRefresh(false);
+    if (!shouldRender(settings)) return;
+    // Setup flow (v2.6.3): weather is enabled but there's no location
+    // yet. Ask the browser once — Chrome caches the permission
+    // decision across tabs, so a granting user only sees the prompt on
+    // the very first new tab after install. On denial / timeout /
+    // missing API the widget stays in "Set weather location" mode so
+    // the manual path in Settings still works.
+    if (!hasLocation(settings)) {
+      const geo = await tryBrowserGeolocate();
+      if (destroyed) return;
+      if (geo) {
+        // Write through the shared settings module so the merge
+        // preserves enabled/unit/label and the chrome.storage.onChanged
+        // listener in background.js picks it up and triggers a weather
+        // fetch with the new coordinates.
+        try {
+          await setSettings({
+            weather: {
+              ...settings,
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+            },
+          });
+        } catch {
+          // Storage write failed — drop the geolocation result, the
+          // widget stays in setup mode and the user can still enter a
+          // location manually.
+        }
+      }
+      // Do NOT requestRefresh here — either setSettings wrote new
+      // coords (which onChanged will turn into a fetch) or we have no
+      // location and an SW fetch would no-op anyway.
+      return;
     }
+    if (isStale(data)) requestRefresh(false);
   })();
 
   return {

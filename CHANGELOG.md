@@ -6,6 +6,38 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [2.6.3] — 2026-04-19
+
+Drops the third-party IP-geolocation chain in favor of the browser's
+native `navigator.geolocation`. Fewer host_permissions, no external
+trackers on the weather path, Chrome Web Store review story gets
+noticeably cleaner.
+
+### Changed
+
+- **Weather location now uses `navigator.geolocation` + manual
+  entry.** The three-provider IP chain added in v2.6.2 (ipwho.is →
+  geojs.io → ipapi.co) is gone. The dashboard widget asks the
+  browser on mount when no location is set; on grant, lat/lon goes
+  straight into settings and the widget hydrates. On denial,
+  timeout, or missing API the widget stays in "Set weather
+  location" mode and the Settings form still accepts a manually-
+  typed city. Trade-off: first-install users see one Chrome
+  permission prompt; in exchange, the extension no longer ships
+  the user's IP to three external services, three host_permissions
+  disappear from the manifest, and the service worker becomes a
+  pure coords-to-weather fetcher.
+
+### Added
+
+- `geolocation` manifest permission.
+
+### Removed
+
+- `ipwho.is`, `get.geojs.io`, `ipapi.co` from `host_permissions`.
+- `tryIpGeolocate` / `ensureLocationConfigured` helpers and their
+  storage-synthesis side effects in `fetchWeatherNow`.
+
 ## [2.6.2] — 2026-04-19
 
 Follow-up patch for v2.6.1 covering four independent bugs: the

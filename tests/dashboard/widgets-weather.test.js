@@ -201,6 +201,9 @@ describe('mountWeather — gating', () => {
 
   it('mounts a "Set weather location" prompt when latitude is null and enabled', async () => {
     const { openOptionsPage } = installChrome();
+    // Block the geolocation attempt so the widget stays in setup
+    // mode long enough to assert the prompt UI.
+    vi.stubGlobal('navigator', { geolocation: undefined });
     const slot = document.getElementById('slot');
     mountWeather(slot, { ...CONFIGURED, latitude: null, longitude: null });
     await flush();
@@ -212,6 +215,60 @@ describe('mountWeather — gating', () => {
 
     btn.click();
     expect(openOptionsPage).toHaveBeenCalled();
+  });
+
+  it('calls navigator.geolocation on mount when enabled but lat/lon are null, and writes settings on grant', async () => {
+    const { store } = installChrome();
+    // Seed existing settings so setSettings' read-modify-write has
+    // a sensible starting point (it normalizes from whatever's there).
+    store.set('tabout:settings', {
+      theme: 'system',
+      clock: { format: '24h' },
+      layout: 'masonry',
+      shortcutPins: [],
+      shortcutHides: [],
+      weather: { enabled: true, latitude: null, longitude: null, locationLabel: null, unit: 'C' },
+      countdown: { enabled: true, soundEnabled: true },
+    });
+    const getCurrentPosition = vi.fn((ok) => {
+      ok({ coords: { latitude: 48.86, longitude: 2.35 } });
+    });
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+    const slot = document.getElementById('slot');
+    mountWeather(slot, { enabled: true, latitude: null, longitude: null, locationLabel: null, unit: 'C' });
+    await flush();
+    await flush();
+    await flush();
+    expect(getCurrentPosition).toHaveBeenCalled();
+    const written = store.get('tabout:settings');
+    expect(written.weather.latitude).toBe(48.86);
+    expect(written.weather.longitude).toBe(2.35);
+  });
+
+  it('leaves settings untouched when geolocation is denied or unavailable', async () => {
+    const { store } = installChrome();
+    store.set('tabout:settings', {
+      theme: 'system',
+      clock: { format: '24h' },
+      layout: 'masonry',
+      shortcutPins: [],
+      shortcutHides: [],
+      weather: { enabled: true, latitude: null, longitude: null, locationLabel: null, unit: 'C' },
+      countdown: { enabled: true, soundEnabled: true },
+    });
+    const getCurrentPosition = vi.fn((_ok, err) => {
+      err({ code: 1, message: 'User denied Geolocation' });
+    });
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+    const slot = document.getElementById('slot');
+    mountWeather(slot, { enabled: true, latitude: null, longitude: null, locationLabel: null, unit: 'C' });
+    await flush();
+    await flush();
+    await flush();
+    expect(getCurrentPosition).toHaveBeenCalled();
+    const stored = store.get('tabout:settings');
+    expect(stored.weather.latitude).toBeNull();
+    expect(stored.weather.longitude).toBeNull();
   });
 
   it('appends a button when enabled with latitude/longitude set', async () => {
