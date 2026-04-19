@@ -6,10 +6,15 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
-## [2.6.2] — 2026-04-18
+## [2.6.2] — 2026-04-19
 
-Follow-up patch for v2.6.1: the ipapi.co auto-detect path wasn't
-actually firing on fresh installs.
+Follow-up patch for v2.6.1 covering four independent bugs: the
+IP-geo auto-detect path wasn't actually firing for most users, the
+one provider we did hit was returning 403, the v2.6.1 focus sink
+tripped Chrome's a11y engine on every new-tab open, and the update
+banner compared against a frozen snapshot that left users stuck
+with a permanent "update available" hint even after they'd pulled
+the update.
 
 ### Fixed
 
