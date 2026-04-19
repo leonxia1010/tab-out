@@ -106,152 +106,16 @@ const WEATHER_ALARM = 'tabout-weather-refresh';
 const WEATHER_STORAGE_KEY = 'tabout:weatherData';
 const WEATHER_REFRESH_PERIOD_MIN = 30;
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
-// Multi-provider fallback: ipapi.co blocks some regions / bot-detects
-// extension User-Agents (observed HTTP 403 on v2.6.2 field reports).
-// ipwho.is is the primary now because it's the most permissive;
-// geojs.io and ipapi.co are fallbacks so one regional block doesn't
-// leave the widget stuck at "Set weather location".
-const IP_GEO_PROVIDERS = [
-  {
-    name: 'ipwho.is',
-    url: 'https://ipwho.is/',
-    // { success: true/false, latitude, longitude, city, region, country_code }
-    parse: (body) => {
-      if (!body || body.success === false) return null;
-      return {
-        latitude: body.latitude,
-        longitude: body.longitude,
-        city: body.city,
-        region: body.region,
-        country_code: body.country_code,
-      };
-    },
-  },
-  {
-    name: 'geojs.io',
-    url: 'https://get.geojs.io/v1/ip/geo.json',
-    // Numeric fields arrive as strings here; cast before range checks.
-    parse: (body) => {
-      if (!body) return null;
-      const lat = typeof body.latitude === 'string' ? parseFloat(body.latitude) : body.latitude;
-      const lon = typeof body.longitude === 'string' ? parseFloat(body.longitude) : body.longitude;
-      return {
-        latitude: lat,
-        longitude: lon,
-        city: body.city,
-        region: body.region,
-        country_code: body.country_code,
-      };
-    },
-  },
-  {
-    name: 'ipapi.co',
-    url: 'https://ipapi.co/json/',
-    // 429 / quota rejections return 200 with { error: true, reason: ... }.
-    parse: (body) => {
-      if (!body || body.error) return null;
-      return {
-        latitude: body.latitude,
-        longitude: body.longitude,
-        city: body.city,
-        region: body.region,
-        country_code: body.country_code,
-      };
-    },
-  },
-];
-
-async function tryIpGeolocate() {
-  for (const provider of IP_GEO_PROVIDERS) {
-    try {
-      const res = await fetch(provider.url);
-      if (!res.ok) {
-        console.warn(`[tab-out] ip-geo ${provider.name}: HTTP`, res.status);
-        continue;
-      }
-      const body = await res.json();
-      const parsed = provider.parse(body);
-      if (!parsed) {
-        console.warn(`[tab-out] ip-geo ${provider.name}: rejected body`, body && (body.reason || body.message));
-        continue;
-      }
-      const latitude = typeof parsed.latitude === 'number' && Number.isFinite(parsed.latitude) ? parsed.latitude : null;
-      const longitude = typeof parsed.longitude === 'number' && Number.isFinite(parsed.longitude) ? parsed.longitude : null;
-      if (latitude == null || longitude == null) {
-        console.warn(`[tab-out] ip-geo ${provider.name}: missing coords`, parsed);
-        continue;
-      }
-      const parts = [];
-      if (parsed.city) parts.push(parsed.city);
-      if (parsed.region) parts.push(parsed.region);
-      if (parsed.country_code) parts.push(parsed.country_code);
-      const locationLabel = parts.length > 0 ? parts.join(', ') : 'Your location';
-      console.info(`[tab-out] ip-geo ${provider.name}: OK`, locationLabel, latitude, longitude);
-      return { latitude, longitude, locationLabel };
-    } catch (e) {
-      console.warn(`[tab-out] ip-geo ${provider.name}: exception`, e && e.message);
-    }
-  }
-  console.warn('[tab-out] ip-geo: all providers exhausted');
-  return null;
-}
-
-// Writes IP-derived lat/lon into tabout:settings when the user hasn't
-// picked a location yet. Manual picks always win — this only fills in
-// null-valued fields so a user who typed "Tokyo" never sees their
-// setting overwritten by an IP-guess. Returns the (possibly unchanged)
-// settings so the caller can use them without a second read.
-async function ensureLocationConfigured(settings) {
-  const w = settings && settings.weather;
-  if (!w || !w.enabled) return settings;
-  if (typeof w.latitude === 'number' && typeof w.longitude === 'number') return settings;
-  const geo = await tryIpGeolocate();
-  if (!geo) return settings;
-  const next = {
-    ...settings,
-    weather: {
-      ...w,
-      latitude: geo.latitude,
-      longitude: geo.longitude,
-      locationLabel: w.locationLabel || geo.locationLabel,
-    },
-  };
-  await chrome.storage.local.set({ [SETTINGS_KEY]: next });
-  return next;
-}
 
 async function fetchWeatherNow() {
   try {
     const stored = await chrome.storage.local.get(SETTINGS_KEY);
-    let settings = stored[SETTINGS_KEY];
-    // Two shapes both need the default-weather backfill:
-    //   1. Fresh install — `tabout:settings` isn't written until the
-    //      options page saves, so storage is `{}`.
-    //   2. Pre-v2.6 upgrade — the old record exists (theme/clock/etc.)
-    //      but carries no `weather` key; `ensureLocationConfigured`
-    //      bails on `!w` before the IP-geo seed can run.
-    // Merge a defaults-shaped weather object in either case so the rest
-    // of the pipeline has something to work with.
-    if (!settings || !settings.weather) {
-      const baseline = settings && typeof settings === 'object' ? settings : {};
-      settings = {
-        ...baseline,
-        weather: {
-          enabled: true,
-          locationLabel: null,
-          latitude: null,
-          longitude: null,
-          unit: 'C',
-        },
-      };
-    }
-    // Opportunistic IP-geo fallback: a first-run user with
-    // weather.enabled=true but no manual location picks gets a
-    // reasonable starting point so the widget hydrates without a
-    // trip through Settings. Subsequent calls are a cheap field
-    // check — no extra network once a location is set.
-    settings = await ensureLocationConfigured(settings);
+    const settings = stored[SETTINGS_KEY];
     const w = settings && settings.weather;
+    // v2.6.3: IP-geo fallback dropped in favor of navigator.geolocation
+    // triggered from the dashboard widget. The SW is now a pure
+    // coords-to-weather fetcher — no location inference here, no
+    // Open-Meteo call without a concrete lat/lon in settings.
     if (!w || !w.enabled) return;
     if (typeof w.latitude !== 'number' || typeof w.longitude !== 'number') return;
 
@@ -380,8 +244,6 @@ if (typeof module !== 'undefined' && module.exports) {
     checkForUpdate,
     fetchWeatherNow,
     handleCountdownComplete,
-    tryIpGeolocate,
-    ensureLocationConfigured,
     isVersionNewer,
   };
 }
