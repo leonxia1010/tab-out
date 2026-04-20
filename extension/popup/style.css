@@ -52,25 +52,25 @@ html, body {
   background: var(--paper);
   color: var(--ink);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .popup {
-  width: 300px;
-  padding: 6px 0;
+  width: 260px;
+  padding: 4px 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  /* No gap — row padding creates the rhythm, same as Chrome's extensions panel. */
+  /* No gap — row padding creates the rhythm. */
 }
 
 .popup-btn {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   width: 100%;
-  padding: 12px 18px;
+  padding: 8px 14px;
   border: 0;
   background: transparent;
   color: var(--ink);
@@ -101,8 +101,8 @@ html, body {
 
 .popup-btn__icon {
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   color: var(--muted);
 }
 
