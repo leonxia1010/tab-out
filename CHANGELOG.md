@@ -6,18 +6,6 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
-## [2.7.1] — 2026-04-21
-
-Popup typography polish. Labels gained one pt (13 → 14px) and buttons
-gained 2px vertical padding (10 → 12px) to let the type scale breathe
-without pushing the panel out of its 300px width.
-
-### Changed
-
-- Popup button type scale bumped 13 → 14px; button vertical padding
-  10 → 12px. Palette untouched (Tab Out's warm-cream + amber brand
-  tokens stay — we're an action menu, not a Chrome OS list panel).
-
 ## [2.7.0] — 2026-04-21
 
 Fills the wasted toolbar-icon entry point that v2.5.0's badge removal
