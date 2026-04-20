@@ -44,7 +44,7 @@ html, body {
   background: var(--paper);
   color: var(--ink);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .popup {
@@ -57,7 +57,7 @@ html, body {
 }
 
 .popup-btn {
-  padding: 10px 14px;
+  padding: 12px 14px;
   border: 1px solid var(--warm-gray);
   border-radius: 6px;
   background: var(--card-bg);
