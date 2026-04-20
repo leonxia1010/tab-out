@@ -1,15 +1,8 @@
 // Pure dashboard helpers. Side-effect-free; callers pass state in
 // (no hidden reads from a module-level `openTabs`).
 
-export interface Tab {
-  url?: string;
-  title?: string;
-  // chrome.tabs position (0-based index within its window). Preserved
-  // through fetchOpenTabs so groupTabsByDomain can sort cards by
-  // first-seen order. Optional because mock/test tabs may omit it.
-  index?: number;
-  [key: string]: unknown;
-}
+import type { Tab } from '../../shared/dist/tab-types.js';
+export type { Tab };
 
 // Known hostnames → human-readable names. Internal; not exported because
 // friendlyDomain is the only consumer and the map would bloat the public API.

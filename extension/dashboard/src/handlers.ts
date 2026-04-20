@@ -19,6 +19,7 @@ import {
   closeDuplicates,
   closeTabOutDupes,
   closeTabsByUrls,
+  fetchOpenTabs,
   focusTab,
   organizeTabs,
   undoOrganizeTabs,
@@ -100,6 +101,7 @@ function fadeChipAndCleanupCards(
 
 async function handleCloseTabOutDupes(): Promise<void> {
   await closeTabOutDupes();
+  await fetchOpenTabs();
   playCloseSound();
   const banner = document.getElementById('tabOutDupeBanner');
   if (banner) {
@@ -301,6 +303,7 @@ async function handleDedupKeepOne(actionEl: HTMLElement, card: HTMLElement | nul
   if (urls.length === 0) return;
 
   await closeDuplicates(urls);
+  await fetchOpenTabs();
   playCloseSound();
 
   actionEl.style.transition = 'opacity 0.2s';
@@ -377,6 +380,7 @@ async function handleCloseAllDupesGlobal(): Promise<void> {
   if (allUrls.length === 0) return;
 
   await closeDuplicates(allUrls);
+  await fetchOpenTabs();
   playCloseSound();
 
   // Fade per-card dedup buttons + duplicate badges so the grid visually
@@ -420,6 +424,7 @@ async function handleOrganizeTabs(): Promise<void> {
   const desiredOrder = getDomainGroups().map((g) => ({ domain: g.domain, tabs: g.tabs.slice() }));
   const { moves, movedCount } = await organizeTabs(desiredOrder);
   if (movedCount === 0) return;
+  await fetchOpenTabs();
 
   setUndoSnapshot({ type: 'organize', timestamp: Date.now(), moves });
   refreshOpenTabsCounters();
@@ -441,6 +446,7 @@ async function handleUndoOrganize(): Promise<void> {
   const snap = getUndoSnapshot();
   if (!snap || snap.type !== 'organize') return;
   await undoOrganizeTabs(snap.moves);
+  await fetchOpenTabs();
   setUndoSnapshot(null);
   refreshOpenTabsCounters();
   showToast('Reverted');

@@ -53,6 +53,7 @@ async function loadHandlersWithMocks() {
     closeTabsByUrls: vi.fn().mockResolvedValue(undefined),
     closeDuplicates: vi.fn().mockResolvedValue(undefined),
     closeTabOutDupes: vi.fn().mockResolvedValue(undefined),
+    fetchOpenTabs: vi.fn().mockResolvedValue(undefined),
     focusTab: vi.fn().mockResolvedValue(undefined),
     organizeTabs: vi.fn().mockResolvedValue({ moves: [], movedCount: 0 }),
     undoOrganizeTabs: vi.fn().mockResolvedValue(undefined),

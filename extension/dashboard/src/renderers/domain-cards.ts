@@ -15,8 +15,9 @@ import { getOpenTabs, setDomainGroups } from '../state.js';
 import type { DomainGroup, Tab } from '../state.js';
 import { checkTabOutDupes } from '../extension-bridge.js';
 import { DOMAIN_ALIASES, PRIORITY_HOSTNAMES, domainIdFor, effectiveDomain } from './domain-aliases.js';
+import { groupTabsByDomain } from '../../../shared/dist/domain-grouping.js';
 
-export { DOMAIN_ALIASES, PRIORITY_HOSTNAMES, domainIdFor, effectiveDomain };
+export { DOMAIN_ALIASES, PRIORITY_HOSTNAMES, domainIdFor, effectiveDomain, groupTabsByDomain };
 
 const ICONS = {
   tabs:    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V18a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18V8.25m-18 0V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v2.25m-18 0h18" /></svg>',
@@ -243,69 +244,6 @@ export function renderDomainCard(group: DomainGroup, groupIndex: number): HTMLEl
   card.style.animationDelay = `${(0.15 + groupIndex * 0.03).toFixed(2)}s`;
 
   return card;
-}
-
-export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
-  const groupMap: Record<string, DomainGroup> = {};
-
-  for (const tab of realTabs) {
-    try {
-      const url = tab.url || '';
-      let hostname: string;
-      if (url.startsWith('file://')) {
-        hostname = 'local-files';
-      } else if (url.startsWith('chrome://')) {
-        hostname = '__chrome-internal__';
-      } else if (url.startsWith('chrome-extension://')) {
-        hostname = '__extensions__';
-      } else {
-        hostname = effectiveDomain(new URL(url).hostname);
-      }
-      if (!hostname) continue;
-      if (!groupMap[hostname]) {
-        groupMap[hostname] = { domain: hostname, tabs: [] };
-      }
-      groupMap[hostname].tabs.push(tab);
-    } catch {
-      // Skip malformed URLs
-    }
-  }
-
-  const groups = Object.values(groupMap);
-  // Pre-compute first-seen indices once: sort's comparator is called
-  // O(N log N) times, and firstIndex() is a linear scan over each
-  // group's tabs — caching avoids the quadratic-ish O(N log N × k)
-  // blow-up on users with many tabs per domain.
-  const firstSeen = new Map<string, number>(
-    groups.map((g) => [g.domain, firstIndex(g)]),
-  );
-  return groups.sort((a, b) => {
-    // Priority tier: hostnames in PRIORITY_HOSTNAMES pin above the rest.
-    // FUTURE: expose via the options page so each user picks their own
-    // priority set (see claudedocs/ROADMAP.md).
-    const aIsPriority = PRIORITY_HOSTNAMES.has(a.domain);
-    const bIsPriority = PRIORITY_HOSTNAMES.has(b.domain);
-    if (aIsPriority !== bIsPriority) return aIsPriority ? -1 : 1;
-    // Leaf tier: first-seen. A group's position is anchored to its
-    // earliest-opened tab's chrome-tab index, so opening/closing tabs
-    // on other domains doesn't reshuffle this card. This stability is
-    // the precondition for PR 3's card-level diff — "order changed →
-    // full re-render" (rule 4) would otherwise fire on every tab add.
-    //
-    // tab.index may be missing in tests/mocks or if chrome omits it;
-    // Infinity pushes such groups to the end, which is harmless and
-    // deterministic.
-    return (firstSeen.get(a.domain) ?? Infinity) - (firstSeen.get(b.domain) ?? Infinity);
-  });
-}
-
-function firstIndex(group: DomainGroup): number {
-  let min = Infinity;
-  for (const t of group.tabs) {
-    const idx = typeof t.index === 'number' ? t.index : Infinity;
-    if (idx < min) min = idx;
-  }
-  return min;
 }
 
 // Header = section title + "X domains · Close all N tabs". Split out so
