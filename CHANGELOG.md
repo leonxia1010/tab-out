@@ -19,6 +19,15 @@ All notable changes to this fork land here. Format based on
   handles the cross-URL fallback (chrome://newtab/ vs
   chrome-extension://…/dashboard/index.html) — popup dedup matches
   exact URL like the rest of `closeDuplicates`.
+- **Dashboard's "You have N Tab Out tabs open" banner now updates in
+  real time.** Before: opening or closing a Tab Out tab didn't shift
+  the dashboard's displayable-tab signature (Tab Out is filtered out
+  of the render diff), so the auto-refresh loop short-circuited before
+  the banner check ran — the banner only updated when some unrelated
+  tab change happened to kick the cycle. After: `checkTabOutDupes()`
+  runs unconditionally after every `fetchOpenTabs()`, so the banner
+  reflects the live Tab Out count without piggybacking on a displayable
+  tab event.
 
 ### Changed
 
