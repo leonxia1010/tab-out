@@ -47,7 +47,11 @@ async function queryTabs(): Promise<chrome.tabs.Tab[]> {
 function renderButton(id: string, label: string, enabled: boolean): void {
   const btn = document.getElementById(id) as HTMLButtonElement | null;
   if (!btn) return;
-  btn.textContent = label;
+  // Only rewrite the label span — the button's SVG icon is static in
+  // the HTML shell and must survive each render.
+  const labelEl = btn.querySelector<HTMLElement>('.popup-btn__label');
+  if (labelEl) labelEl.textContent = label;
+  else btn.textContent = label;
   btn.disabled = !enabled;
 }
 
