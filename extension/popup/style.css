@@ -1,0 +1,90 @@
+/* v2.7.0 — toolbar popup palette mirrors options/style.css so the theme
+ * toggle that drives the dashboard + options page also drives the popup.
+ * `theme-bootstrap.js` sets html[data-theme] pre-paint to kill FOUC.
+ */
+
+:root {
+  --paper:        #f8f5f0;
+  --card-bg:      #fffdf9;
+  --ink:          #1a1613;
+  --muted:        #9a918a;
+  --warm-gray:    #e8e2da;
+  --accent-amber: #c8713a;
+  --border:       rgba(26, 22, 19, 0.08);
+  --shadow:       rgba(26, 22, 19, 0.06);
+}
+
+html[data-theme="dark"] {
+  --paper:        #1a1714;
+  --card-bg:      #241f1a;
+  --ink:          #ebe8e3;
+  --muted:        #8a847d;
+  --warm-gray:    #3a342e;
+  --accent-amber: #d98a50;
+  --border:       rgba(235, 232, 227, 0.10);
+  --shadow:       rgba(0, 0, 0, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) {
+    --paper:        #1a1714;
+    --card-bg:      #241f1a;
+    --ink:          #ebe8e3;
+    --muted:        #8a847d;
+    --warm-gray:    #3a342e;
+    --accent-amber: #d98a50;
+    --border:       rgba(235, 232, 227, 0.10);
+    --shadow:       rgba(0, 0, 0, 0.3);
+  }
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 13px;
+}
+
+.popup {
+  width: 300px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.popup-btn {
+  padding: 10px 14px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, border-color 0.15s;
+}
+
+.popup-btn:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--accent-amber) 40%, var(--warm-gray));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px var(--shadow);
+}
+
+.popup-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.popup-btn:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 2px;
+}
+
+.popup-btn:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
