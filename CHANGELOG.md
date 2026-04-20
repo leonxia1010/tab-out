@@ -6,6 +6,24 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **Close duplicates no longer closes a pinned tab** when the active copy
+  lives elsewhere. Keeper priority is now pinned > active > first, and
+  pinned duplicates are never removed regardless of which copy wins the
+  "keep" role. Pre-existing gap since closeDuplicates landed; uniform
+  across the dashboard action and the v2.7.0 toolbar popup.
+
+### Changed
+
+- Internal: tab operations (`closeDuplicates`, `closeTabOutDupes`,
+  `organizeTabs`, `undoOrganizeTabs`) + domain grouping
+  (`groupTabsByDomain`, `PRIORITY_HOSTNAMES`, `DOMAIN_ALIASES`,
+  `effectiveDomain`, `domainIdFor`) + the `Tab` / `DomainGroup` types
+  moved from `extension/dashboard/src/` into `extension/shared/src/` so
+  the v2.7.0 toolbar popup can call byte-identical implementations. No
+  user-visible change beyond the pinned-dedup fix above.
+
 ## [2.6.3] — 2026-04-19
 
 Drops the third-party IP-geolocation chain in favor of the browser's

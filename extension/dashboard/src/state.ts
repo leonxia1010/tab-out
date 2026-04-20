@@ -2,20 +2,8 @@
 // getter/setter pairs so every write flows through a single call site;
 // getters return ReadonlyArray to block in-place mutation from the outside.
 
-import type { Tab as UtilsTab } from './utils.js';
-
-export interface Tab extends UtilsTab {
-  id?: number;
-  isTabOut?: boolean;
-  windowId?: number;
-  active?: boolean;
-  pinned?: boolean;
-}
-
-export interface DomainGroup {
-  domain: string;
-  tabs: Tab[];
-}
+import type { DomainGroup, Tab } from '../../shared/dist/tab-types.js';
+export type { DomainGroup, Tab };
 
 // --- openTabs: list of currently open browser tabs (populated by fetchOpenTabs) ---
 let openTabs: Tab[] = [];
