@@ -30,7 +30,7 @@ export async function swallow(p: Promise<unknown>, label: string): Promise<void>
 }
 
 export function tabOutNewtabUrls(): string[] {
-  const id = chrome.runtime?.id;
+  const id = typeof chrome !== 'undefined' ? chrome.runtime?.id : undefined;
   return id
     ? [`chrome-extension://${id}/dashboard/index.html`, 'chrome://newtab/']
     : ['chrome://newtab/'];
@@ -174,4 +174,88 @@ export async function undoOrganizeTabs(
   for (const m of sorted) {
     await swallow(chrome.tabs.move(m.tabId, { index: m.originalIndex }), 'chrome.tabs.move');
   }
+}
+
+// v2.7.0 — close every non-pinned tab in the current window that isn't Tab
+// Out. Guarantees the user keeps a dashboard entry point: if no Tab Out tab
+// exists beforehand, a fresh one is opened first. Powers the toolbar
+// popup's "Close all N tabs (keep Tab Out)" action.
+export async function closeAllExceptTabout(): Promise<{
+  closed: number;
+  createdTabOut: boolean;
+}> {
+  if (!chromeAvailable()) return { closed: 0, createdTabOut: false };
+
+  const allTabs = await chrome.tabs.query({ currentWindow: true });
+  const newtabUrls = new Set(tabOutNewtabUrls());
+  const tabOutTabs = allTabs.filter((t) => !!t.url && newtabUrls.has(t.url));
+  let createdTabOut = false;
+
+  if (tabOutTabs.length === 0) {
+    // chrome://newtab/ hits the extension's newtab override and lands on the
+    // dashboard. If Chrome's newtab override isn't present (unlikely here),
+    // the URL still opens something sensible.
+    await swallow(chrome.tabs.create({ url: 'chrome://newtab/' }), 'chrome.tabs.create');
+    createdTabOut = true;
+  }
+
+  const idsToClose = allTabs
+    .filter(
+      (t) =>
+        typeof t.id === 'number' &&
+        !t.pinned &&
+        !(t.url && newtabUrls.has(t.url)),
+    )
+    .map((t) => t.id as number);
+
+  if (idsToClose.length > 0) {
+    await swallow(chrome.tabs.remove(idsToClose), 'chrome.tabs.remove');
+  }
+
+  return { closed: idsToClose.length, createdTabOut };
+}
+
+// Pre-flight counts for the toolbar popup labels. All three return the
+// exact number of tabs the corresponding action would touch — the popup
+// disables the button when its count is zero.
+
+export function countCloseable(tabs: ReadonlyArray<chrome.tabs.Tab>): number {
+  const newtabUrls = new Set(tabOutNewtabUrls());
+  return tabs.filter(
+    (t) =>
+      typeof t.id === 'number' &&
+      !t.pinned &&
+      !(t.url && newtabUrls.has(t.url)),
+  ).length;
+}
+
+export function countDuplicates(tabs: ReadonlyArray<chrome.tabs.Tab>): number {
+  const newtabUrls = new Set(tabOutNewtabUrls());
+  // Per URL, count total copies + pinned copies so the final "closable"
+  // figure mirrors closeDuplicates' keeper rule (pinned > active > first,
+  // pinned always preserved).
+  const perUrl = new Map<string, { total: number; pinned: number }>();
+  for (const t of tabs) {
+    if (!t.url) continue;
+    if (newtabUrls.has(t.url)) continue;
+    const entry = perUrl.get(t.url) ?? { total: 0, pinned: 0 };
+    entry.total += 1;
+    if (t.pinned) entry.pinned += 1;
+    perUrl.set(t.url, entry);
+  }
+  let closable = 0;
+  for (const { total, pinned } of perUrl.values()) {
+    if (total <= 1) continue;
+    // If any pinned copy exists, it's the keeper — every other pinned
+    // copy also survives. Closable = non-pinned copies.
+    // Otherwise the keeper is one non-pinned tab; the rest close.
+    closable += total - Math.max(pinned, 1);
+  }
+  return closable;
+}
+
+export function countOrganizeMoves(tabs: ReadonlyArray<chrome.tabs.Tab>): number {
+  return tabs.filter(
+    (t) => typeof t.id === 'number' && !t.pinned && !!t.url,
+  ).length;
 }

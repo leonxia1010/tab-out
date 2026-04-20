@@ -10,5 +10,6 @@ claudedocs/
 coverage/
 extension/dashboard/dist/
 extension/options/dist/
+extension/popup/dist/
 extension/shared/dist/
 *.tsbuildinfo

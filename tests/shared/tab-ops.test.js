@@ -6,8 +6,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  closeAllExceptTabout,
   closeDuplicates,
   closeTabOutDupes,
+  countCloseable,
+  countDuplicates,
+  countOrganizeMoves,
   organizeTabs,
   undoOrganizeTabs,
 } from '../../extension/shared/src/tab-ops.ts';
@@ -31,6 +35,7 @@ function installChrome({ tabs = [], currentWindowId = 1, runtimeId } = {}) {
     remove: vi.fn(async () => {}),
     update: vi.fn(async () => ({})),
     move: vi.fn(async () => ({})),
+    create: vi.fn(async () => ({ id: 999 })),
   };
   vi.stubGlobal('chrome', {
     tabs: tabsApi,
@@ -267,6 +272,156 @@ describe('organizeTabs', () => {
 });
 
 // ─── undoOrganizeTabs ──────────────────────────────────────────────────────
+
+// ─── closeAllExceptTabout (v2.7.0) ─────────────────────────────────────────
+
+describe('closeAllExceptTabout', () => {
+  it('closes every non-pinned non-TabOut tab in the current window', async () => {
+    const { tabsApi } = installChrome({
+      currentWindowId: 1,
+      tabs: [
+        { id: 1, url: NEWTAB_URL, pinned: false },
+        { id: 2, url: 'https://github.com', pinned: false },
+        { id: 3, url: 'https://x.com', pinned: false },
+      ],
+    });
+    const result = await closeAllExceptTabout();
+    expect(tabsApi.remove).toHaveBeenCalledWith([2, 3]);
+    expect(tabsApi.create).not.toHaveBeenCalled();
+    expect(result).toEqual({ closed: 2, createdTabOut: false });
+  });
+
+  it('preserves pinned tabs across the close', async () => {
+    const { tabsApi } = installChrome({
+      currentWindowId: 1,
+      tabs: [
+        { id: 1, url: NEWTAB_URL, pinned: false },
+        { id: 2, url: 'https://pinned.com', pinned: true },
+        { id: 3, url: 'https://github.com', pinned: false },
+      ],
+    });
+    const result = await closeAllExceptTabout();
+    expect(tabsApi.remove).toHaveBeenCalledWith([3]);
+    expect(result.closed).toBe(1);
+  });
+
+  it('creates a new Tab Out tab first when none exists', async () => {
+    const { tabsApi } = installChrome({
+      currentWindowId: 1,
+      tabs: [
+        { id: 1, url: 'https://github.com', pinned: false },
+        { id: 2, url: 'https://x.com', pinned: false },
+      ],
+    });
+    const result = await closeAllExceptTabout();
+    expect(tabsApi.create).toHaveBeenCalledWith({ url: 'chrome://newtab/' });
+    expect(tabsApi.remove).toHaveBeenCalledWith([1, 2]);
+    expect(result).toEqual({ closed: 2, createdTabOut: true });
+  });
+
+  it('skips the close path when nothing is closeable and Tab Out already exists', async () => {
+    const { tabsApi } = installChrome({
+      currentWindowId: 1,
+      tabs: [
+        { id: 1, url: NEWTAB_URL, pinned: false },
+        { id: 2, url: 'https://pinned.com', pinned: true },
+      ],
+    });
+    const result = await closeAllExceptTabout();
+    expect(tabsApi.remove).not.toHaveBeenCalled();
+    expect(tabsApi.create).not.toHaveBeenCalled();
+    expect(result).toEqual({ closed: 0, createdTabOut: false });
+  });
+
+  it('no-ops when chrome.tabs is unavailable', async () => {
+    vi.stubGlobal('chrome', undefined);
+    const result = await closeAllExceptTabout();
+    expect(result).toEqual({ closed: 0, createdTabOut: false });
+  });
+});
+
+// ─── count helpers (v2.7.0 popup labels) ───────────────────────────────────
+
+describe('countCloseable', () => {
+  it('counts non-pinned non-TabOut tabs', () => {
+    installChrome({});
+    const tabs = [
+      { id: 1, url: NEWTAB_URL, pinned: false },
+      { id: 2, url: 'https://github.com', pinned: false },
+      { id: 3, url: 'https://x.com', pinned: true },
+      { id: 4, url: 'https://reddit.com', pinned: false },
+    ];
+    expect(countCloseable(tabs)).toBe(2);
+  });
+
+  it('returns 0 when only Tab Out + pinned tabs are open', () => {
+    installChrome({});
+    const tabs = [
+      { id: 1, url: NEWTAB_URL, pinned: false },
+      { id: 2, url: 'https://pinned.com', pinned: true },
+    ];
+    expect(countCloseable(tabs)).toBe(0);
+  });
+});
+
+describe('countDuplicates', () => {
+  it('counts extras per URL, skipping Tab Out', () => {
+    installChrome({});
+    const tabs = [
+      { id: 1, url: 'https://a.test', pinned: false },
+      { id: 2, url: 'https://a.test', pinned: false },
+      { id: 3, url: 'https://a.test', pinned: false },
+      { id: 4, url: 'https://b.test', pinned: false },
+      { id: 5, url: 'https://b.test', pinned: false },
+      { id: 6, url: NEWTAB_URL, pinned: false },
+      { id: 7, url: NEWTAB_URL, pinned: false },
+    ];
+    // a has 2 extras (3-1), b has 1 extra (2-1), Tab Out excluded entirely
+    expect(countDuplicates(tabs)).toBe(3);
+  });
+
+  it('excludes pinned copies from the closable count (keeper + other pinned survive)', () => {
+    installChrome({});
+    const tabs = [
+      { id: 1, url: 'https://a.test', pinned: true },
+      { id: 2, url: 'https://a.test', pinned: true },
+      { id: 3, url: 'https://a.test', pinned: false },
+    ];
+    // Keeper = first pinned; other pinned survives; only 1 non-pinned closes.
+    expect(countDuplicates(tabs)).toBe(1);
+  });
+
+  it('returns 0 when no duplicates exist', () => {
+    installChrome({});
+    const tabs = [
+      { id: 1, url: 'https://a.test', pinned: false },
+      { id: 2, url: 'https://b.test', pinned: false },
+    ];
+    expect(countDuplicates(tabs)).toBe(0);
+  });
+});
+
+describe('countOrganizeMoves', () => {
+  it('counts non-pinned tabs with a URL', () => {
+    installChrome({});
+    const tabs = [
+      { id: 1, url: 'https://a.test', pinned: false },
+      { id: 2, url: 'https://b.test', pinned: true },
+      { id: 3, url: 'https://c.test', pinned: false },
+      { id: 4, url: '', pinned: false },
+    ];
+    expect(countOrganizeMoves(tabs)).toBe(2);
+  });
+
+  it('returns 0 when only pinned tabs exist', () => {
+    installChrome({});
+    const tabs = [
+      { id: 1, url: 'https://a.test', pinned: true },
+      { id: 2, url: 'https://b.test', pinned: true },
+    ];
+    expect(countOrganizeMoves(tabs)).toBe(0);
+  });
+});
 
 describe('undoOrganizeTabs', () => {
   it('replays moves in ascending originalIndex order', async () => {

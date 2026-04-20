@@ -6,23 +6,46 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [2.7.0] — 2026-04-21
+
+Fills the wasted toolbar-icon entry point that v2.5.0's badge removal
+left behind. Click the extension icon on any page to reach the same
+three bulk-tab actions the dashboard exposes — without detouring through
+the new tab.
+
+### Added
+
+- **Toolbar popup menu** with three per-window actions reachable from
+  any page (not just the new tab): `Close all N tabs (keep Tab Out)`,
+  `Close all N duplicates`, `Organize N tabs`. Each button carries a
+  live count and disables muted when the count is zero. Popup closes
+  automatically when an action runs; no undo toast (undo stays a
+  dashboard-only affordance where the toast has time to live). Width
+  300px, respects the existing theme toggle, reuses the options-page
+  button tokens.
+- `closeAllExceptTabout` shared helper: preserves any Tab Out tab in
+  the current window and opens a fresh one if none exists, so the
+  dashboard entry point never disappears from under the user.
+
 ### Fixed
 
-- **Close duplicates no longer closes a pinned tab** when the active copy
-  lives elsewhere. Keeper priority is now pinned > active > first, and
-  pinned duplicates are never removed regardless of which copy wins the
-  "keep" role. Pre-existing gap since closeDuplicates landed; uniform
-  across the dashboard action and the v2.7.0 toolbar popup.
+- **Close duplicates no longer closes a pinned tab** when the active
+  copy lives elsewhere. Keeper priority is now pinned > active > first,
+  and pinned duplicates are never removed regardless of which copy wins
+  the "keep" role. Pre-existing gap since closeDuplicates landed;
+  uniform across the dashboard action and the new toolbar popup.
 
 ### Changed
 
-- Internal: tab operations (`closeDuplicates`, `closeTabOutDupes`,
+- Internal: pure tab operations (`closeDuplicates`, `closeTabOutDupes`,
   `organizeTabs`, `undoOrganizeTabs`) + domain grouping
   (`groupTabsByDomain`, `PRIORITY_HOSTNAMES`, `DOMAIN_ALIASES`,
   `effectiveDomain`, `domainIdFor`) + the `Tab` / `DomainGroup` types
   moved from `extension/dashboard/src/` into `extension/shared/src/` so
-  the v2.7.0 toolbar popup can call byte-identical implementations. No
+  the toolbar popup can call byte-identical implementations. No
   user-visible change beyond the pinned-dedup fix above.
+- `manifest.json#action` gains `default_popup: "popup/index.html"`. No
+  new permissions or host_permissions.
 
 ## [2.6.3] — 2026-04-19
 

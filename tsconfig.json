@@ -3,6 +3,7 @@
   "references": [
     { "path": "./tsconfig.shared.json" },
     { "path": "./tsconfig.dashboard.json" },
-    { "path": "./tsconfig.options.json" }
+    { "path": "./tsconfig.options.json" },
+    { "path": "./tsconfig.popup.json" }
   ]
 }
