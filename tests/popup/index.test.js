@@ -119,6 +119,16 @@ describe('popup mount', () => {
     expect(btn.disabled).toBe(false);
   });
 
+  it('v2.7: enables dedup button when only Tab Out tabs are duplicated', async () => {
+    await mountPopup([
+      { id: 1, url: NEWTAB_URL, pinned: false },
+      { id: 2, url: NEWTAB_URL, pinned: false },
+    ]);
+    const btn = document.getElementById('popup-close-dupes');
+    expect(btn.textContent).toBe('Close all 1 duplicate');
+    expect(btn.disabled).toBe(false);
+  });
+
   it('renders organize count covering non-pinned tabs with URLs', async () => {
     await mountPopup([
       { id: 1, url: 'https://a.test', pinned: false },
@@ -155,6 +165,21 @@ describe('popup actions', () => {
     document.getElementById('popup-close-dupes').click();
     await flushAsync();
     // closeDuplicates closes tab id 2 (the non-active / non-pinned dup).
+    expect(tabsApi.remove).toHaveBeenCalledWith([2]);
+    expect(window.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('v2.7: close-dupes click closes Tab Out duplicates too', async () => {
+    const { tabsApi } = await mountPopup([
+      { id: 1, url: NEWTAB_URL, pinned: false },
+      { id: 2, url: NEWTAB_URL, pinned: false },
+      { id: 3, url: 'https://github.com', pinned: false },
+    ]);
+    document.getElementById('popup-close-dupes').click();
+    await flushAsync();
+    // Only Tab Out has ≥2 copies; one closes. github has a single copy so
+    // it stays. The label in the mount test above asserts N=1; this
+    // asserts the click actually realizes that promise.
     expect(tabsApi.remove).toHaveBeenCalledWith([2]);
     expect(window.close).toHaveBeenCalledTimes(1);
   });

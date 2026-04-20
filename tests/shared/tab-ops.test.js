@@ -365,7 +365,7 @@ describe('countCloseable', () => {
 });
 
 describe('countDuplicates', () => {
-  it('counts extras per URL, skipping Tab Out', () => {
+  it('counts extras per URL including Tab Out duplicates', () => {
     installChrome({});
     const tabs = [
       { id: 1, url: 'https://a.test', pinned: false },
@@ -376,8 +376,17 @@ describe('countDuplicates', () => {
       { id: 6, url: NEWTAB_URL, pinned: false },
       { id: 7, url: NEWTAB_URL, pinned: false },
     ];
-    // a has 2 extras (3-1), b has 1 extra (2-1), Tab Out excluded entirely
-    expect(countDuplicates(tabs)).toBe(3);
+    // a has 2 extras (3-1), b has 1 extra (2-1), Tab Out has 1 extra (2-1) = 4
+    expect(countDuplicates(tabs)).toBe(4);
+  });
+
+  it('v2.7: counts Tab Out-only duplicates so the popup button can enable', () => {
+    installChrome({});
+    const tabs = [
+      { id: 1, url: NEWTAB_URL, pinned: false },
+      { id: 2, url: NEWTAB_URL, pinned: false },
+    ];
+    expect(countDuplicates(tabs)).toBe(1);
   });
 
   it('excludes pinned copies from the closable count (keeper + other pinned survive)', () => {

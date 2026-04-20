@@ -230,14 +230,14 @@ export function countCloseable(tabs: ReadonlyArray<chrome.tabs.Tab>): number {
 }
 
 export function countDuplicates(tabs: ReadonlyArray<chrome.tabs.Tab>): number {
-  const newtabUrls = new Set(tabOutNewtabUrls());
   // Per URL, count total copies + pinned copies so the final "closable"
   // figure mirrors closeDuplicates' keeper rule (pinned > active > first,
-  // pinned always preserved).
+  // pinned always preserved). Tab Out URLs are counted like any other —
+  // the popup's dedup button is the one place the user can clean up
+  // duplicate Tab Out tabs without detouring through the dashboard.
   const perUrl = new Map<string, { total: number; pinned: number }>();
   for (const t of tabs) {
     if (!t.url) continue;
-    if (newtabUrls.has(t.url)) continue;
     const entry = perUrl.get(t.url) ?? { total: 0, pinned: 0 };
     entry.total += 1;
     if (t.pinned) entry.pinned += 1;
