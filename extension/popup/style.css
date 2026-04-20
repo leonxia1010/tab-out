@@ -52,8 +52,16 @@ html, body {
   background: var(--paper);
   color: var(--ink);
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 13px;
-  line-height: 1.35;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+/* Round the popup's own shell. Chrome's popup window may round its
+ * outer chrome on some platforms, but we always draw our own so the
+ * corners look intentional everywhere. `overflow: hidden` keeps row
+ * hover tints from bleeding past the rounded edge. */
+html, body {
+  border-radius: 10px;
 }
 
 .popup {
@@ -62,6 +70,8 @@ html, body {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
   /* No gap — row padding creates the rhythm. */
 }
 
@@ -70,7 +80,7 @@ html, body {
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px 14px;
+  padding: 7px 12px;
   border: 0;
   background: transparent;
   color: var(--ink);
@@ -101,8 +111,8 @@ html, body {
 
 .popup-btn__icon {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   color: var(--muted);
 }
 
