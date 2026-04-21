@@ -6,6 +6,12 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [2.7.1] — 2026-04-21
+
+Polish pass on the v2.7.0 popup: the displayed dup count no longer lies,
+the dashboard's Tab Out banner refreshes live, and the popup panel is
+re-tuned to match Chrome's own extensions-panel rhythm.
+
 ### Fixed
 
 - **Popup "Close all N duplicates" now counts and closes duplicate Tab
@@ -31,8 +37,19 @@ All notable changes to this fork land here. Format based on
 
 ### Changed
 
-- Popup button type scale: font-size 13 → 14px, button vertical
-  padding 10 → 12px. Palette untouched.
+- Popup panel retuned for Chrome's extensions-panel rhythm: width
+  300 → 260px, font 13 → 12px, flat rows (no per-row borders) with a
+  hover tint. Background shifted to `--card-bg` and a `.popup-btn__label`
+  span now owns the text so the inline SVG icon isn't clobbered on
+  re-render.
+- Popup frame is now a single surface. Chrome already draws the outer
+  popup window with its own background; the inner `border` + 8px
+  `border-radius` on `.popup` stacked a second visible edge inside that
+  frame. Both are removed; `body` holds the `--card-bg` fill, `.popup`
+  is a pure flex container.
+- Button labels drop the number entirely when the count is 0 — "Close
+  all 0 tabs (keep Tab Out)" → "Close all tabs (keep Tab Out)" in the
+  disabled state. Singular/plural still kicks in at 1+.
 
 ## [2.7.0] — 2026-04-21
 
