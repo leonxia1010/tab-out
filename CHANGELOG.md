@@ -6,6 +6,41 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+### Added
+
+- **Configurable priority hostnames.** Options → Priority hostnames lets
+  you pick which domains pin to the top of the open-tabs grid. Add via
+  the text input (with a datalist suggesting hostnames from every
+  currently-open tab across windows) or remove with the per-row button.
+  Defaults to the pre-v2.8.0 pinned set (mail.google.com, x.com,
+  www.linkedin.com, github.com) so existing installs see no visible
+  change until they edit. Within the priority tier, cards still sort by
+  first-opened — the list controls membership, not order
+  (drag-to-reorder lands in v2.9.0). Input is normalized to card-key form
+  (trim + lowercase + `effectiveDomain` alias), so typing `twitter.com`
+  lands as `x.com` and actually pins the collapsed group.
+
+### Changed
+
+- `groupTabsByDomain` signature now takes the priority set as a
+  parameter (`ReadonlySet<string>`) instead of reading a shared
+  module-level `PRIORITY_HOSTNAMES` constant. Every consumer (dashboard
+  renderers, diff, popup) passes the set explicitly; dashboard seeds a
+  module-local cache in `state.ts` that `onSettingsChange` refreshes
+  and triggers a grid re-render only when the list actually changes.
+  `PRIORITY_HOSTNAMES` removed from the shared exports;
+  `DEFAULT_PRIORITY_HOSTNAMES` (array) takes its place as the default
+  seed for `tabout:settings.priorityHostnames`. No storage migration —
+  missing key falls through to defaults.
+
+### Removed
+
+- `twitter.com` dropped from the default priority list. `DOMAIN_ALIASES`
+  already collapses twitter.com tabs into the `x.com` group, so the
+  entry was dead code even before v2.8.0; the settings normalizer would
+  silently dedupe it against `x.com` on every round-trip. Users who had
+  customized the list keep whatever they stored.
+
 ## [2.7.1] — 2026-04-21
 
 Polish pass on the v2.7.0 popup: the displayed dup count no longer lies,

@@ -15,10 +15,20 @@ import {
   renderDeferredItem,
   renderArchiveItem,
   renderDomainCard,
-  groupTabsByDomain,
+  groupTabsByDomain as rawGroupTabsByDomain,
   renderOpenTabsSection,
   renderDeferredColumn,
 } from '../../extension/dashboard/src/renderers.ts';
+import { DEFAULT_PRIORITY_HOSTNAMES } from '../../extension/shared/src/domain-grouping.ts';
+
+// Every existing test in this file was written against the pre-v2.8.0
+// hardcoded priority list. Keep that behavior by default; the v2.8.0
+// configurable-priority tests live alongside as explicit `rawGroupTabsByDomain`
+// calls with custom sets.
+const DEFAULT_PRIORITY = new Set(DEFAULT_PRIORITY_HOSTNAMES);
+function groupTabsByDomain(tabs) {
+  return rawGroupTabsByDomain(tabs, DEFAULT_PRIORITY);
+}
 
 function mountResult(container, out) {
   if (out == null) return;
@@ -589,6 +599,59 @@ describe('groupTabsByDomain', () => {
       { url: 'chrome-extension://def/options.html' },
     ]);
     expect(bucket(groups, '__extensions__').tabs.length).toBe(2);
+  });
+
+  // ── v2.8.0 — priority hostnames are now a runtime parameter ────────────
+  it('custom priority set pins only the passed hostnames, not the hardcoded defaults', () => {
+    const groups = rawGroupTabsByDomain(
+      [
+        { url: 'https://github.com/a', index: 0 },
+        { url: 'https://wikipedia.org/b', index: 1 },
+        { url: 'https://mail.google.com/c', index: 2 },
+      ],
+      new Set(['wikipedia.org']),
+    );
+    // wikipedia first because it's the only priority hit; github/mail lose
+    // their pre-v2.8.0 default status because the caller didn't include them.
+    expect(groups.map((g) => g.domain)).toEqual([
+      'wikipedia.org',
+      'github.com',
+      'mail.google.com',
+    ]);
+  });
+
+  it('empty priority set falls through to pure first-seen sort', () => {
+    const groups = rawGroupTabsByDomain(
+      [
+        { url: 'https://github.com/a', index: 2 },
+        { url: 'https://example.com/b', index: 0 },
+        { url: 'https://mail.google.com/c', index: 1 },
+      ],
+      new Set(),
+    );
+    expect(groups.map((g) => g.domain)).toEqual([
+      'example.com',
+      'mail.google.com',
+      'github.com',
+    ]);
+  });
+
+  it('priority tier members sort among themselves by first-seen (not list order)', () => {
+    // List order: [mail, github]. Open order (first-seen): [github=0, mail=1].
+    // Expected: github before mail — list order is cosmetic per v2.8.0 plan.
+    const groups = rawGroupTabsByDomain(
+      [
+        { url: 'https://github.com/a', index: 0 },
+        { url: 'https://mail.google.com/b', index: 1 },
+        { url: 'https://reddit.com/c', index: 2 },
+      ],
+      new Set(['mail.google.com', 'github.com']),
+    );
+    expect(groups.map((g) => g.domain)).toEqual([
+      'github.com',
+      'mail.google.com',
+      'reddit.com',
+    ]);
   });
 });
 

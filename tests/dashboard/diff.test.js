@@ -73,7 +73,9 @@ async function loadDiff({ renderOpenTabsOnlySpy, animateCardOutSpy, checkTabOutD
 // starting point. Mirrors what renderOpenTabsSection does on page load.
 function seedCards(renderers, state, tabs) {
   state.setOpenTabs(tabs);
-  const groups = renderers.groupTabsByDomain(tabs);
+  // Priority set reads from state.ts module state, which starts seeded
+  // with DEFAULT_PRIORITY_HOSTNAMES — same behavior as before v2.8.0.
+  const groups = renderers.groupTabsByDomain(tabs, state.getPriorityHostnames());
   state.setDomainGroups(groups);
   const container = document.getElementById('openTabsDomains');
   container.innerHTML = '';

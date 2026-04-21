@@ -35,7 +35,7 @@ import {
   renderOpenTabsOnly,
   signatureForDomainCard,
 } from './renderers.js';
-import { getOpenTabs, setDomainGroups } from './state.js';
+import { getOpenTabs, getPriorityHostnames, setDomainGroups } from './state.js';
 import { getDisplayableTabs } from './utils.js';
 
 function sameSequence(a: string[], b: string[]): boolean {
@@ -60,7 +60,7 @@ function findAnchorAfter(
 
 export async function applyOpenTabsDiff(): Promise<void> {
   const realTabs = getDisplayableTabs(getOpenTabs());
-  const sortedGroups = groupTabsByDomain(realTabs);
+  const sortedGroups = groupTabsByDomain(realTabs, getPriorityHostnames());
   setDomainGroups(sortedGroups);
 
   const container = document.getElementById('openTabsDomains');

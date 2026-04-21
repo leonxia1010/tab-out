@@ -5,7 +5,6 @@
 
 export {
   DOMAIN_ALIASES,
-  PRIORITY_HOSTNAMES,
   domainIdFor,
   effectiveDomain,
 } from '../../../shared/dist/domain-grouping.js';

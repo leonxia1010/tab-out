@@ -62,6 +62,16 @@ const OPTIONS_HTML = `
       <label class="settings-toggle"><input type="checkbox" id="countdownSound"> Play sound</label>
     </section>
     <section>
+      <ul class="settings-list" id="priorityList"></ul>
+      <p class="settings-list-empty" id="priorityEmpty" hidden>No priority hostnames.</p>
+      <div class="settings-inline-row">
+        <input type="text" id="priorityAddInput" list="priorityAddSuggest">
+        <datalist id="priorityAddSuggest"></datalist>
+        <button type="button" id="priorityAddBtn">Add</button>
+      </div>
+      <span id="priorityAddFeedback" aria-live="polite"></span>
+    </section>
+    <section>
       <ul class="settings-list" id="pinnedList"></ul>
       <ul class="settings-list" id="hiddenList"></ul>
     </section>
@@ -166,6 +176,12 @@ function defaultInitial(patch = {}) {
     theme: 'system',
     clock: { format: '12h' },
     layout: 'masonry',
+    priorityHostnames: [
+      'mail.google.com',
+      'x.com',
+      'www.linkedin.com',
+      'github.com',
+    ],
     shortcutPins: [],
     shortcutHides: [],
     ...patch,
@@ -558,6 +574,155 @@ describe('options page — countdown section (v2.6.0)', () => {
     const saved = mocks.storageLocal.set.mock.calls.find((c) => SETTINGS_KEY in c[0])[0][SETTINGS_KEY];
     expect(saved.countdown.soundEnabled).toBe(false);
     expect(saved.countdown.enabled).toBe(true);
+  });
+});
+
+describe('options page — priority hostnames (v2.8.0)', () => {
+  it('renders the default list items on boot', async () => {
+    await boot(defaultInitial());
+    const items = document.querySelectorAll('#priorityList .settings-list-item');
+    expect(items).toHaveLength(4);
+    expect(items[0].textContent).toContain('mail.google.com');
+  });
+
+  it('Add button appends a normalized hostname and marks dirty', async () => {
+    const mocks = await boot(defaultInitial({ priorityHostnames: ['github.com'] }));
+    mocks.storageLocal.set.mockClear();
+
+    const input = document.getElementById('priorityAddInput');
+    input.value = '  Example.COM ';
+    document.getElementById('priorityAddBtn').click();
+
+    const items = document.querySelectorAll('#priorityList .settings-list-item');
+    expect(items).toHaveLength(2);
+    expect(items[1].textContent).toContain('example.com');
+    expect(input.value).toBe('');
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
+    // Draft-only: no storage write until Save.
+    expect(mocks.storageLocal.set).not.toHaveBeenCalled();
+  });
+
+  it('Enter key on input adds the hostname (no button click)', async () => {
+    await boot(defaultInitial({ priorityHostnames: [] }));
+    const input = document.getElementById('priorityAddInput');
+    input.value = 'wikipedia.org';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+
+    const items = document.querySelectorAll('#priorityList .settings-list-item');
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain('wikipedia.org');
+  });
+
+  it('applies effectiveDomain alias (twitter.com → x.com) on add', async () => {
+    await boot(defaultInitial({ priorityHostnames: [] }));
+    const input = document.getElementById('priorityAddInput');
+    input.value = 'twitter.com';
+    document.getElementById('priorityAddBtn').click();
+
+    const items = document.querySelectorAll('#priorityList .settings-list-item');
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain('x.com');
+  });
+
+  it('rejects duplicate add with feedback, no mutation', async () => {
+    await boot(defaultInitial({ priorityHostnames: ['github.com'] }));
+    const input = document.getElementById('priorityAddInput');
+    input.value = 'github.com';
+    document.getElementById('priorityAddBtn').click();
+
+    expect(document.querySelectorAll('#priorityList .settings-list-item')).toHaveLength(1);
+    expect(document.getElementById('priorityAddFeedback').textContent).toMatch(/already/i);
+    expect(document.getElementById('saveBtn').disabled).toBe(true);
+  });
+
+  it('rejects empty / whitespace-only add with feedback', async () => {
+    await boot(defaultInitial({ priorityHostnames: ['github.com'] }));
+    const input = document.getElementById('priorityAddInput');
+    input.value = '   ';
+    document.getElementById('priorityAddBtn').click();
+
+    expect(document.querySelectorAll('#priorityList .settings-list-item')).toHaveLength(1);
+    expect(document.getElementById('priorityAddFeedback').textContent).toMatch(/hostname/i);
+  });
+
+  it('Remove button deletes the entry and marks dirty', async () => {
+    const mocks = await boot(defaultInitial({
+      priorityHostnames: ['github.com', 'mail.google.com'],
+    }));
+    mocks.storageLocal.set.mockClear();
+
+    const firstRemove = document.querySelector('#priorityList .settings-list-remove');
+    expect(firstRemove).not.toBeNull();
+    firstRemove.click();
+
+    const items = document.querySelectorAll('#priorityList .settings-list-item');
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain('mail.google.com');
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
+    expect(mocks.storageLocal.set).not.toHaveBeenCalled();
+  });
+
+  it('Save commits the full priorityHostnames array to storage', async () => {
+    const mocks = await boot(defaultInitial({ priorityHostnames: [] }));
+    const input = document.getElementById('priorityAddInput');
+    input.value = 'example.com';
+    document.getElementById('priorityAddBtn').click();
+
+    mocks.storageLocal.set.mockClear();
+    document.getElementById('saveBtn').click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const call = mocks.storageLocal.set.mock.calls.find((c) => SETTINGS_KEY in c[0]);
+    expect(call[0][SETTINGS_KEY].priorityHostnames).toEqual(['example.com']);
+  });
+
+  it('toggles the empty placeholder when the list becomes empty / non-empty', async () => {
+    await boot(defaultInitial({ priorityHostnames: [] }));
+    const empty = document.getElementById('priorityEmpty');
+    expect(empty.hasAttribute('hidden')).toBe(false);
+
+    const input = document.getElementById('priorityAddInput');
+    input.value = 'github.com';
+    document.getElementById('priorityAddBtn').click();
+    expect(empty.hasAttribute('hidden')).toBe(true);
+
+    document.querySelector('#priorityList .settings-list-remove').click();
+    expect(empty.hasAttribute('hidden')).toBe(false);
+  });
+
+  it('external pristine write replaces the draft and re-renders', async () => {
+    const mocks = await boot(defaultInitial({ priorityHostnames: ['github.com'] }));
+    mocks.fireChange({
+      [SETTINGS_KEY]: {
+        newValue: defaultInitial({ priorityHostnames: ['example.com', 'github.com'] }),
+      },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+
+    const items = document.querySelectorAll('#priorityList .settings-list-item');
+    expect(items).toHaveLength(2);
+    expect(items[0].textContent).toContain('example.com');
+    expect(document.getElementById('saveBtn').disabled).toBe(true);
+  });
+
+  it('external write while dirty preserves in-flight draft', async () => {
+    const mocks = await boot(defaultInitial({ priorityHostnames: ['github.com'] }));
+    // Make draft dirty.
+    const input = document.getElementById('priorityAddInput');
+    input.value = 'example.com';
+    document.getElementById('priorityAddBtn').click();
+
+    mocks.fireChange({
+      [SETTINGS_KEY]: {
+        newValue: defaultInitial({ priorityHostnames: ['completely.different'] }),
+      },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Draft still holds original + example.com; remote list didn't clobber.
+    const items = document.querySelectorAll('#priorityList .settings-list-item');
+    expect(items.length).toBe(2);
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
   });
 });
 

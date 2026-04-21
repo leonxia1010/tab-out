@@ -11,13 +11,13 @@ import {
   smartTitle,
   stripTitleNoise,
 } from '../utils.js';
-import { getOpenTabs, setDomainGroups } from '../state.js';
+import { getOpenTabs, getPriorityHostnames, setDomainGroups } from '../state.js';
 import type { DomainGroup, Tab } from '../state.js';
 import { checkTabOutDupes } from '../extension-bridge.js';
-import { DOMAIN_ALIASES, PRIORITY_HOSTNAMES, domainIdFor, effectiveDomain } from './domain-aliases.js';
+import { DOMAIN_ALIASES, domainIdFor, effectiveDomain } from './domain-aliases.js';
 import { groupTabsByDomain } from '../../../shared/dist/domain-grouping.js';
 
-export { DOMAIN_ALIASES, PRIORITY_HOSTNAMES, domainIdFor, effectiveDomain, groupTabsByDomain };
+export { DOMAIN_ALIASES, domainIdFor, effectiveDomain, groupTabsByDomain };
 
 const ICONS = {
   tabs:    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V18a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18V8.25m-18 0V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v2.25m-18 0h18" /></svg>',
@@ -337,7 +337,7 @@ export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount
 // re-mounting the domains grid (which would yank cards mid-animation).
 export function refreshOpenTabsCounters(): void {
   const realTabs = getDisplayableTabs(getOpenTabs());
-  const sortedGroups = groupTabsByDomain(realTabs);
+  const sortedGroups = groupTabsByDomain(realTabs, getPriorityHostnames());
   setDomainGroups(sortedGroups);
   renderOpenTabsHeader(sortedGroups, realTabs.length);
   const statTabs = document.getElementById('statTabs');
@@ -351,7 +351,7 @@ export function refreshOpenTabsCounters(): void {
 // column.
 export async function renderOpenTabsOnly(): Promise<void> {
   const realTabs = getDisplayableTabs(getOpenTabs());
-  const sortedGroups = groupTabsByDomain(realTabs);
+  const sortedGroups = groupTabsByDomain(realTabs, getPriorityHostnames());
   setDomainGroups(sortedGroups);
   renderOpenTabsSection(sortedGroups, realTabs.length);
 

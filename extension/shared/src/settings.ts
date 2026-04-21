@@ -16,6 +16,7 @@
 // Only 'grid' writes to the cache.
 
 import { createLock, storage } from './storage.js';
+import { DEFAULT_PRIORITY_HOSTNAMES, effectiveDomain } from './domain-grouping.js';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ClockFormat = '12h' | '24h';
@@ -44,6 +45,7 @@ export interface ToutSettings {
   theme: ThemeMode;
   clock: { format: ClockFormat };
   layout: Layout;
+  priorityHostnames: string[];
   shortcutPins: ShortcutPin[];
   shortcutHides: string[];
   weather: WeatherSettings;
@@ -67,6 +69,7 @@ export function defaultSettings(): ToutSettings {
     theme: 'system',
     clock: { format: inferClockFormat() },
     layout: 'masonry',
+    priorityHostnames: [...DEFAULT_PRIORITY_HOSTNAMES],
     shortcutPins: [],
     shortcutHides: [],
     weather: {
@@ -161,6 +164,27 @@ function normalizeShortcutHides(v: unknown): string[] {
   return v.filter((s): s is string => typeof s === 'string' && s.length > 0);
 }
 
+// Priority hostnames are stored card-key form (post-effectiveDomain), so a
+// user typing "twitter.com" lands as "x.com" and actually matches the
+// collapsed group. Lowercase + trim because hostnames are case-insensitive
+// and trailing whitespace from paste is a common papercut. Dedupe
+// preserves first occurrence so editing-by-reorder in the options UI is
+// stable.
+export function normalizePriorityHostnames(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of v) {
+    if (typeof raw !== 'string') continue;
+    const normalized = effectiveDomain(raw.trim().toLowerCase());
+    if (!normalized) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
 // Defensive parse: missing or malformed fields fall back to defaults.
 // Mirrors api.ts#isDeferredRow discipline — normalize at the boundary
 // so downstream code can trust the shape.
@@ -174,6 +198,9 @@ export function normalizeSettings(raw: unknown): ToutSettings {
       format: r.clock && isClockFormat(r.clock.format) ? r.clock.format : d.clock.format,
     },
     layout: isLayout(r.layout) ? r.layout : d.layout,
+    priorityHostnames: r.priorityHostnames === undefined
+      ? d.priorityHostnames
+      : normalizePriorityHostnames(r.priorityHostnames),
     shortcutPins: normalizeShortcutPins(r.shortcutPins),
     shortcutHides: normalizeShortcutHides(r.shortcutHides),
     weather: normalizeWeather(r.weather),
@@ -229,6 +256,9 @@ export function setSettings(patch: Partial<ToutSettings>): Promise<ToutSettings>
       layout: patch.layout ?? current.layout,
       // Arrays: normalize the patch so callers can pass raw input
       // without bypassing the defensive shape check.
+      priorityHostnames: patch.priorityHostnames
+        ? normalizePriorityHostnames(patch.priorityHostnames)
+        : current.priorityHostnames,
       shortcutPins: patch.shortcutPins
         ? normalizeShortcutPins(patch.shortcutPins)
         : current.shortcutPins,

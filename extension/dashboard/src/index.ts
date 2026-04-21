@@ -11,11 +11,12 @@
 // and let the user dismiss it against the current latestTag.
 
 import * as handlers from './handlers.js';
-import { renderDashboard } from './renderers.js';
+import { renderDashboard, renderOpenTabsOnly } from './renderers.js';
 import { attachTabsListeners } from './refresh.js';
 import { dismissUpdateBanner, getUpdateStatus } from './api.js';
 import { el, svg } from '../../shared/dist/dom-utils.js';
 import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
+import { getPriorityHostnames, setPriorityHostnames } from './state.js';
 import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
 import { mountClock, type ClockHandle } from './widgets/clock.js';
 import { mountSearch } from './widgets/search.js';
@@ -100,6 +101,7 @@ async function bootstrapSettings(): Promise<void> {
   const settings = await getSettings();
   applyTheme(settings.theme);
   applyLayout(settings.layout);
+  setPriorityHostnames(new Set(settings.priorityHostnames));
 
   let clock: ClockHandle | null = null;
   let themeToggle: ThemeToggleHandle | null = null;
@@ -134,6 +136,16 @@ async function bootstrapSettings(): Promise<void> {
     shortcuts?.applySettings(next);
     weather?.applySettings(next.weather);
     countdown?.applySettings(next.countdown);
+
+    // Re-render the open-tabs grid only when the priority list actually
+    // changed. Theme / clock / layout / widget toggles land in the same
+    // callback and must not thrash the grid.
+    const prevKey = Array.from(getPriorityHostnames()).join('\x01');
+    const nextKey = next.priorityHostnames.join('\x01');
+    if (prevKey !== nextKey) {
+      setPriorityHostnames(new Set(next.priorityHostnames));
+      void renderOpenTabsOnly();
+    }
   });
 }
 

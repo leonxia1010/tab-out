@@ -98,6 +98,16 @@ describe('defaultSettings', () => {
     expect(d.countdown).toEqual({ enabled: true, soundEnabled: true });
   });
 
+  it('defaults priorityHostnames to the v2.8.0 pre-configurable set', () => {
+    installMocks();
+    expect(defaultSettings().priorityHostnames).toEqual([
+      'mail.google.com',
+      'x.com',
+      'www.linkedin.com',
+      'github.com',
+    ]);
+  });
+
   it('picks 12h when navigator.language is en-US', () => {
     vi.stubGlobal('navigator', { language: 'en-US' });
     expect(defaultSettings().clock.format).toBe('12h');
@@ -139,6 +149,12 @@ describe('normalizeSettings', () => {
       theme: 'dark',
       clock: { format: '24h' },
       layout: 'grid',
+      priorityHostnames: [
+        'mail.google.com',
+        'x.com',
+        'www.linkedin.com',
+        'github.com',
+      ],
       shortcutPins: [],
       shortcutHides: [],
       weather: {
@@ -200,6 +216,55 @@ describe('normalizeSettings', () => {
       shortcutHides: ['https://a/', '', 'https://b/', null, 42],
     });
     expect(r.shortcutHides).toEqual(['https://a/', 'https://b/']);
+  });
+
+  // ── priorityHostnames (v2.8.0) ────────────────────────────────────────────
+  it('preserves an explicit priorityHostnames list including empty', () => {
+    installMocks();
+    expect(normalizeSettings({ priorityHostnames: [] }).priorityHostnames).toEqual([]);
+    expect(
+      normalizeSettings({ priorityHostnames: ['github.com'] }).priorityHostnames,
+    ).toEqual(['github.com']);
+  });
+
+  it('fills priorityHostnames with defaults when key missing', () => {
+    installMocks();
+    expect(normalizeSettings({}).priorityHostnames).toEqual([
+      'mail.google.com',
+      'x.com',
+      'www.linkedin.com',
+      'github.com',
+    ]);
+  });
+
+  it('rejects non-array priorityHostnames and returns []', () => {
+    installMocks();
+    expect(normalizeSettings({ priorityHostnames: 'nope' }).priorityHostnames).toEqual([]);
+    expect(normalizeSettings({ priorityHostnames: 42 }).priorityHostnames).toEqual([]);
+  });
+
+  it('trims + lowercases priorityHostnames and drops empty/non-string', () => {
+    installMocks();
+    const r = normalizeSettings({
+      priorityHostnames: ['  GitHub.Com  ', '', 'MAIL.google.com', null, 42, 'example.COM'],
+    });
+    expect(r.priorityHostnames).toEqual(['github.com', 'mail.google.com', 'example.com']);
+  });
+
+  it('dedupes priorityHostnames, preserving first occurrence', () => {
+    installMocks();
+    const r = normalizeSettings({
+      priorityHostnames: ['github.com', 'github.com', 'mail.google.com', 'GITHUB.COM'],
+    });
+    expect(r.priorityHostnames).toEqual(['github.com', 'mail.google.com']);
+  });
+
+  it('applies effectiveDomain aliasing on priorityHostnames (twitter.com → x.com)', () => {
+    installMocks();
+    const r = normalizeSettings({
+      priorityHostnames: ['twitter.com', 'www.x.com', 'YouTu.Be'],
+    });
+    expect(r.priorityHostnames).toEqual(['x.com', 'youtube.com']);
   });
 
   // ── weather (v2.6.0) ──────────────────────────────────────────────────────
@@ -317,6 +382,12 @@ describe('getSettings', () => {
       theme: 'dark',
       clock: { format: '24h' },
       layout: 'grid',
+      priorityHostnames: [
+        'mail.google.com',
+        'x.com',
+        'www.linkedin.com',
+        'github.com',
+      ],
       shortcutPins: [],
       shortcutHides: [],
       weather: {
@@ -346,6 +417,12 @@ describe('setSettings', () => {
       theme: 'dark',
       clock: { format: '12h' },
       layout: 'masonry',
+      priorityHostnames: [
+        'mail.google.com',
+        'x.com',
+        'www.linkedin.com',
+        'github.com',
+      ],
       shortcutPins: [],
       shortcutHides: [],
       weather: {
@@ -357,6 +434,39 @@ describe('setSettings', () => {
       },
       countdown: { enabled: true, soundEnabled: true },
     });
+  });
+
+  it('persists priorityHostnames patches (v2.8.0)', async () => {
+    const { store } = installMocks({});
+    await setSettings({
+      priorityHostnames: ['example.com', 'github.com'],
+    });
+    const saved = store.get(SETTINGS_KEY);
+    expect(saved.priorityHostnames).toEqual(['example.com', 'github.com']);
+  });
+
+  it('undefined priorityHostnames patch keeps the current stored list', async () => {
+    const { store } = installMocks({
+      [SETTINGS_KEY]: { priorityHostnames: ['github.com'] },
+    });
+    await setSettings({ theme: 'dark' });
+    expect(store.get(SETTINGS_KEY).priorityHostnames).toEqual(['github.com']);
+  });
+
+  it('explicit empty priorityHostnames patch persists as empty', async () => {
+    const { store } = installMocks({
+      [SETTINGS_KEY]: { priorityHostnames: ['github.com'] },
+    });
+    await setSettings({ priorityHostnames: [] });
+    expect(store.get(SETTINGS_KEY).priorityHostnames).toEqual([]);
+  });
+
+  it('normalizes patched priorityHostnames (alias + trim + lowercase + dedupe)', async () => {
+    const { store } = installMocks({});
+    await setSettings({
+      priorityHostnames: ['  GITHUB.com', 'twitter.com', 'github.com'],
+    });
+    expect(store.get(SETTINGS_KEY).priorityHostnames).toEqual(['github.com', 'x.com']);
   });
 
   it('persists shortcutPins and shortcutHides patches', async () => {
@@ -559,6 +669,12 @@ describe('onSettingsChange', () => {
       theme: 'dark',
       clock: { format: '12h' },
       layout: 'grid',
+      priorityHostnames: [
+        'mail.google.com',
+        'x.com',
+        'www.linkedin.com',
+        'github.com',
+      ],
       shortcutPins: [],
       shortcutHides: [],
       weather: {

@@ -43,6 +43,24 @@
       </fieldset>
     </section>
 
+    <section class="settings-section" aria-labelledby="priority-heading">
+      <h2 id="priority-heading">Priority hostnames</h2>
+      <p class="settings-help">
+        Domains listed here pin to the top of the open-tabs grid.
+        Within the pinned row, cards still sort by the tab that was
+        opened first.
+      </p>
+      <ul class="settings-list" id="priorityList"></ul>
+      <p class="settings-list-empty" id="priorityEmpty" hidden>No priority hostnames.</p>
+      <div class="settings-inline-row">
+        <input type="text" id="priorityAddInput" class="settings-text-input"
+               list="priorityAddSuggest" placeholder="e.g., github.com" autocomplete="off">
+        <datalist id="priorityAddSuggest"></datalist>
+        <button type="button" id="priorityAddBtn" class="settings-btn settings-btn-muted">Add</button>
+      </div>
+      <span id="priorityAddFeedback" class="settings-hint" aria-live="polite"></span>
+    </section>
+
     <section class="settings-section" aria-labelledby="weather-heading">
       <h2 id="weather-heading">Weather</h2>
       <p class="settings-help">
