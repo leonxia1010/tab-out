@@ -279,6 +279,11 @@ function wirePriorityHostnames(): void {
   const addBtn = document.getElementById('priorityAddBtn') as HTMLButtonElement | null;
   const feedback = document.getElementById('priorityAddFeedback');
 
+  const syncAddBtn = (): void => {
+    if (!addBtn) return;
+    addBtn.disabled = !input || input.value.trim().length === 0;
+  };
+
   const commit = (): void => {
     if (!input) return;
     const raw = input.value;
@@ -297,6 +302,7 @@ function wirePriorityHostnames(): void {
     if (feedback) feedback.textContent = `Added ${hostname}.`;
     renderPriorityList();
     renderDirtyState();
+    syncAddBtn();
   };
 
   addBtn?.addEventListener('click', commit);
@@ -308,7 +314,10 @@ function wirePriorityHostnames(): void {
   });
   input?.addEventListener('input', () => {
     if (feedback) feedback.textContent = '';
+    syncAddBtn();
   });
+
+  syncAddBtn();
 }
 
 function wireWeather(): void {

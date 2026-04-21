@@ -66,7 +66,7 @@ const OPTIONS_HTML = `
       <p class="settings-list-empty" id="priorityEmpty" hidden>No priority hostnames.</p>
       <div class="settings-inline-row">
         <input type="text" id="priorityAddInput">
-        <button type="button" id="priorityAddBtn">Add</button>
+        <button type="button" id="priorityAddBtn" disabled>Add</button>
       </div>
       <span id="priorityAddFeedback" aria-live="polite"></span>
     </section>
@@ -584,12 +584,44 @@ describe('options page — priority hostnames (v2.8.0)', () => {
     expect(items[0].textContent).toContain('mail.google.com');
   });
 
+  it('Add button is disabled when the input is empty, enabled when filled', async () => {
+    await boot(defaultInitial({ priorityHostnames: [] }));
+    const input = document.getElementById('priorityAddInput');
+    const addBtn = document.getElementById('priorityAddBtn');
+    expect(addBtn.disabled).toBe(true);
+
+    input.value = 'example.com';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(addBtn.disabled).toBe(false);
+
+    // Whitespace-only still counts as empty.
+    input.value = '   ';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(addBtn.disabled).toBe(true);
+  });
+
+  it('Add button returns to disabled after a successful commit', async () => {
+    await boot(defaultInitial({ priorityHostnames: [] }));
+    const input = document.getElementById('priorityAddInput');
+    const addBtn = document.getElementById('priorityAddBtn');
+    input.value = 'example.com';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(addBtn.disabled).toBe(false);
+
+    addBtn.click();
+    expect(input.value).toBe('');
+    expect(addBtn.disabled).toBe(true);
+  });
+
   it('Add button appends a normalized hostname and marks dirty', async () => {
     const mocks = await boot(defaultInitial({ priorityHostnames: ['github.com'] }));
     mocks.storageLocal.set.mockClear();
 
     const input = document.getElementById('priorityAddInput');
     input.value = '  Example.COM ';
+    // Real-user flow: typing fires `input` which enables the Add button;
+    // programmatic `input.value =` doesn't, so dispatch it explicitly.
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     document.getElementById('priorityAddBtn').click();
 
     const items = document.querySelectorAll('#priorityList .settings-list-item');
@@ -616,6 +648,7 @@ describe('options page — priority hostnames (v2.8.0)', () => {
     await boot(defaultInitial({ priorityHostnames: [] }));
     const input = document.getElementById('priorityAddInput');
     input.value = 'twitter.com';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     document.getElementById('priorityAddBtn').click();
 
     const items = document.querySelectorAll('#priorityList .settings-list-item');
@@ -627,6 +660,7 @@ describe('options page — priority hostnames (v2.8.0)', () => {
     await boot(defaultInitial({ priorityHostnames: ['github.com'] }));
     const input = document.getElementById('priorityAddInput');
     input.value = 'github.com';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     document.getElementById('priorityAddBtn').click();
 
     expect(document.querySelectorAll('#priorityList .settings-list-item')).toHaveLength(1);
@@ -634,11 +668,13 @@ describe('options page — priority hostnames (v2.8.0)', () => {
     expect(document.getElementById('saveBtn').disabled).toBe(true);
   });
 
-  it('rejects empty / whitespace-only add with feedback', async () => {
+  it('Enter on whitespace-only input surfaces the "enter a hostname" feedback', async () => {
+    // The Add button is disabled on empty/whitespace input, so the feedback
+    // path fires only from the Enter key (which bypasses the disabled check).
     await boot(defaultInitial({ priorityHostnames: ['github.com'] }));
     const input = document.getElementById('priorityAddInput');
     input.value = '   ';
-    document.getElementById('priorityAddBtn').click();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
 
     expect(document.querySelectorAll('#priorityList .settings-list-item')).toHaveLength(1);
     expect(document.getElementById('priorityAddFeedback').textContent).toMatch(/hostname/i);
@@ -665,6 +701,7 @@ describe('options page — priority hostnames (v2.8.0)', () => {
     const mocks = await boot(defaultInitial({ priorityHostnames: [] }));
     const input = document.getElementById('priorityAddInput');
     input.value = 'example.com';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     document.getElementById('priorityAddBtn').click();
 
     mocks.storageLocal.set.mockClear();
@@ -682,6 +719,7 @@ describe('options page — priority hostnames (v2.8.0)', () => {
 
     const input = document.getElementById('priorityAddInput');
     input.value = 'github.com';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     document.getElementById('priorityAddBtn').click();
     expect(empty.hasAttribute('hidden')).toBe(true);
 
@@ -709,6 +747,7 @@ describe('options page — priority hostnames (v2.8.0)', () => {
     // Make draft dirty.
     const input = document.getElementById('priorityAddInput');
     input.value = 'example.com';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
     document.getElementById('priorityAddBtn').click();
 
     mocks.fireChange({
