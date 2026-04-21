@@ -37,10 +37,21 @@ function installChrome({ queryResults = [[]] } = {}) {
 // module that refresh.ts / extension-bridge.ts will share via the same
 // module cache instance. PR 3 swapped refresh.ts's target from
 // renderOpenTabsOnly to applyOpenTabsDiff, so we mock diff.ts instead.
-async function loadRefresh({ renderSpy, initialTabs = [] }) {
+async function loadRefresh({ renderSpy, initialTabs = [], banner = vi.fn() }) {
   vi.doMock('../../extension/dashboard/src/diff.ts', () => ({
     applyOpenTabsDiff: renderSpy,
   }));
+  // refresh.ts v2.7 calls checkTabOutDupes() post-fetchOpenTabs so the Tab
+  // Out banner refreshes even when the displayable signature is stable.
+  // Mock the full extension-bridge surface so the test env (no DOM here)
+  // doesn't fall into the real checkTabOutDupes' document.getElementById.
+  vi.doMock('../../extension/dashboard/src/extension-bridge.ts', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+      ...actual,
+      checkTabOutDupes: banner,
+    };
+  });
   const state = await import('../../extension/dashboard/src/state.ts');
   state.setOpenTabs(initialTabs);
   return await import('../../extension/dashboard/src/refresh.ts');
@@ -55,6 +66,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.doUnmock('../../extension/dashboard/src/diff.ts');
+  vi.doUnmock('../../extension/dashboard/src/extension-bridge.ts');
   vi.restoreAllMocks();
 });
 
@@ -133,6 +145,36 @@ describe('scheduleRefresh — signature-based dedup', () => {
     scheduleRefresh();
     await vi.advanceTimersByTimeAsync(500);
     expect(renderSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('v2.7: refreshes Tab Out banner even when displayable signature is unchanged', async () => {
+    // Opening/closing a Tab Out tab leaves the displayable signature
+    // stable (Tab Out is filtered out), so without the unconditional
+    // checkTabOutDupes() call after fetchOpenTabs, the signature-based
+    // early-return would leave the banner's last-rendered state stuck
+    // until some other tab event kicked the cycle again.
+    installChrome({ queryResults: [[
+      { id: 1, url: 'https://a.com', title: 'A' },
+      { id: 2, url: `chrome-extension://${EXT_ID}/dashboard/index.html`, title: 'Tab Out' },
+      { id: 3, url: `chrome-extension://${EXT_ID}/dashboard/index.html`, title: 'Tab Out' },
+    ]] });
+    const renderSpy = vi.fn().mockResolvedValue(undefined);
+    const banner = vi.fn();
+    const { scheduleRefresh } = await loadRefresh({
+      renderSpy,
+      initialTabs: [
+        { url: 'https://a.com', title: 'A' },
+        { url: `chrome-extension://${EXT_ID}/dashboard/index.html`, isTabOut: true },
+        { url: `chrome-extension://${EXT_ID}/dashboard/index.html`, isTabOut: true },
+      ],
+      banner,
+    });
+    scheduleRefresh();
+    await vi.advanceTimersByTimeAsync(500);
+    // Displayable set (just 'https://a.com') is unchanged → no diff render.
+    expect(renderSpy).not.toHaveBeenCalled();
+    // Banner check still fires so open/close of Tab Out tabs reflects live.
+    expect(banner).toHaveBeenCalledTimes(1);
   });
 
   it('ignores isTabOut entries (chrome://newtab/ does not trigger waterfall)', async () => {

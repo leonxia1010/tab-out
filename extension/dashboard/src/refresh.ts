@@ -20,7 +20,7 @@
 // status=complete filter) that stacked three special cases and still leaked.
 
 import { applyOpenTabsDiff } from './diff.js';
-import { fetchOpenTabs } from './extension-bridge.js';
+import { checkTabOutDupes, fetchOpenTabs } from './extension-bridge.js';
 import { getOpenTabs } from './state.js';
 import { getDisplayableTabs } from './utils.js';
 import { extractHostname } from '../../shared/dist/url.js';
@@ -75,6 +75,12 @@ export function scheduleRefresh(): void {
     try {
       const before = displayableSignature();
       await fetchOpenTabs();
+      // Refresh the "you have N Tab Out tabs open" banner unconditionally:
+      // opening/closing a Tab Out tab doesn't change the displayable
+      // signature (Tab Out is filtered out), so without this call the
+      // signature-based early-return below would short-circuit before the
+      // banner state updated.
+      checkTabOutDupes();
       const after = displayableSignature();
       if (before === after) return;
       // PR 3: incremental card-level diff replaces the full mount. Order

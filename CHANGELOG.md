@@ -6,6 +6,34 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **Popup "Close all N duplicates" now counts and closes duplicate Tab
+  Out tabs too.** Before: the displayed count excluded Tab Out but the
+  click-through closed them anyway — N lied, and a window with only
+  duplicate Tab Out tabs showed a disabled button even though dedup
+  was technically possible. After: N includes every duplicate copy
+  (Tab Out and regular), the button enables whenever N > 0, and the
+  displayed count equals the number of tabs that actually close. The
+  dashboard's existing "you have N Tab Out tabs open" banner still
+  handles the cross-URL fallback (chrome://newtab/ vs
+  chrome-extension://…/dashboard/index.html) — popup dedup matches
+  exact URL like the rest of `closeDuplicates`.
+- **Dashboard's "You have N Tab Out tabs open" banner now updates in
+  real time.** Before: opening or closing a Tab Out tab didn't shift
+  the dashboard's displayable-tab signature (Tab Out is filtered out
+  of the render diff), so the auto-refresh loop short-circuited before
+  the banner check ran — the banner only updated when some unrelated
+  tab change happened to kick the cycle. After: `checkTabOutDupes()`
+  runs unconditionally after every `fetchOpenTabs()`, so the banner
+  reflects the live Tab Out count without piggybacking on a displayable
+  tab event.
+
+### Changed
+
+- Popup button type scale: font-size 13 → 14px, button vertical
+  padding 10 → 12px. Palette untouched.
+
 ## [2.7.0] — 2026-04-21
 
 Fills the wasted toolbar-icon entry point that v2.5.0's badge removal
