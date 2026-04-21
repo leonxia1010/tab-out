@@ -12,6 +12,7 @@ import {
   organizeTabs,
 } from '../../shared/dist/tab-ops.js';
 import { groupTabsByDomain } from '../../shared/dist/domain-grouping.js';
+import { getSettings } from '../../shared/dist/settings.js';
 
 export type Action = 'close-all' | 'close-dupes' | 'organize';
 
@@ -98,11 +99,15 @@ export async function dispatchAction(action: Action): Promise<void> {
       return;
     }
     case 'organize': {
-      const tabs = await queryTabs();
+      const [tabs, settings] = await Promise.all([queryTabs(), getSettings()]);
       // chrome.tabs.Tab is structurally compatible with our shared Tab
       // (Tab's index signature accepts any field). Cast via unknown to
       // satisfy strict mode without loosening Tab.
-      const groups = groupTabsByDomain(tabs as unknown as Parameters<typeof groupTabsByDomain>[0]);
+      const priority = new Set(settings.priorityHostnames);
+      const groups = groupTabsByDomain(
+        tabs as unknown as Parameters<typeof groupTabsByDomain>[0],
+        priority,
+      );
       await organizeTabs(groups);
       return;
     }

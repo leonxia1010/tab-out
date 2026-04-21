@@ -3,9 +3,11 @@
 // (organize — popup has no render state of its own, so it rebuilds
 // groups from chrome.tabs.query on open).
 //
-// PRIORITY_HOSTNAMES: the "always-available" entry points (mail, social,
-// code host) that the user treats as ambient and expects on the left side
-// of the grid regardless of open-order.
+// DEFAULT_PRIORITY_HOSTNAMES: the "always-available" entry points (mail,
+// social, code host) that the user treats as ambient and expects on the
+// left side of the grid regardless of open-order. Now the default seed
+// for `tabout:settings.priorityHostnames` (v2.8.0) — each user picks
+// their own set; the live set is threaded into groupTabsByDomain.
 //
 // DOMAIN_ALIASES: explicit hostname → card-key map. Replaces an older
 // endsWith('.' + root) heuristic because (1) cross-TLD short links like
@@ -20,13 +22,17 @@
 
 import type { DomainGroup, Tab } from './tab-types.js';
 
-export const PRIORITY_HOSTNAMES = new Set<string>([
+// Card-key form only: twitter.com collapses to x.com via DOMAIN_ALIASES, so
+// listing twitter.com separately here would silently dedupe to x.com once
+// the settings normalizer runs. The pre-v2.8.0 hardcoded set used to carry
+// both; dropped as dead entry now that the list is user-editable (and the
+// normalizer enforces the invariant that stored entries match group keys).
+export const DEFAULT_PRIORITY_HOSTNAMES: readonly string[] = [
   'mail.google.com',
   'x.com',
-  'twitter.com',
   'www.linkedin.com',
   'github.com',
-]);
+];
 
 export const DOMAIN_ALIASES: Record<string, string> = {
   // Bilibili — subdomains + b23.tv share shortlink
@@ -45,8 +51,9 @@ export const DOMAIN_ALIASES: Record<string, string> = {
   'youtu.be':            'youtube.com',
 
   // Twitter / X — Musk rename left both domains live; collapse to x.com (current
-  // official name). Both twitter.com and x.com are in PRIORITY_HOSTNAMES so
-  // either way a tab on them pins above normal cards.
+  // official name). Both default into the v2.8.0 priority list; the settings
+  // normalizer also applies effectiveDomain on user input so typing
+  // "twitter.com" lands as "x.com" and actually pins the collapsed group.
   'www.x.com':           'x.com',
   'twitter.com':         'x.com',
   'www.twitter.com':     'x.com',
@@ -101,7 +108,10 @@ function firstIndex(group: DomainGroup): number {
   return min;
 }
 
-export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
+export function groupTabsByDomain(
+  realTabs: Tab[],
+  priorityHostnames: ReadonlySet<string>,
+): DomainGroup[] {
   const groupMap: Record<string, DomainGroup> = {};
 
   for (const tab of realTabs) {
@@ -136,11 +146,11 @@ export function groupTabsByDomain(realTabs: Tab[]): DomainGroup[] {
     groups.map((g) => [g.domain, firstIndex(g)]),
   );
   return groups.sort((a, b) => {
-    // Priority tier: hostnames in PRIORITY_HOSTNAMES pin above the rest.
-    // FUTURE: expose via the options page so each user picks their own
-    // priority set (see claudedocs/ROADMAP.md).
-    const aIsPriority = PRIORITY_HOSTNAMES.has(a.domain);
-    const bIsPriority = PRIORITY_HOSTNAMES.has(b.domain);
+    // Priority tier: hostnames in the passed set pin above the rest.
+    // Within the tier, leaf (first-seen) still decides order — the list
+    // controls membership, not internal ordering (see ROADMAP v2.8.0).
+    const aIsPriority = priorityHostnames.has(a.domain);
+    const bIsPriority = priorityHostnames.has(b.domain);
     if (aIsPriority !== bIsPriority) return aIsPriority ? -1 : 1;
     // Leaf tier: first-seen. A group's position is anchored to its
     // earliest-opened tab's chrome-tab index, so opening/closing tabs

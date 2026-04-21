@@ -3,6 +3,7 @@ import {
   setSettings,
   onSettingsChange,
   defaultSettings,
+  normalizePriorityHostnames,
   type ToutSettings,
   type ThemeMode,
   type ClockFormat,
@@ -27,6 +28,7 @@ function cloneSettings(s: ToutSettings): ToutSettings {
     theme: s.theme,
     clock: { ...s.clock },
     layout: s.layout,
+    priorityHostnames: [...s.priorityHostnames],
     shortcutPins: s.shortcutPins.map((p) => ({ ...p })),
     shortcutHides: [...s.shortcutHides],
     weather: { ...s.weather },
@@ -56,6 +58,7 @@ function isDirty(): boolean {
   return draft.theme !== baseline.theme
     || draft.clock.format !== baseline.clock.format
     || draft.layout !== baseline.layout
+    || draft.priorityHostnames.join('\u0001') !== baseline.priorityHostnames.join('\u0001')
     || pinsKey(draft.shortcutPins) !== pinsKey(baseline.shortcutPins)
     || draft.shortcutHides.join('\u0001') !== baseline.shortcutHides.join('\u0001')
     || weatherKey(draft.weather) !== weatherKey(baseline.weather)
@@ -104,6 +107,30 @@ function renderPinnedList(): void {
   );
 }
 
+function renderPriorityList(): void {
+  const list = document.getElementById('priorityList');
+  const empty = document.getElementById('priorityEmpty');
+  if (empty) empty.toggleAttribute('hidden', draft.priorityHostnames.length > 0);
+  if (!list) return;
+  list.replaceChildren(
+    ...draft.priorityHostnames.map((hostname) => {
+      const remove = el('button', {
+        type: 'button',
+        className: 'settings-list-remove',
+      }, ['Remove']) as HTMLButtonElement;
+      remove.addEventListener('click', () => {
+        draft.priorityHostnames = draft.priorityHostnames.filter((h) => h !== hostname);
+        renderPriorityList();
+        renderDirtyState();
+      });
+      return el('li', { className: 'settings-list-item' }, [
+        el('span', { className: 'settings-list-item-title' }, [hostname]),
+        remove,
+      ]);
+    }),
+  );
+}
+
 function renderHiddenList(): void {
   const list = document.getElementById('hiddenList');
   if (!list) return;
@@ -146,6 +173,7 @@ function renderForm(): void {
   setRadioValue('theme', draft.theme);
   setRadioValue('clockFormat', draft.clock.format);
   setRadioValue('layout', draft.layout);
+  renderPriorityList();
   renderPinnedList();
   renderHiddenList();
   renderWeatherSection();
@@ -244,6 +272,52 @@ async function lookupLocation(query: string): Promise<GeocodingResult | null> {
   } catch {
     return null;
   }
+}
+
+function wirePriorityHostnames(): void {
+  const input = document.getElementById('priorityAddInput') as HTMLInputElement | null;
+  const addBtn = document.getElementById('priorityAddBtn') as HTMLButtonElement | null;
+  const feedback = document.getElementById('priorityAddFeedback');
+
+  const syncAddBtn = (): void => {
+    if (!addBtn) return;
+    addBtn.disabled = !input || input.value.trim().length === 0;
+  };
+
+  const commit = (): void => {
+    if (!input) return;
+    const raw = input.value;
+    const normalized = normalizePriorityHostnames([raw]);
+    if (normalized.length === 0) {
+      if (feedback) feedback.textContent = 'Enter a hostname like github.com.';
+      return;
+    }
+    const hostname = normalized[0];
+    if (draft.priorityHostnames.includes(hostname)) {
+      if (feedback) feedback.textContent = `${hostname} is already in the list.`;
+      return;
+    }
+    draft.priorityHostnames = [...draft.priorityHostnames, hostname];
+    input.value = '';
+    if (feedback) feedback.textContent = `Added ${hostname}.`;
+    renderPriorityList();
+    renderDirtyState();
+    syncAddBtn();
+  };
+
+  addBtn?.addEventListener('click', commit);
+  input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commit();
+    }
+  });
+  input?.addEventListener('input', () => {
+    if (feedback) feedback.textContent = '';
+    syncAddBtn();
+  });
+
+  syncAddBtn();
 }
 
 function wireWeather(): void {
@@ -361,6 +435,7 @@ async function bootstrap(): Promise<void> {
     }
   });
 
+  wirePriorityHostnames();
   wireWeather();
   wireCountdown();
 
