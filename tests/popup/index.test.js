@@ -92,7 +92,7 @@ describe('popup mount', () => {
       { id: 2, url: 'https://pinned.com', pinned: true },
     ]);
     const btn = document.getElementById('popup-close-all');
-    expect(btn.textContent).toBe('Close all 0 tabs (keep Tab Out)');
+    expect(btn.textContent).toBe('Close all tabs (keep Tab Out)');
     expect(btn.disabled).toBe(true);
   });
 

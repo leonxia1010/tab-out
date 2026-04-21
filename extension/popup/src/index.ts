@@ -21,21 +21,30 @@ interface ButtonSpec {
   label: (count: number) => string;
 }
 
+// When count is 0 the button is disabled anyway; "Close all 0 tabs" reads
+// awkwardly, so drop the "0 " in that state and keep the action name
+// clean. Singular / plural switches kick in at 1+.
 const BUTTONS: ButtonSpec[] = [
   {
     id: 'popup-close-all',
     action: 'close-all',
-    label: (n) => `Close all ${n} tab${n === 1 ? '' : 's'} (keep Tab Out)`,
+    label: (n) => (n === 0
+      ? 'Close all tabs (keep Tab Out)'
+      : `Close all ${n} tab${n === 1 ? '' : 's'} (keep Tab Out)`),
   },
   {
     id: 'popup-close-dupes',
     action: 'close-dupes',
-    label: (n) => `Close all ${n} duplicate${n === 1 ? '' : 's'}`,
+    label: (n) => (n === 0
+      ? 'Close duplicates'
+      : `Close all ${n} duplicate${n === 1 ? '' : 's'}`),
   },
   {
     id: 'popup-organize',
     action: 'organize',
-    label: (n) => `Organize ${n} tab${n === 1 ? '' : 's'}`,
+    label: (n) => (n === 0
+      ? 'Organize tabs'
+      : `Organize ${n} tab${n === 1 ? '' : 's'}`),
   },
 ];
 
