@@ -65,8 +65,7 @@ const OPTIONS_HTML = `
       <ul class="settings-list" id="priorityList"></ul>
       <p class="settings-list-empty" id="priorityEmpty" hidden>No priority hostnames.</p>
       <div class="settings-inline-row">
-        <input type="text" id="priorityAddInput" list="priorityAddSuggest">
-        <datalist id="priorityAddSuggest"></datalist>
+        <input type="text" id="priorityAddInput">
         <button type="button" id="priorityAddBtn">Add</button>
       </div>
       <span id="priorityAddFeedback" aria-live="polite"></span>

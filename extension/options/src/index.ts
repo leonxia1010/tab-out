@@ -274,29 +274,6 @@ async function lookupLocation(query: string): Promise<GeocodingResult | null> {
   }
 }
 
-async function populatePrioritySuggestions(): Promise<void> {
-  const datalist = document.getElementById('priorityAddSuggest') as HTMLDataListElement | null;
-  if (!datalist) return;
-  if (typeof chrome === 'undefined' || !chrome.tabs?.query) return;
-  // All-windows query per ROADMAP — larger candidate pool than currentWindow.
-  let tabs: chrome.tabs.Tab[] = [];
-  try {
-    tabs = await chrome.tabs.query({});
-  } catch {
-    return;
-  }
-  const seen = new Set<string>();
-  const options: HTMLOptionElement[] = [];
-  for (const t of tabs) {
-    const host = extractHostname(t.url ?? '');
-    if (!host) continue;
-    if (seen.has(host)) continue;
-    seen.add(host);
-    options.push(Object.assign(document.createElement('option'), { value: host }));
-  }
-  datalist.replaceChildren(...options);
-}
-
 function wirePriorityHostnames(): void {
   const input = document.getElementById('priorityAddInput') as HTMLInputElement | null;
   const addBtn = document.getElementById('priorityAddBtn') as HTMLButtonElement | null;
@@ -332,8 +309,6 @@ function wirePriorityHostnames(): void {
   input?.addEventListener('input', () => {
     if (feedback) feedback.textContent = '';
   });
-
-  void populatePrioritySuggestions();
 }
 
 function wireWeather(): void {

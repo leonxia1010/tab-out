@@ -10,11 +10,10 @@ All notable changes to this fork land here. Format based on
 
 - **Configurable priority hostnames.** Options → Priority hostnames lets
   you pick which domains pin to the top of the open-tabs grid. Add via
-  the text input (with a datalist suggesting hostnames from every
-  currently-open tab across windows) or remove with the per-row button.
-  Defaults to the pre-v2.8.0 pinned set (mail.google.com, x.com,
-  www.linkedin.com, github.com) so existing installs see no visible
-  change until they edit. Within the priority tier, cards still sort by
+  the text input, remove with the per-row button. Defaults to the
+  pre-v2.8.0 pinned set (mail.google.com, x.com, www.linkedin.com,
+  github.com) so existing installs see no visible change until they
+  edit. Within the priority tier, cards still sort by
   first-opened — the list controls membership, not order
   (drag-to-reorder lands in v2.9.0). Input is normalized to card-key form
   (trim + lowercase + `effectiveDomain` alias), so typing `twitter.com`
