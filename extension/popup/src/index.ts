@@ -107,6 +107,7 @@ export async function dispatchAction(action: Action): Promise<void> {
       const groups = groupTabsByDomain(
         tabs as unknown as Parameters<typeof groupTabsByDomain>[0],
         priority,
+        settings.domainAliases,
       );
       await organizeTabs(groups);
       return;

@@ -8,6 +8,40 @@ All notable changes to this fork land here. Format based on
 
 ### Added
 
+- **Editable domain grouping + display names (v2.9.0).** Options → Domain
+  groups exposes the previously-hardcoded alias map: each canonical group
+  (e.g. `bilibili.com`) renders as one collapsible row listing the
+  hostnames that fold into it (`www.bilibili.com`, `b23.tv`, …).
+  Expand to add or remove aliases, click Edit for a popover that overrides
+  the display label, Delete to drop the whole cluster. A single
+  "Add alias" row at the bottom of the section takes `source → target`
+  for creating brand-new groups on the fly. Reset to defaults restores
+  the hardcoded alias seed.
+- **Full-copy for aliases, overlay for labels.** `domainAliases` is
+  seeded from `DEFAULT_DOMAIN_ALIASES` on first boot and the user's
+  stored copy is then the single truth — so removing a default alias
+  actually sticks. `friendlyDomains` is empty by default and only
+  captures user overrides; runtime display-name resolution chains
+  user map → `DEFAULT_FRIENDLY_DOMAINS` → heuristic
+  (substack / github.io / strip-TLD + capitalize), so all the built-in
+  pretty names still work without bloating settings storage with 71
+  entries.
+
+### Changed
+
+- `effectiveDomain(hostname, aliases?)` and
+  `groupTabsByDomain(tabs, priorityHostnames, aliases?)` now accept an
+  optional aliases override. `normalizePriorityHostnames` keeps using the
+  hardcoded defaults (avoids a chicken-and-egg where normalizing settings
+  would require settings). Dashboard and popup thread the user's live
+  `domainAliases` through every grouping call site; `onSettingsChange`
+  re-renders the grid when aliases, priority hostnames, or display-name
+  overrides change.
+- `DOMAIN_ALIASES` exported constant renamed to `DEFAULT_DOMAIN_ALIASES`
+  (seed, not runtime source of truth). `DEFAULT_FRIENDLY_DOMAINS` moved
+  from `dashboard/src/utils.ts` into `shared/src/domain-grouping.ts` so
+  the options page can reuse it for the Reset-to-defaults flow.
+
 - **Configurable priority hostnames.** Options → Priority hostnames lets
   you pick which domains pin to the top of the open-tabs grid. Add via
   the text input, remove with the per-row button. Defaults to the

@@ -9,20 +9,18 @@
 // for `tabout:settings.priorityHostnames` (v2.8.0) — each user picks
 // their own set; the live set is threaded into groupTabsByDomain.
 //
-// DOMAIN_ALIASES: explicit hostname → card-key map. Replaces an older
-// endsWith('.' + root) heuristic because (1) cross-TLD short links like
-// b23.tv aren't subdomains of bilibili.com so endsWith never matched
-// them; (2) endsWith without a dot prefix risked fakebilibili.com
-// getting folded into bilibili. Laying each hostname out by hand is the
-// "dumb but clear" fix — new subdomains take one line each, no clever
-// matching required.
+// DEFAULT_DOMAIN_ALIASES / DEFAULT_FRIENDLY_DOMAINS: hardcoded seed
+// tables. v2.9.0 copies them into `tabout:settings` on first boot
+// (full-copy model — storage is the single truth after seeding).
+// effectiveDomain() and groupTabsByDomain() accept an optional aliases
+// override so callers can pass the user's stored aliases at runtime.
 //
 // Don't add google.com aliases — Gmail / Docs / Drive stay on separate
-// cards on purpose via FRIENDLY_DOMAINS in dashboard utils.ts.
+// cards on purpose via friendlyDomains display names.
 
 import type { DomainGroup, Tab } from './tab-types.js';
 
-// Card-key form only: twitter.com collapses to x.com via DOMAIN_ALIASES, so
+// Card-key form only: twitter.com collapses to x.com via DEFAULT_DOMAIN_ALIASES, so
 // listing twitter.com separately here would silently dedupe to x.com once
 // the settings normalizer runs. The pre-v2.8.0 hardcoded set used to carry
 // both; dropped as dead entry now that the list is user-editable (and the
@@ -34,7 +32,7 @@ export const DEFAULT_PRIORITY_HOSTNAMES: readonly string[] = [
   'github.com',
 ];
 
-export const DOMAIN_ALIASES: Record<string, string> = {
+export const DEFAULT_DOMAIN_ALIASES: Record<string, string> = {
   // Bilibili — subdomains + b23.tv share shortlink
   'www.bilibili.com':    'bilibili.com',
   'search.bilibili.com': 'bilibili.com',
@@ -45,7 +43,7 @@ export const DOMAIN_ALIASES: Record<string, string> = {
   'b23.tv':              'bilibili.com',
 
   // YouTube — www / mobile / youtu.be share shortlink.
-  // music.youtube.com stays separate on purpose (FRIENDLY_DOMAINS → "YouTube Music").
+  // music.youtube.com stays separate on purpose (friendlyDomains → "YouTube Music").
   'www.youtube.com':     'youtube.com',
   'm.youtube.com':       'youtube.com',
   'youtu.be':            'youtube.com',
@@ -88,8 +86,12 @@ export const DOMAIN_ALIASES: Record<string, string> = {
   'fb.me':               'facebook.com',
 };
 
-export function effectiveDomain(hostname: string): string {
-  return DOMAIN_ALIASES[hostname] ?? hostname;
+export function effectiveDomain(
+  hostname: string,
+  aliases?: Record<string, string>,
+): string {
+  const table = aliases ?? DEFAULT_DOMAIN_ALIASES;
+  return table[hostname] ?? hostname;
 }
 
 // Stable DOM key for each domain card. diff.ts (set-diff lookup) and
@@ -111,6 +113,7 @@ function firstIndex(group: DomainGroup): number {
 export function groupTabsByDomain(
   realTabs: Tab[],
   priorityHostnames: ReadonlySet<string>,
+  aliases?: Record<string, string>,
 ): DomainGroup[] {
   const groupMap: Record<string, DomainGroup> = {};
 
@@ -125,7 +128,7 @@ export function groupTabsByDomain(
       } else if (url.startsWith('chrome-extension://')) {
         hostname = '__extensions__';
       } else {
-        hostname = effectiveDomain(new URL(url).hostname);
+        hostname = effectiveDomain(new URL(url).hostname, aliases);
       }
       if (!hostname) continue;
       if (!groupMap[hostname]) {
@@ -164,3 +167,77 @@ export function groupTabsByDomain(
     return (firstSeen.get(a.domain) ?? Infinity) - (firstSeen.get(b.domain) ?? Infinity);
   });
 }
+
+export const DEFAULT_FRIENDLY_DOMAINS: Record<string, string> = {
+  'github.com':           'GitHub',
+  'www.github.com':       'GitHub',
+  'gist.github.com':      'GitHub Gist',
+  'youtube.com':          'YouTube',
+  'www.youtube.com':      'YouTube',
+  'music.youtube.com':    'YouTube Music',
+  'x.com':                'X',
+  'www.x.com':            'X',
+  'twitter.com':          'X',
+  'www.twitter.com':      'X',
+  'reddit.com':           'Reddit',
+  'www.reddit.com':       'Reddit',
+  'old.reddit.com':       'Reddit',
+  'substack.com':         'Substack',
+  'www.substack.com':     'Substack',
+  'medium.com':           'Medium',
+  'www.medium.com':       'Medium',
+  'linkedin.com':         'LinkedIn',
+  'www.linkedin.com':     'LinkedIn',
+  'stackoverflow.com':    'Stack Overflow',
+  'www.stackoverflow.com':'Stack Overflow',
+  'news.ycombinator.com': 'Hacker News',
+  'google.com':           'Google',
+  'www.google.com':       'Google',
+  'mail.google.com':      'Gmail',
+  'docs.google.com':      'Google Docs',
+  'drive.google.com':     'Google Drive',
+  'calendar.google.com':  'Google Calendar',
+  'meet.google.com':      'Google Meet',
+  'gemini.google.com':    'Gemini',
+  'chatgpt.com':          'ChatGPT',
+  'www.chatgpt.com':      'ChatGPT',
+  'chat.openai.com':      'ChatGPT',
+  'claude.ai':            'Claude',
+  'www.claude.ai':        'Claude',
+  'code.claude.com':      'Claude Code',
+  'notion.so':            'Notion',
+  'www.notion.so':        'Notion',
+  'figma.com':            'Figma',
+  'www.figma.com':        'Figma',
+  'slack.com':            'Slack',
+  'app.slack.com':        'Slack',
+  'discord.com':          'Discord',
+  'www.discord.com':      'Discord',
+  'wikipedia.org':        'Wikipedia',
+  'en.wikipedia.org':     'Wikipedia',
+  'amazon.com':           'Amazon',
+  'www.amazon.com':       'Amazon',
+  'netflix.com':          'Netflix',
+  'www.netflix.com':      'Netflix',
+  'spotify.com':          'Spotify',
+  'open.spotify.com':     'Spotify',
+  'vercel.com':           'Vercel',
+  'www.vercel.com':       'Vercel',
+  'npmjs.com':            'npm',
+  'www.npmjs.com':        'npm',
+  'developer.mozilla.org':'MDN',
+  'arxiv.org':            'arXiv',
+  'www.arxiv.org':        'arXiv',
+  'huggingface.co':       'Hugging Face',
+  'www.huggingface.co':   'Hugging Face',
+  'producthunt.com':      'Product Hunt',
+  'www.producthunt.com':  'Product Hunt',
+  'xiaohongshu.com':      'RedNote',
+  'www.xiaohongshu.com':  'RedNote',
+  'local-files':          'Local Files',
+  '__chrome-internal__':  'Chrome System',
+  '__extensions__':       'Extensions',
+  'taobao.com':           'Taobao / Tmall',
+  'jd.com':               'JD',
+  'facebook.com':         'Facebook',
+};
