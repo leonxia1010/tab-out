@@ -145,26 +145,18 @@ describe('normalizeSettings', () => {
   it('preserves valid values', () => {
     installMocks();
     const r = normalizeSettings({ theme: 'dark', clock: { format: '24h' }, layout: 'grid' });
+    const d = defaultSettings();
     expect(r).toEqual({
       theme: 'dark',
       clock: { format: '24h' },
       layout: 'grid',
-      priorityHostnames: [
-        'mail.google.com',
-        'x.com',
-        'www.linkedin.com',
-        'github.com',
-      ],
+      priorityHostnames: d.priorityHostnames,
+      domainAliases: d.domainAliases,
+      friendlyDomains: d.friendlyDomains,
       shortcutPins: [],
       shortcutHides: [],
-      weather: {
-        enabled: true,
-        locationLabel: null,
-        latitude: null,
-        longitude: null,
-        unit: 'C',
-      },
-      countdown: { enabled: true, soundEnabled: true },
+      weather: d.weather,
+      countdown: d.countdown,
     });
   });
 
@@ -378,26 +370,18 @@ describe('getSettings', () => {
 
   it('returns normalized stored settings', async () => {
     installMocks({ [SETTINGS_KEY]: { theme: 'dark', clock: { format: '24h' }, layout: 'grid' } });
+    const d = defaultSettings();
     expect(await getSettings()).toEqual({
       theme: 'dark',
       clock: { format: '24h' },
       layout: 'grid',
-      priorityHostnames: [
-        'mail.google.com',
-        'x.com',
-        'www.linkedin.com',
-        'github.com',
-      ],
+      priorityHostnames: d.priorityHostnames,
+      domainAliases: d.domainAliases,
+      friendlyDomains: d.friendlyDomains,
       shortcutPins: [],
       shortcutHides: [],
-      weather: {
-        enabled: true,
-        locationLabel: null,
-        latitude: null,
-        longitude: null,
-        unit: 'C',
-      },
-      countdown: { enabled: true, soundEnabled: true },
+      weather: d.weather,
+      countdown: d.countdown,
     });
   });
 
@@ -413,26 +397,18 @@ describe('setSettings', () => {
   it('writes the merged shape back to chrome.storage.local', async () => {
     const { store } = installMocks({ [SETTINGS_KEY]: { theme: 'light', clock: { format: '12h' }, layout: 'masonry' } });
     await setSettings({ theme: 'dark' });
+    const d = defaultSettings();
     expect(store.get(SETTINGS_KEY)).toEqual({
       theme: 'dark',
       clock: { format: '12h' },
       layout: 'masonry',
-      priorityHostnames: [
-        'mail.google.com',
-        'x.com',
-        'www.linkedin.com',
-        'github.com',
-      ],
+      priorityHostnames: d.priorityHostnames,
+      domainAliases: d.domainAliases,
+      friendlyDomains: d.friendlyDomains,
       shortcutPins: [],
       shortcutHides: [],
-      weather: {
-        enabled: true,
-        locationLabel: null,
-        latitude: null,
-        longitude: null,
-        unit: 'C',
-      },
-      countdown: { enabled: true, soundEnabled: true },
+      weather: d.weather,
+      countdown: d.countdown,
     });
   });
 
@@ -665,26 +641,18 @@ describe('onSettingsChange', () => {
     }, 'local');
 
     expect(cb).toHaveBeenCalledTimes(1);
+    const d = defaultSettings();
     expect(cb).toHaveBeenCalledWith({
       theme: 'dark',
       clock: { format: '12h' },
       layout: 'grid',
-      priorityHostnames: [
-        'mail.google.com',
-        'x.com',
-        'www.linkedin.com',
-        'github.com',
-      ],
+      priorityHostnames: d.priorityHostnames,
+      domainAliases: d.domainAliases,
+      friendlyDomains: d.friendlyDomains,
       shortcutPins: [],
       shortcutHides: [],
-      weather: {
-        enabled: true,
-        locationLabel: null,
-        latitude: null,
-        longitude: null,
-        unit: 'C',
-      },
-      countdown: { enabled: true, soundEnabled: true },
+      weather: d.weather,
+      countdown: d.countdown,
     });
   });
 

@@ -60,6 +60,30 @@
       <span id="priorityAddFeedback" class="settings-hint" aria-live="polite"></span>
     </section>
 
+    <section class="settings-section" aria-labelledby="domain-groups-heading">
+      <h2 id="domain-groups-heading">Domain groups</h2>
+      <p class="settings-help">
+        Control how Tab Out groups tabs from the same service. Each group
+        has a canonical domain, an optional display name, and alias
+        hostnames that fold into it.
+      </p>
+      <ul class="domain-groups-list" id="domainGroupsList"></ul>
+      <p class="settings-list-empty" id="domainGroupsEmpty" hidden>No domain groups.</p>
+      <div class="settings-field-label">Add alias</div>
+      <div class="settings-inline-row">
+        <input type="text" id="groupAddAlias" class="settings-text-input"
+               placeholder="Alias, e.g., www.notion.so" autocomplete="off">
+        <span class="settings-arrow">→</span>
+        <input type="text" id="groupAddTarget" class="settings-text-input"
+               placeholder="Groups into, e.g., notion.so" autocomplete="off">
+        <button type="button" id="groupAddBtn"
+                class="settings-btn settings-btn-primary" disabled>Add</button>
+      </div>
+      <span id="groupAddFeedback" class="settings-hint" aria-live="polite"></span>
+      <button type="button" id="groupResetBtn"
+              class="settings-btn settings-btn-muted settings-btn-sm">Reset to defaults</button>
+    </section>
+
     <section class="settings-section" aria-labelledby="weather-heading">
       <h2 id="weather-heading">Weather</h2>
       <p class="settings-help">

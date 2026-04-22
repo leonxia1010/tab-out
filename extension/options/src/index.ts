@@ -10,6 +10,10 @@ import {
   type Layout,
   type TemperatureUnit,
 } from '../../shared/dist/settings.js';
+import {
+  DEFAULT_DOMAIN_ALIASES,
+  DEFAULT_FRIENDLY_DOMAINS,
+} from '../../shared/dist/domain-grouping.js';
 import { el } from '../../shared/dist/dom-utils.js';
 import { extractHostname } from '../../shared/dist/url.js';
 
@@ -29,6 +33,8 @@ function cloneSettings(s: ToutSettings): ToutSettings {
     clock: { ...s.clock },
     layout: s.layout,
     priorityHostnames: [...s.priorityHostnames],
+    domainAliases: { ...s.domainAliases },
+    friendlyDomains: { ...s.friendlyDomains },
     shortcutPins: s.shortcutPins.map((p) => ({ ...p })),
     shortcutHides: [...s.shortcutHides],
     weather: { ...s.weather },
@@ -54,11 +60,17 @@ function countdownKey(c: ToutSettings['countdown']): string {
   return `${c.enabled ? '1' : '0'}|${c.soundEnabled ? '1' : '0'}`;
 }
 
+function recordKey(r: Record<string, string>): string {
+  return Object.keys(r).sort().map((k) => k + '\u0000' + r[k]).join('\u0001');
+}
+
 function isDirty(): boolean {
   return draft.theme !== baseline.theme
     || draft.clock.format !== baseline.clock.format
     || draft.layout !== baseline.layout
     || draft.priorityHostnames.join('\u0001') !== baseline.priorityHostnames.join('\u0001')
+    || recordKey(draft.domainAliases) !== recordKey(baseline.domainAliases)
+    || recordKey(draft.friendlyDomains) !== recordKey(baseline.friendlyDomains)
     || pinsKey(draft.shortcutPins) !== pinsKey(baseline.shortcutPins)
     || draft.shortcutHides.join('\u0001') !== baseline.shortcutHides.join('\u0001')
     || weatherKey(draft.weather) !== weatherKey(baseline.weather)
@@ -169,11 +181,282 @@ function renderCountdownSection(): void {
   if (sound) sound.checked = draft.countdown.soundEnabled;
 }
 
+interface DomainGroupRow {
+  key: string;
+  label: string;
+  aliases: string[];
+}
+
+function buildGroupRows(
+  aliases: Record<string, string>,
+  friendly: Record<string, string>,
+): DomainGroupRow[] {
+  const keys = new Set<string>();
+  for (const target of Object.values(aliases)) keys.add(target);
+  return [...keys].sort().map((key) => ({
+    key,
+    label: friendly[key] ?? '',
+    aliases: Object.entries(aliases)
+      .filter(([, t]) => t === key)
+      .map(([h]) => h)
+      .sort(),
+  }));
+}
+
+function showEditPopover(anchorBtn: HTMLElement, groupKey: string): void {
+  const existing = document.querySelector('.domain-group-edit-popover');
+  if (existing) existing.remove();
+
+  const currentLabel = draft.friendlyDomains[groupKey] ?? '';
+  const input = el('input', {
+    type: 'text',
+    value: currentLabel,
+    autocomplete: 'off',
+  }) as HTMLInputElement;
+
+  const cancelBtn = el('button', {
+    type: 'button',
+    className: 'settings-btn settings-btn-muted settings-btn-sm',
+  }, ['Cancel']) as HTMLButtonElement;
+
+  const applyBtn = el('button', {
+    type: 'button',
+    className: 'settings-btn settings-btn-primary settings-btn-sm',
+  }, ['Apply']) as HTMLButtonElement;
+
+  const popover = el('div', {
+    className: 'domain-group-edit-popover',
+    popover: 'auto',
+  }, [
+    el('label', {}, ['Display name', input]),
+    el('div', { className: 'popover-actions' }, [cancelBtn, applyBtn]),
+  ]) as HTMLElement;
+
+  document.body.appendChild(popover);
+  popover.showPopover();
+
+  const rect = anchorBtn.getBoundingClientRect();
+  Object.assign(popover.style, {
+    position: 'fixed',
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+  });
+
+  input.focus();
+  input.select();
+
+  const close = (): void => {
+    try { popover.hidePopover(); } catch { /* already hidden */ }
+    popover.remove();
+  };
+
+  cancelBtn.addEventListener('click', close);
+
+  const apply = (): void => {
+    const v = input.value.trim();
+    if (v) {
+      draft.friendlyDomains = { ...draft.friendlyDomains, [groupKey]: v };
+    } else {
+      const next = { ...draft.friendlyDomains };
+      delete next[groupKey];
+      draft.friendlyDomains = next;
+    }
+    close();
+    renderDomainGroups();
+    renderDirtyState();
+  };
+
+  applyBtn.addEventListener('click', apply);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); apply(); }
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+  });
+}
+
+function renderDomainGroups(): void {
+  const list = document.getElementById('domainGroupsList');
+  const empty = document.getElementById('domainGroupsEmpty');
+  const rows = buildGroupRows(draft.domainAliases, draft.friendlyDomains);
+
+  if (empty) empty.toggleAttribute('hidden', rows.length > 0);
+  if (!list) return;
+
+  list.replaceChildren(
+    ...rows.map((row) => {
+      const chevron = el('span', { className: 'domain-group-chevron' }, ['▸']);
+      const header = el('div', {
+        className: 'domain-group-header',
+        role: 'button',
+        'aria-expanded': 'false',
+      }, [
+        chevron,
+        el('span', { className: 'domain-group-key' }, [row.key]),
+        row.label ? el('span', { className: 'domain-group-label' }, [`"${row.label}"`]) : null,
+        row.aliases.length > 0
+          ? el('span', { className: 'domain-group-badge' }, [`${row.aliases.length}`])
+          : null,
+        (() => {
+          const actions = el('span', { className: 'domain-group-actions' });
+          const editBtn = el('button', { type: 'button' }, ['Edit']) as HTMLButtonElement;
+          editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showEditPopover(editBtn, row.key);
+          });
+          const deleteBtn = el('button', { type: 'button' }, ['Delete']) as HTMLButtonElement;
+          deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const nextFriendly = { ...draft.friendlyDomains };
+            delete nextFriendly[row.key];
+            draft.friendlyDomains = nextFriendly;
+            const nextAliases = { ...draft.domainAliases };
+            for (const [k, v] of Object.entries(nextAliases)) {
+              if (v === row.key) delete nextAliases[k];
+            }
+            draft.domainAliases = nextAliases;
+            renderDomainGroups();
+            renderDirtyState();
+          });
+          actions.append(editBtn, deleteBtn);
+          return actions;
+        })(),
+      ].filter(Boolean) as Node[]);
+
+      const aliasInput = el('input', {
+        type: 'text',
+        className: 'settings-text-input',
+        placeholder: 'e.g., m.example.com',
+        autocomplete: 'off',
+      }) as HTMLInputElement;
+
+      const aliasAddBtn = el('button', {
+        type: 'button',
+        className: 'settings-btn settings-btn-primary settings-btn-sm',
+        disabled: true,
+      }, ['Add']) as HTMLButtonElement;
+
+      const aliasCommit = (): void => {
+        const raw = aliasInput.value.trim().toLowerCase();
+        if (!raw) return;
+        if (raw in draft.domainAliases) return;
+        draft.domainAliases = { ...draft.domainAliases, [raw]: row.key };
+        aliasInput.value = '';
+        aliasAddBtn.disabled = true;
+        renderDomainGroups();
+        renderDirtyState();
+      };
+
+      aliasAddBtn.addEventListener('click', aliasCommit);
+      aliasInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); aliasCommit(); }
+      });
+      aliasInput.addEventListener('input', () => {
+        aliasAddBtn.disabled = aliasInput.value.trim().length === 0;
+      });
+
+      const aliasListEl = el('ul', { className: 'domain-group-alias-list' },
+        row.aliases.map((hostname) => {
+          const removeBtn = el('button', {
+            type: 'button',
+            className: 'settings-list-remove',
+          }, ['Remove']) as HTMLButtonElement;
+          removeBtn.addEventListener('click', () => {
+            const next = { ...draft.domainAliases };
+            delete next[hostname];
+            draft.domainAliases = next;
+            renderDomainGroups();
+            renderDirtyState();
+          });
+          return el('li', { className: 'domain-group-alias-row' }, [
+            el('span', {}, [hostname]),
+            removeBtn,
+          ]);
+        }),
+      );
+
+      const aliasesSection = el('div', { className: 'domain-group-aliases', hidden: true }, [
+        aliasListEl,
+        el('div', { className: 'domain-group-alias-add' }, [aliasInput, aliasAddBtn]),
+      ]);
+
+      header.addEventListener('click', () => {
+        const expanded = header.getAttribute('aria-expanded') === 'true';
+        header.setAttribute('aria-expanded', String(!expanded));
+        (aliasesSection as HTMLElement).hidden = expanded;
+      });
+
+      return el('li', { className: 'domain-group-item' }, [header, aliasesSection]);
+    }),
+  );
+}
+
+function wireDomainGroups(): void {
+  const aliasInput = document.getElementById('groupAddAlias') as HTMLInputElement | null;
+  const targetInput = document.getElementById('groupAddTarget') as HTMLInputElement | null;
+  const addBtn = document.getElementById('groupAddBtn') as HTMLButtonElement | null;
+  const feedback = document.getElementById('groupAddFeedback');
+  const resetBtn = document.getElementById('groupResetBtn') as HTMLButtonElement | null;
+
+  const syncAddBtn = (): void => {
+    if (!addBtn) return;
+    addBtn.disabled = !aliasInput || !targetInput
+      || aliasInput.value.trim().length === 0
+      || targetInput.value.trim().length === 0;
+  };
+
+  const commit = (): void => {
+    if (!aliasInput || !targetInput) return;
+    const alias = aliasInput.value.trim().toLowerCase();
+    const target = targetInput.value.trim().toLowerCase();
+    if (!alias || !target) {
+      if (feedback) feedback.textContent = 'Fill in both fields.';
+      return;
+    }
+    if (alias === target) {
+      if (feedback) feedback.textContent = 'Alias and target must be different.';
+      return;
+    }
+    if (alias in draft.domainAliases) {
+      if (feedback) feedback.textContent = `${alias} is already an alias for ${draft.domainAliases[alias]}.`;
+      return;
+    }
+    draft.domainAliases = { ...draft.domainAliases, [alias]: target };
+    aliasInput.value = '';
+    targetInput.value = '';
+    if (feedback) feedback.textContent = `${alias} → ${target}`;
+    renderDomainGroups();
+    renderDirtyState();
+    syncAddBtn();
+  };
+
+  addBtn?.addEventListener('click', commit);
+  const onEnter = (e: KeyboardEvent): void => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+  };
+  aliasInput?.addEventListener('keydown', onEnter);
+  targetInput?.addEventListener('keydown', onEnter);
+  const onInput = (): void => {
+    if (feedback) feedback.textContent = '';
+    syncAddBtn();
+  };
+  aliasInput?.addEventListener('input', onInput);
+  targetInput?.addEventListener('input', onInput);
+
+  resetBtn?.addEventListener('click', () => {
+    draft.domainAliases = { ...DEFAULT_DOMAIN_ALIASES };
+    draft.friendlyDomains = { ...DEFAULT_FRIENDLY_DOMAINS };
+    renderDomainGroups();
+    renderDirtyState();
+  });
+
+  syncAddBtn();
+}
+
 function renderForm(): void {
   setRadioValue('theme', draft.theme);
   setRadioValue('clockFormat', draft.clock.format);
   setRadioValue('layout', draft.layout);
   renderPriorityList();
+  renderDomainGroups();
   renderPinnedList();
   renderHiddenList();
   renderWeatherSection();
@@ -436,6 +719,7 @@ async function bootstrap(): Promise<void> {
   });
 
   wirePriorityHostnames();
+  wireDomainGroups();
   wireWeather();
   wireCountdown();
 

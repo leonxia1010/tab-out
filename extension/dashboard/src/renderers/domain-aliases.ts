@@ -4,7 +4,7 @@
 // `shared/src/domain-grouping.ts`.
 
 export {
-  DOMAIN_ALIASES,
+  DEFAULT_DOMAIN_ALIASES,
   domainIdFor,
   effectiveDomain,
 } from '../../../shared/dist/domain-grouping.js';

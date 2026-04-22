@@ -16,7 +16,11 @@
 // Only 'grid' writes to the cache.
 
 import { createLock, storage } from './storage.js';
-import { DEFAULT_PRIORITY_HOSTNAMES, effectiveDomain } from './domain-grouping.js';
+import {
+  DEFAULT_DOMAIN_ALIASES,
+  DEFAULT_PRIORITY_HOSTNAMES,
+  effectiveDomain,
+} from './domain-grouping.js';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type ClockFormat = '12h' | '24h';
@@ -46,6 +50,8 @@ export interface ToutSettings {
   clock: { format: ClockFormat };
   layout: Layout;
   priorityHostnames: string[];
+  domainAliases: Record<string, string>;
+  friendlyDomains: Record<string, string>;
   shortcutPins: ShortcutPin[];
   shortcutHides: string[];
   weather: WeatherSettings;
@@ -70,6 +76,8 @@ export function defaultSettings(): ToutSettings {
     clock: { format: inferClockFormat() },
     layout: 'masonry',
     priorityHostnames: [...DEFAULT_PRIORITY_HOSTNAMES],
+    domainAliases: { ...DEFAULT_DOMAIN_ALIASES },
+    friendlyDomains: {},
     shortcutPins: [],
     shortcutHides: [],
     weather: {
@@ -185,6 +193,32 @@ export function normalizePriorityHostnames(v: unknown): string[] {
   return out;
 }
 
+export function normalizeDomainAliases(v: unknown): Record<string, string> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  const result: Record<string, string> = {};
+  for (const [key, val] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof key !== 'string' || typeof val !== 'string') continue;
+    const nk = key.trim().toLowerCase();
+    const nv = val.trim().toLowerCase();
+    if (!nk || !nv || nk === nv) continue;
+    if (!(nk in result)) result[nk] = nv;
+  }
+  return result;
+}
+
+export function normalizeFriendlyDomains(v: unknown): Record<string, string> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  const result: Record<string, string> = {};
+  for (const [key, val] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof key !== 'string' || typeof val !== 'string') continue;
+    const nk = key.trim().toLowerCase();
+    const nv = val.trim();
+    if (!nk || !nv) continue;
+    if (!(nk in result)) result[nk] = nv;
+  }
+  return result;
+}
+
 // Defensive parse: missing or malformed fields fall back to defaults.
 // Mirrors api.ts#isDeferredRow discipline — normalize at the boundary
 // so downstream code can trust the shape.
@@ -201,6 +235,12 @@ export function normalizeSettings(raw: unknown): ToutSettings {
     priorityHostnames: r.priorityHostnames === undefined
       ? d.priorityHostnames
       : normalizePriorityHostnames(r.priorityHostnames),
+    domainAliases: r.domainAliases === undefined
+      ? d.domainAliases
+      : normalizeDomainAliases(r.domainAliases),
+    friendlyDomains: r.friendlyDomains === undefined
+      ? d.friendlyDomains
+      : normalizeFriendlyDomains(r.friendlyDomains),
     shortcutPins: normalizeShortcutPins(r.shortcutPins),
     shortcutHides: normalizeShortcutHides(r.shortcutHides),
     weather: normalizeWeather(r.weather),
@@ -259,6 +299,12 @@ export function setSettings(patch: Partial<ToutSettings>): Promise<ToutSettings>
       priorityHostnames: patch.priorityHostnames
         ? normalizePriorityHostnames(patch.priorityHostnames)
         : current.priorityHostnames,
+      domainAliases: patch.domainAliases
+        ? normalizeDomainAliases(patch.domainAliases)
+        : current.domainAliases,
+      friendlyDomains: patch.friendlyDomains
+        ? normalizeFriendlyDomains(patch.friendlyDomains)
+        : current.friendlyDomains,
       shortcutPins: patch.shortcutPins
         ? normalizeShortcutPins(patch.shortcutPins)
         : current.shortcutPins,

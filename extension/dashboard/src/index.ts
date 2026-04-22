@@ -16,7 +16,7 @@ import { attachTabsListeners } from './refresh.js';
 import { dismissUpdateBanner, getUpdateStatus } from './api.js';
 import { el, svg } from '../../shared/dist/dom-utils.js';
 import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
-import { getPriorityHostnames, setPriorityHostnames } from './state.js';
+import { getDomainAliases, getPriorityHostnames, setDomainAliases, setPriorityHostnames } from './state.js';
 import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
 import { mountClock, type ClockHandle } from './widgets/clock.js';
 import { mountSearch } from './widgets/search.js';
@@ -24,6 +24,7 @@ import { mountShortcuts, type ShortcutsHandle } from './widgets/shortcuts.js';
 import { mountSettingsLink } from './widgets/settings-link.js';
 import { mountWeather, type WeatherHandle } from './widgets/weather.js';
 import { mountCountdown, type CountdownHandle } from './widgets/countdown.js';
+import { setFriendlyDomainsMap } from './utils.js';
 
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
 
@@ -102,6 +103,8 @@ async function bootstrapSettings(): Promise<void> {
   applyTheme(settings.theme);
   applyLayout(settings.layout);
   setPriorityHostnames(new Set(settings.priorityHostnames));
+  setDomainAliases(settings.domainAliases);
+  setFriendlyDomainsMap(settings.friendlyDomains);
 
   let clock: ClockHandle | null = null;
   let themeToggle: ThemeToggleHandle | null = null;
@@ -128,6 +131,8 @@ async function bootstrapSettings(): Promise<void> {
     shortcuts = mountShortcuts(middleSlot, settings);
   }
 
+  let lastFriendlyKey = JSON.stringify(settings.friendlyDomains);
+
   onSettingsChange((next) => {
     applyTheme(next.theme);
     applyLayout(next.layout);
@@ -137,13 +142,16 @@ async function bootstrapSettings(): Promise<void> {
     weather?.applySettings(next.weather);
     countdown?.applySettings(next.countdown);
 
-    // Re-render the open-tabs grid only when the priority list actually
-    // changed. Theme / clock / layout / widget toggles land in the same
-    // callback and must not thrash the grid.
-    const prevKey = Array.from(getPriorityHostnames()).join('\x01');
-    const nextKey = next.priorityHostnames.join('\x01');
-    if (prevKey !== nextKey) {
+    const prevPriority = Array.from(getPriorityHostnames()).join('\x01');
+    const nextPriority = next.priorityHostnames.join('\x01');
+    const prevAliases = JSON.stringify(getDomainAliases());
+    const nextAliases = JSON.stringify(next.domainAliases);
+    const nextFriendly = JSON.stringify(next.friendlyDomains);
+    if (prevPriority !== nextPriority || prevAliases !== nextAliases || lastFriendlyKey !== nextFriendly) {
       setPriorityHostnames(new Set(next.priorityHostnames));
+      setDomainAliases(next.domainAliases);
+      setFriendlyDomainsMap(next.friendlyDomains);
+      lastFriendlyKey = nextFriendly;
       void renderOpenTabsOnly();
     }
   });

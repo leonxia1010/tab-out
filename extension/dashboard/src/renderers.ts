@@ -6,7 +6,7 @@
 //     before any DOM is touched.
 //   - renderers/deferred.ts — saved-for-later active/archive rows + the
 //     coordinator that repaints the column on each deferredTabs change.
-//   - renderers/domain-aliases.ts — DOMAIN_ALIASES lookup table,
+//   - renderers/domain-aliases.ts — DEFAULT_DOMAIN_ALIASES lookup table,
 //     re-exported through domain-cards for one import path.
 //
 // `renderStaticDashboard` / `renderDashboard` live in this file because
@@ -21,7 +21,7 @@ import { renderOpenTabsOnly } from './renderers/domain-cards.js';
 import { renderDeferredColumn } from './renderers/deferred.js';
 
 export {
-  DOMAIN_ALIASES,
+  DEFAULT_DOMAIN_ALIASES,
   buildOverflowChips,
   checkAndShowEmptyState,
   domainIdFor,

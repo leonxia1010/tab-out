@@ -3,7 +3,10 @@
 // getters return ReadonlyArray to block in-place mutation from the outside.
 
 import type { DomainGroup, Tab } from '../../shared/dist/tab-types.js';
-import { DEFAULT_PRIORITY_HOSTNAMES } from '../../shared/dist/domain-grouping.js';
+import {
+  DEFAULT_DOMAIN_ALIASES,
+  DEFAULT_PRIORITY_HOSTNAMES,
+} from '../../shared/dist/domain-grouping.js';
 export type { DomainGroup, Tab };
 
 // --- openTabs: list of currently open browser tabs (populated by fetchOpenTabs) ---
@@ -36,6 +39,15 @@ export function getPriorityHostnames(): ReadonlySet<string> {
 }
 export function setPriorityHostnames(next: ReadonlySet<string>): void {
   priorityHostnames = next;
+}
+
+// --- domainAliases: user's hostname → canonical-key map (v2.9.0) --------
+let domainAliases: Readonly<Record<string, string>> = DEFAULT_DOMAIN_ALIASES;
+export function getDomainAliases(): Readonly<Record<string, string>> {
+  return domainAliases;
+}
+export function setDomainAliases(next: Record<string, string>): void {
+  domainAliases = next;
 }
 
 // --- domainGroups: populated by the dashboard bootstrap; consumed by card actions ---
