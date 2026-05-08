@@ -335,6 +335,51 @@ describe('applyOpenTabsDiff — fallback paths', () => {
   });
 });
 
+// P0-4 — diff.ts was calling groupTabsByDomain(tabs, priorityHostnames)
+// without forwarding the user's domainAliases. renderOpenTabsOnly /
+// refreshOpenTabsCounters DID forward them, so the two paths disagreed
+// on the canonical hostname for any aliased tab. Fast-path tab events
+// would split twitter.com / x.com back into two cards until the next
+// full re-render reconciled them.
+describe('applyOpenTabsDiff — P0-4: forwards user domain aliases', () => {
+  it('collapses an aliased hostname into the canonical card on add', async () => {
+    const renderOpenTabsOnlySpy = vi.fn(async () => {});
+    const { state, renderers, diff } = await loadDiff({
+      renderOpenTabsOnlySpy,
+      animateCardOutSpy: vi.fn(),
+      checkTabOutDupesSpy: vi.fn(),
+    });
+
+    // foo.test → bar.test is intentionally NOT in DEFAULT_DOMAIN_ALIASES.
+    // Without the fix, diff would fall back to defaults and put foo.test
+    // on its own card.
+    state.setDomainAliases({ 'foo.test': 'bar.test' });
+
+    const seed = [makeTab('https://bar.test/a', 0)];
+    state.setOpenTabs(seed);
+    const seedGroups = renderers.groupTabsByDomain(
+      seed,
+      state.getPriorityHostnames(),
+      state.getDomainAliases(),
+    );
+    state.setDomainGroups(seedGroups);
+    const container = document.getElementById('openTabsDomains');
+    container.innerHTML = '';
+    seedGroups.forEach((g, i) =>
+      container.appendChild(renderers.renderDomainCard(g, i)),
+    );
+
+    state.setOpenTabs([
+      ...seed,
+      makeTab('https://foo.test/b', 1),
+    ]);
+    await diff.applyOpenTabsDiff();
+
+    expect(renderOpenTabsOnlySpy).not.toHaveBeenCalled();
+    expect(domainIds()).toEqual(['domain-bar-test']);
+  });
+});
+
 describe('applyOpenTabsDiff — phase 3 side effects', () => {
   it('updates statTabs count and calls checkTabOutDupes on the fast path', async () => {
     const checkTabOutDupesSpy = vi.fn();
