@@ -59,11 +59,24 @@ export async function closeDuplicates(urls: string[]): Promise<void> {
   if (!chromeAvailable() || !urls || urls.length === 0) return;
 
   const allTabs = await chrome.tabs.query({ currentWindow: true });
-  const toClose: number[] = [];
 
+  // Bucket once by url so the loop below is O(U + N) instead of O(U × N).
+  // The old implementation called allTabs.filter() per requested url, which
+  // re-scanned the whole tab list each time — fine at 50 tabs / few dupes,
+  // but visibly slow when the user mashes "Close all duplicates" with
+  // hundreds of tabs.
+  const tabsByUrl = new Map<string, chrome.tabs.Tab[]>();
+  for (const t of allTabs) {
+    if (!t.url) continue;
+    const arr = tabsByUrl.get(t.url);
+    if (arr) arr.push(t);
+    else tabsByUrl.set(t.url, [t]);
+  }
+
+  const toClose: number[] = [];
   for (const url of urls) {
-    const matching = allTabs.filter((t) => t.url === url);
-    if (matching.length <= 1) continue;
+    const matching = tabsByUrl.get(url);
+    if (!matching || matching.length <= 1) continue;
     const keep =
       matching.find((t) => t.pinned) ||
       matching.find((t) => t.active) ||
@@ -119,6 +132,14 @@ export async function organizeTabs(
   const pinnedCount = allTabs.filter((t) => t.pinned).length;
   const tabOutUrls = new Set(tabOutNewtabUrls());
 
+  // Index allTabs by id so the desired-order loop is O(N) instead of
+  // O(N²). The previous implementation called allTabs.find() per desired
+  // tab — fine at 50 tabs, but main-thread-stalling at a few hundred.
+  const tabsById = new Map<number, chrome.tabs.Tab>();
+  for (const t of allTabs) {
+    if (typeof t.id === 'number') tabsById.set(t.id, t);
+  }
+
   // Build the desired tabId sequence from the domain cards, then append
   // Tab Out tabs. Skip pinned tabs everywhere — Chrome rejects moves that
   // would violate the "pinned before unpinned" invariant anyway, so
@@ -129,7 +150,7 @@ export async function organizeTabs(
     for (const tab of group.tabs) {
       if (typeof tab.id !== 'number') continue;
       if (seen.has(tab.id)) continue;
-      const real = allTabs.find((t) => t.id === tab.id);
+      const real = tabsById.get(tab.id);
       if (!real || real.pinned) continue;
       if (real.url && tabOutUrls.has(real.url)) continue; // Tab Out handled below
       seen.add(tab.id);
