@@ -2,6 +2,18 @@
 // page. Per-window scope mirrors the dashboard's v2.5.0 semantics. Popup
 // closes on every action click (window.close()) so no undo affordance is
 // offered; undo stays a dashboard-only flow.
+//
+// Fire-and-forget dispatch (added after the v2.7.x close-all "click
+// twice" bug): renderCounts pre-caches tabs + settings on mount, so
+// dispatchAction is purely synchronous — it computes the work from the
+// cached state and fires chrome.tabs.* IPC messages all in one tick.
+// handleClick calls window.close() immediately after; the IPC messages
+// are already queued in the browser process so they execute even
+// though the popup's V8 context is torn down. Without this, close-all
+// would await chrome.tabs.create({newtab}) before chrome.tabs.remove(),
+// the new tab would steal focus, chrome would auto-close the popup, and
+// the remove() call never ran — first click only created Tab Out, user
+// had to click again to actually close the rest.
 
 import {
   closeAllExceptTabout,
@@ -13,6 +25,8 @@ import {
 } from '../../shared/dist/tab-ops.js';
 import { groupTabsByDomain } from '../../shared/dist/domain-grouping.js';
 import { getSettings } from '../../shared/dist/settings.js';
+
+type Settings = Awaited<ReturnType<typeof getSettings>>;
 
 export type Action = 'close-all' | 'close-dupes' | 'organize';
 
@@ -65,8 +79,16 @@ function renderButton(id: string, label: string, enabled: boolean): void {
   btn.disabled = !enabled;
 }
 
+// Cache populated by renderCounts. dispatchAction reads these synchronously
+// — no chrome.tabs.query / no getSettings / no awaits before the chrome.tabs.*
+// IPC message dispatches. Required for fire-and-forget popup teardown.
+let cachedTabs: ReadonlyArray<chrome.tabs.Tab> = [];
+let cachedSettings: Settings | null = null;
+
 export async function renderCounts(): Promise<void> {
-  const tabs = await queryTabs();
+  const [tabs, settings] = await Promise.all([queryTabs(), getSettings()]);
+  cachedTabs = tabs;
+  cachedSettings = settings;
   const counts: Record<Action, number> = {
     'close-all': countCloseable(tabs),
     'close-dupes': countDuplicates(tabs),
@@ -78,38 +100,45 @@ export async function renderCounts(): Promise<void> {
   }
 }
 
-export async function dispatchAction(action: Action): Promise<void> {
+// Sync — returns once the chrome.tabs.* IPC messages have been queued for
+// the browser process. Does not await the returned promises; the popup
+// will be torn down immediately after handleClick fires window.close()
+// and awaits would never resolve, but the queued IPC commands execute in
+// the browser process regardless.
+export function dispatchAction(action: Action): void {
+  if (cachedTabs.length === 0) return;
   switch (action) {
     case 'close-all':
-      await closeAllExceptTabout();
+      // closeAllExceptTabout fires create + remove in the same tick when
+      // preloadedTabs is supplied. We don't await — popup is closing.
+      void closeAllExceptTabout(cachedTabs);
       return;
     case 'close-dupes': {
-      const tabs = await queryTabs();
       // closeDuplicates is URL-driven. Feed every URL with ≥2 copies (the
       // function itself re-counts and keeps the pinned/active/first tab).
       const urlCounts: Record<string, number> = {};
-      for (const t of tabs) {
+      for (const t of cachedTabs) {
         if (!t.url) continue;
         urlCounts[t.url] = (urlCounts[t.url] ?? 0) + 1;
       }
       const dupeUrls = Object.entries(urlCounts)
         .filter(([, c]) => c > 1)
         .map(([u]) => u);
-      if (dupeUrls.length > 0) await closeDuplicates(dupeUrls);
+      if (dupeUrls.length > 0) void closeDuplicates(dupeUrls, cachedTabs);
       return;
     }
     case 'organize': {
-      const [tabs, settings] = await Promise.all([queryTabs(), getSettings()]);
+      if (!cachedSettings) return;
       // chrome.tabs.Tab is structurally compatible with our shared Tab
       // (Tab's index signature accepts any field). Cast via unknown to
       // satisfy strict mode without loosening Tab.
-      const priority = new Set(settings.priorityHostnames);
+      const priority = new Set(cachedSettings.priorityHostnames);
       const groups = groupTabsByDomain(
-        tabs as unknown as Parameters<typeof groupTabsByDomain>[0],
+        cachedTabs as unknown as Parameters<typeof groupTabsByDomain>[0],
         priority,
-        settings.domainAliases,
+        cachedSettings.domainAliases,
       );
-      await organizeTabs(groups);
+      void organizeTabs(groups, cachedTabs);
       return;
     }
   }
@@ -124,11 +153,11 @@ export function handleClick(e: MouseEvent): void {
   const action = hit.dataset.action as Action | undefined;
   if (!action) return;
   e.preventDefault();
-  // Run the action, then close the popup. Popup context dies synchronously
-  // on window.close(); any in-flight chrome.* calls continue in the
-  // service worker / browser process, so the close + fire-and-forget
-  // pattern is safe here.
-  void dispatchAction(action).finally(() => window.close());
+  // Fire chrome.tabs.* IPC, then immediately close the popup. The IPC
+  // messages were queued synchronously in dispatchAction — they execute
+  // in the browser process even after this V8 context dies.
+  dispatchAction(action);
+  window.close();
 }
 
 export async function init(): Promise<void> {

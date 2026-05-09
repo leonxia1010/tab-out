@@ -35,7 +35,7 @@ import {
   renderOpenTabsOnly,
   signatureForDomainCard,
 } from './renderers.js';
-import { getOpenTabs, getPriorityHostnames, setDomainGroups } from './state.js';
+import { getDomainAliases, getOpenTabs, getPriorityHostnames, setDomainGroups } from './state.js';
 import { getDisplayableTabs } from './utils.js';
 
 function sameSequence(a: string[], b: string[]): boolean {
@@ -60,7 +60,12 @@ function findAnchorAfter(
 
 export async function applyOpenTabsDiff(): Promise<void> {
   const realTabs = getDisplayableTabs(getOpenTabs());
-  const sortedGroups = groupTabsByDomain(realTabs, getPriorityHostnames());
+  // Pass aliases here too — without them this incremental path groups by
+  // raw hostname while renderOpenTabsOnly / refreshOpenTabsCounters group
+  // by aliased hostname. The mismatch caused twitter.com / x.com to split
+  // back into two cards on chrome.tabs.on{Created,Updated,Moved} until the
+  // next full re-render reconciled them.
+  const sortedGroups = groupTabsByDomain(realTabs, getPriorityHostnames(), getDomainAliases());
   setDomainGroups(sortedGroups);
 
   const container = document.getElementById('openTabsDomains');

@@ -55,15 +55,35 @@ export const EXACT_ONLY_SCHEME = /^(file|chrome|chrome-extension):\/\//;
 // pinned duplicate could be closed if the active copy lived elsewhere;
 // that was a pre-existing dashboard gap now fixed uniformly for every
 // caller.
-export async function closeDuplicates(urls: string[]): Promise<void> {
+export async function closeDuplicates(
+  urls: string[],
+  preloadedTabs?: ReadonlyArray<chrome.tabs.Tab>,
+): Promise<void> {
   if (!chromeAvailable() || !urls || urls.length === 0) return;
 
-  const allTabs = await chrome.tabs.query({ currentWindow: true });
-  const toClose: number[] = [];
+  // preloadedTabs lets callers (popup) skip the await chrome.tabs.query
+  // step so the chrome.tabs.remove call below dispatches its IPC message
+  // synchronously from the original handler tick — required for the
+  // popup's fire-and-forget pattern (window.close() the same tick).
+  const allTabs = preloadedTabs ?? (await chrome.tabs.query({ currentWindow: true }));
 
+  // Bucket once by url so the loop below is O(U + N) instead of O(U × N).
+  // The old implementation called allTabs.filter() per requested url, which
+  // re-scanned the whole tab list each time — fine at 50 tabs / few dupes,
+  // but visibly slow when the user mashes "Close all duplicates" with
+  // hundreds of tabs.
+  const tabsByUrl = new Map<string, chrome.tabs.Tab[]>();
+  for (const t of allTabs) {
+    if (!t.url) continue;
+    const arr = tabsByUrl.get(t.url);
+    if (arr) arr.push(t);
+    else tabsByUrl.set(t.url, [t]);
+  }
+
+  const toClose: number[] = [];
   for (const url of urls) {
-    const matching = allTabs.filter((t) => t.url === url);
-    if (matching.length <= 1) continue;
+    const matching = tabsByUrl.get(url);
+    if (!matching || matching.length <= 1) continue;
     const keep =
       matching.find((t) => t.pinned) ||
       matching.find((t) => t.active) ||
@@ -112,12 +132,23 @@ export interface OrganizeResult {
 // (dashboard only — popup discards the snapshot).
 export async function organizeTabs(
   desiredOrder: ReadonlyArray<DomainGroup>,
+  preloadedTabs?: ReadonlyArray<chrome.tabs.Tab>,
 ): Promise<OrganizeResult> {
   if (!chromeAvailable()) return { moves: [], movedCount: 0 };
 
-  const allTabs = await chrome.tabs.query({ currentWindow: true });
+  // preloadedTabs lets the popup skip the query so chrome.tabs.move
+  // dispatches synchronously from the click handler — see closeDuplicates.
+  const allTabs = preloadedTabs ?? (await chrome.tabs.query({ currentWindow: true }));
   const pinnedCount = allTabs.filter((t) => t.pinned).length;
   const tabOutUrls = new Set(tabOutNewtabUrls());
+
+  // Index allTabs by id so the desired-order loop is O(N) instead of
+  // O(N²). The previous implementation called allTabs.find() per desired
+  // tab — fine at 50 tabs, but main-thread-stalling at a few hundred.
+  const tabsById = new Map<number, chrome.tabs.Tab>();
+  for (const t of allTabs) {
+    if (typeof t.id === 'number') tabsById.set(t.id, t);
+  }
 
   // Build the desired tabId sequence from the domain cards, then append
   // Tab Out tabs. Skip pinned tabs everywhere — Chrome rejects moves that
@@ -129,7 +160,7 @@ export async function organizeTabs(
     for (const tab of group.tabs) {
       if (typeof tab.id !== 'number') continue;
       if (seen.has(tab.id)) continue;
-      const real = allTabs.find((t) => t.id === tab.id);
+      const real = tabsById.get(tab.id);
       if (!real || real.pinned) continue;
       if (real.url && tabOutUrls.has(real.url)) continue; // Tab Out handled below
       seen.add(tab.id);
@@ -180,22 +211,29 @@ export async function undoOrganizeTabs(
 // Out. Guarantees the user keeps a dashboard entry point: if no Tab Out tab
 // exists beforehand, a fresh one is opened first. Powers the toolbar
 // popup's "Close all N tabs (keep Tab Out)" action.
-export async function closeAllExceptTabout(): Promise<{
+export async function closeAllExceptTabout(
+  preloadedTabs?: ReadonlyArray<chrome.tabs.Tab>,
+): Promise<{
   closed: number;
   createdTabOut: boolean;
 }> {
   if (!chromeAvailable()) return { closed: 0, createdTabOut: false };
 
-  const allTabs = await chrome.tabs.query({ currentWindow: true });
+  const allTabs = preloadedTabs ?? (await chrome.tabs.query({ currentWindow: true }));
   const newtabUrls = new Set(tabOutNewtabUrls());
   const tabOutTabs = allTabs.filter((t) => !!t.url && newtabUrls.has(t.url));
   let createdTabOut = false;
 
+  // Fire create + remove in the same synchronous task. The previous
+  // implementation `await`ed create before remove, which broke the popup
+  // path: creating chrome://newtab/ steals focus from the active tab,
+  // chrome auto-closes the popup before the remove() call ever runs, so
+  // the user had to click twice ("first opens Tab Out, second actually
+  // closes the rest"). Same-tick IPC ordering is mojom-guaranteed —
+  // create still hits the browser process before remove.
+  let createPromise: Promise<unknown> | null = null;
   if (tabOutTabs.length === 0) {
-    // chrome://newtab/ hits the extension's newtab override and lands on the
-    // dashboard. If Chrome's newtab override isn't present (unlikely here),
-    // the URL still opens something sensible.
-    await swallow(chrome.tabs.create({ url: 'chrome://newtab/' }), 'chrome.tabs.create');
+    createPromise = swallow(chrome.tabs.create({ url: 'chrome://newtab/' }), 'chrome.tabs.create');
     createdTabOut = true;
   }
 
@@ -208,9 +246,18 @@ export async function closeAllExceptTabout(): Promise<{
     )
     .map((t) => t.id as number);
 
+  let removePromise: Promise<unknown> | null = null;
   if (idsToClose.length > 0) {
-    await swallow(chrome.tabs.remove(idsToClose), 'chrome.tabs.remove');
+    removePromise = swallow(chrome.tabs.remove(idsToClose), 'chrome.tabs.remove');
   }
+
+  // Awaits run in parallel and matter only to non-popup callers (tests,
+  // future programmatic uses) that need to know when the operations
+  // finish. Popup callers fire-and-forget — both IPC messages were
+  // queued synchronously above, so window.close() in the same tick
+  // doesn't drop them.
+  if (createPromise) await createPromise;
+  if (removePromise) await removePromise;
 
   return { closed: idsToClose.length, createdTabOut };
 }

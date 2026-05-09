@@ -346,11 +346,11 @@ async function handleCloseAllOpenTabs(): Promise<void> {
   await closeTabsByUrls(allUrls, /* exact */ true);
   playCloseSound();
 
+  // animateCardOut already shoots confetti from each card's center
+  // (animations.ts). Calling shootConfetti here too produced 2x particles
+  // per card — same non-idempotent footgun called out for the chip path
+  // in fadeChipAndCleanupCards above.
   document.querySelectorAll<HTMLElement>('#openTabsDomains .domain-card').forEach(c => {
-    shootConfetti(
-      c.getBoundingClientRect().left + c.offsetWidth / 2,
-      c.getBoundingClientRect().top + c.offsetHeight / 2,
-    );
     animateCardOut(c);
   });
 
