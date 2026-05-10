@@ -55,7 +55,10 @@ html[data-theme="dark"] {
 
 body {
   margin: 0;
-  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-family: 'Inter', 'InterVariable', system-ui, sans-serif;
+  /* Mirror dashboard/style.css — Inter stylistic alternates from the
+     v2 design bundle (ss01 / cv11 / cv05). */
+  font-feature-settings: 'ss01', 'cv11', 'cv05';
   background: var(--paper);
   color: var(--ink);
   padding: 48px 24px;
@@ -316,7 +319,7 @@ body {
 }
 
 .settings-btn {
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 500;
   padding: 8px 16px;

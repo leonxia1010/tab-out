@@ -80,9 +80,9 @@ describe('defaultSettings', () => {
     expect(defaultSettings().layout).toBe('masonry');
   });
 
-  it('defaults aurora to on (v2.10+)', () => {
+  it('defaults aurora to medium (v2.10+)', () => {
     installMocks();
-    expect(defaultSettings().aurora).toBe('on');
+    expect(defaultSettings().aurora).toBe('medium');
   });
 
   it('defaults weather to enabled with no location (v2.6.0)', () => {
@@ -157,7 +157,7 @@ describe('normalizeSettings', () => {
       theme: 'dark',
       clock: { format: '24h' },
       layout: 'grid',
-      aurora: 'on',
+      aurora: 'medium',
       priorityHostnames: d.priorityHostnames,
       domainAliases: d.domainAliases,
       friendlyDomains: d.friendlyDomains,
@@ -182,21 +182,25 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings({ layout: 42 }).layout).toBe('masonry');
   });
 
-  it('defaults aurora to on when key missing', () => {
+  it('defaults aurora to medium when key missing', () => {
     installMocks();
-    expect(normalizeSettings({}).aurora).toBe('on');
+    expect(normalizeSettings({}).aurora).toBe('medium');
   });
 
-  it('rejects invalid aurora values and falls back to on', () => {
+  it('rejects invalid aurora values and falls back to medium', () => {
     installMocks();
-    expect(normalizeSettings({ aurora: 'subtle' }).aurora).toBe('on');
-    expect(normalizeSettings({ aurora: 0 }).aurora).toBe('on');
-    expect(normalizeSettings({ aurora: null }).aurora).toBe('on');
+    expect(normalizeSettings({ aurora: 'on' }).aurora).toBe('medium');     // pre-v2.10 value, no longer valid
+    expect(normalizeSettings({ aurora: 'subtle' }).aurora).toBe('medium');
+    expect(normalizeSettings({ aurora: 0 }).aurora).toBe('medium');
+    expect(normalizeSettings({ aurora: null }).aurora).toBe('medium');
   });
 
-  it('preserves a valid aurora=off value', () => {
+  it('preserves all four valid aurora intensity values', () => {
     installMocks();
     expect(normalizeSettings({ aurora: 'off' }).aurora).toBe('off');
+    expect(normalizeSettings({ aurora: 'low' }).aurora).toBe('low');
+    expect(normalizeSettings({ aurora: 'medium' }).aurora).toBe('medium');
+    expect(normalizeSettings({ aurora: 'high' }).aurora).toBe('high');
   });
 
   // ── shortcut fields (v2.3.0) ────────────────────────────────────────────────
@@ -400,7 +404,7 @@ describe('getSettings', () => {
       theme: 'dark',
       clock: { format: '24h' },
       layout: 'grid',
-      aurora: 'on',
+      aurora: 'medium',
       priorityHostnames: d.priorityHostnames,
       domainAliases: d.domainAliases,
       friendlyDomains: d.friendlyDomains,
@@ -428,7 +432,7 @@ describe('setSettings', () => {
       theme: 'dark',
       clock: { format: '12h' },
       layout: 'masonry',
-      aurora: 'on',
+      aurora: 'medium',
       priorityHostnames: d.priorityHostnames,
       domainAliases: d.domainAliases,
       friendlyDomains: d.friendlyDomains,
@@ -527,16 +531,22 @@ describe('setSettings', () => {
     expect(local.has(LAYOUT_CACHE_KEY)).toBe(false);
   });
 
-  it('persists aurora and writes the aurora cache on off', async () => {
+  it('persists aurora and writes the aurora cache on off/low/high', async () => {
     const { store, local } = installMocks({});
     await setSettings({ aurora: 'off' });
     expect(store.get(SETTINGS_KEY).aurora).toBe('off');
     expect(local.get(AURORA_CACHE_KEY)).toBe('off');
+
+    await setSettings({ aurora: 'low' });
+    expect(local.get(AURORA_CACHE_KEY)).toBe('low');
+
+    await setSettings({ aurora: 'high' });
+    expect(local.get(AURORA_CACHE_KEY)).toBe('high');
   });
 
-  it('clears aurora cache when setting aurora back to on', async () => {
-    const { local } = installMocks({}, { [AURORA_CACHE_KEY]: 'off' });
-    await setSettings({ aurora: 'on' });
+  it('clears aurora cache when setting aurora back to medium', async () => {
+    const { local } = installMocks({}, { [AURORA_CACHE_KEY]: 'high' });
+    await setSettings({ aurora: 'medium' });
     expect(local.has(AURORA_CACHE_KEY)).toBe(false);
   });
 
@@ -665,15 +675,19 @@ describe('syncLayoutCache', () => {
 });
 
 describe('syncAuroraCache', () => {
-  it('writes "off" to localStorage', () => {
+  it('writes "off" / "low" / "high" to localStorage', () => {
     const { local } = installMocks();
     syncAuroraCache('off');
     expect(local.get(AURORA_CACHE_KEY)).toBe('off');
+    syncAuroraCache('low');
+    expect(local.get(AURORA_CACHE_KEY)).toBe('low');
+    syncAuroraCache('high');
+    expect(local.get(AURORA_CACHE_KEY)).toBe('high');
   });
 
-  it('removes the key on "on" so default body::before paints', () => {
-    const { local } = installMocks({}, { [AURORA_CACHE_KEY]: 'off' });
-    syncAuroraCache('on');
+  it('removes the key on "medium" so default body::before paints at multiplier=1', () => {
+    const { local } = installMocks({}, { [AURORA_CACHE_KEY]: 'high' });
+    syncAuroraCache('medium');
     expect(local.has(AURORA_CACHE_KEY)).toBe(false);
   });
 
@@ -683,8 +697,10 @@ describe('syncAuroraCache', () => {
       setItem: () => { throw new Error('blocked'); },
       removeItem: () => { throw new Error('blocked'); },
     });
-    expect(() => syncAuroraCache('on')).not.toThrow();
+    expect(() => syncAuroraCache('medium')).not.toThrow();
     expect(() => syncAuroraCache('off')).not.toThrow();
+    expect(() => syncAuroraCache('low')).not.toThrow();
+    expect(() => syncAuroraCache('high')).not.toThrow();
   });
 });
 
@@ -710,7 +726,7 @@ describe('onSettingsChange', () => {
       theme: 'dark',
       clock: { format: '12h' },
       layout: 'grid',
-      aurora: 'on',
+      aurora: 'medium',
       priorityHostnames: d.priorityHostnames,
       domainAliases: d.domainAliases,
       friendlyDomains: d.friendlyDomains,

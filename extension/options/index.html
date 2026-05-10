@@ -7,7 +7,7 @@
   <script src="../shared/theme-bootstrap.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -29,13 +29,15 @@
     <section class="settings-section" aria-labelledby="backdrop-heading">
       <h2 id="backdrop-heading">Backdrop</h2>
       <p class="settings-help">
-        Soft ambient gradients on the dashboard background. Turn off
-        for a flat surface.
+        Soft ambient gradients on the dashboard background. Pick an
+        intensity, or turn off for a flat surface.
       </p>
       <fieldset class="settings-field">
-        <legend>Aurora</legend>
-        <label><input type="radio" name="aurora" value="on"> On (default)</label>
+        <legend>Aurora intensity</legend>
         <label><input type="radio" name="aurora" value="off"> Off</label>
+        <label><input type="radio" name="aurora" value="low"> Low</label>
+        <label><input type="radio" name="aurora" value="medium"> Medium (default)</label>
+        <label><input type="radio" name="aurora" value="high"> High</label>
       </fieldset>
     </section>
 

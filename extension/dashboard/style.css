@@ -30,13 +30,30 @@
   --shadow-card-2: 0 1px 0 rgba(15, 17, 21, 0.04),
                    0 4px 14px rgba(15, 17, 21, 0.06),
                    0 2px 4px rgba(15, 17, 21, 0.04);
+
+  /* Aurora ambient backdrop tokens. Light-mode base alphas; dark-mode
+     overrides live in the [data-theme="dark"] / @media blocks below.
+     --aurora-multiplier scales all three layers in lock-step so a single
+     attribute (data-aurora=low|high) controls intensity. medium=1.0 is
+     the default; low (0.7) and high (1.5) are user-selectable in
+     Settings → Backdrop. data-aurora=off bypasses this whole calc with
+     a display:none override. */
+  --aurora-blue: 0.10;
+  --aurora-violet: 0.09;
+  --aurora-mint: 0.08;
+  --aurora-multiplier: 1;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont,
+  font-family: 'Inter', 'InterVariable', -apple-system, BlinkMacSystemFont,
                'SF Pro Text', system-ui, sans-serif;
+  /* Inter stylistic alternates from the design bundle:
+     ss01 — single-storey lowercase a; cv05 — l with tail (capital I
+     disambiguation); cv11 — single-storey g. Matches colors_and_type.css
+     in the v2 design system. */
+  font-feature-settings: 'ss01', 'cv11', 'cv05';
   background: var(--paper);
   color: var(--ink);
   min-height: 100vh;
@@ -46,11 +63,15 @@ body {
 }
 
 /* Aurora ambient backdrop — three soft radial gradients (blue / violet /
-   mint) layered onto the cool paper #f5f5f7. position: fixed (instead of
-   absolute) keeps the gradients pinned to the viewport so scrolling
-   doesn't reveal a hard boundary at the bottom of the page. The
-   .container above it already sets position:relative + z-index:1, so it
-   floats over this layer cleanly. */
+   mint) layered onto the cool paper. position: fixed keeps the gradients
+   pinned to the viewport so scrolling doesn't reveal a hard boundary at
+   the page bottom. The .container above sets position:relative +
+   z-index:1, so it floats over this layer cleanly.
+
+   Alpha values are products of two CSS vars: --aurora-blue/violet/mint
+   (theme-dependent base) × --aurora-multiplier (intensity 0/0.7/1/1.5).
+   Single rule replaces the three duplicated body::before blocks the
+   previous design carried for light + explicit-dark + system-dark. */
 body::before {
   content: '';
   position: fixed;
@@ -58,10 +79,21 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(60% 50% at 12% 8%,  rgba(107, 139, 255, 0.10) 0%, transparent 60%),
-    radial-gradient(55% 45% at 88% 18%, rgba(179, 136, 255, 0.09) 0%, transparent 65%),
-    radial-gradient(70% 55% at 50% 95%, rgba( 95, 208, 194, 0.08) 0%, transparent 65%);
+    radial-gradient(60% 50% at 12% 8%,
+      rgba(107, 139, 255, calc(var(--aurora-blue)   * var(--aurora-multiplier))) 0%,
+      transparent 60%),
+    radial-gradient(55% 45% at 88% 18%,
+      rgba(179, 136, 255, calc(var(--aurora-violet) * var(--aurora-multiplier))) 0%,
+      transparent 65%),
+    radial-gradient(70% 55% at 50% 95%,
+      rgba( 95, 208, 194, calc(var(--aurora-mint)   * var(--aurora-multiplier))) 0%,
+      transparent 65%);
 }
+
+/* Intensity overrides — only multiplier changes; colour ramps are
+   untouched so dark mode + low/high stays coherent. */
+html[data-aurora="low"]  { --aurora-multiplier: 0.7; }
+html[data-aurora="high"] { --aurora-multiplier: 1.5; }
 
 .container {
   position: relative;
@@ -155,7 +187,7 @@ header {
 }
 
 .tab-cleanup-btn {
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   font-weight: 500;
   padding: 7px 14px;
@@ -537,7 +569,7 @@ html[data-layout="grid"] .domains > * {
 
 .action-btn {
   font-size: 11px;
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-weight: 500;
   white-space: nowrap;
   height: 26px;
@@ -620,7 +652,7 @@ html[data-layout="grid"] .domains > * {
   transform: translateX(-50%) translateY(80px);
   background: var(--ink);
   color: var(--paper);
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 500;
   padding: 12px 24px;
@@ -657,7 +689,7 @@ html[data-layout="grid"] .domains > * {
   background: transparent;
   border: none;
   color: var(--paper);
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 500;
   padding: 2px 6px;
@@ -715,13 +747,8 @@ footer {
   margin-top: 4px;
 }
 
-.last-refresh {
-  font-size: 11px;
-  color: var(--muted);
-}
-
 .refresh-btn {
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 11px;
   font-weight: 500;
   color: var(--accent-amber);
@@ -939,7 +966,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 /* "Update now" button — Direction A primary: ink-on-paper, no green */
 .update-banner-btn {
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   font-weight: 500;
   color: #fff;
@@ -1189,7 +1216,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .archive-toggle {
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
@@ -1228,7 +1255,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 /* Inline Clear all button — sits in the header next to the toggle. Only
  * shown when renderDeferredColumn detects archived.length > 0. */
 .archive-clear-all {
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);
@@ -1269,7 +1296,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .archive-search {
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   width: 100%;
   padding: 8px 12px;
@@ -1346,7 +1373,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .search-widget-input {
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 400;
   flex: 1;
@@ -1520,7 +1547,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   inset: auto;
 }
 
@@ -1780,7 +1807,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   /* Clear UA default inset so our top/left win. */
   inset: auto;
 }
@@ -1866,7 +1893,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: transparent;
   cursor: pointer;
   color: var(--muted);
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 400;
   line-height: 1;
@@ -1936,7 +1963,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   inset: auto;
 }
 
@@ -1984,7 +2011,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   border-radius: 10px;
   color: var(--ink);
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
   line-height: 1;
   transition: border-color 0.2s, background 0.2s;
@@ -2067,7 +2094,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'Inter Tight', sans-serif;
+  font-family: 'Inter', sans-serif;
   inset: auto;
 }
 
@@ -2198,14 +2225,12 @@ html[data-theme="dark"] {
   --status-active: #36b07c;
   --status-cooling: #d4a558;
   --status-abandoned: #e15c5e;
-}
 
-/* dark 模式下让光晕更幽深一点，不刺眼 */
-html[data-theme="dark"] body::before {
-  background:
-    radial-gradient(60% 50% at 12% 8%,  rgba(107, 139, 255, 0.08) 0%, transparent 60%),
-    radial-gradient(55% 45% at 88% 18%, rgba(179, 136, 255, 0.07) 0%, transparent 65%),
-    radial-gradient(70% 55% at 50% 95%, rgba( 95, 208, 194, 0.06) 0%, transparent 65%);
+  /* Dark aurora — quieter so the gradient reads as ambient mood lighting,
+     not foreground noise. Multiplier still flows through (low/high). */
+  --aurora-blue: 0.08;
+  --aurora-violet: 0.07;
+  --aurora-mint: 0.06;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -2229,12 +2254,13 @@ html[data-theme="dark"] body::before {
     --status-active: #36b07c;
     --status-cooling: #d4a558;
     --status-abandoned: #e15c5e;
-  }
-  html:not([data-theme="light"]) body::before {
-    background:
-      radial-gradient(60% 50% at 12% 8%,  rgba(107, 139, 255, 0.08) 0%, transparent 60%),
-      radial-gradient(55% 45% at 88% 18%, rgba(179, 136, 255, 0.07) 0%, transparent 65%),
-      radial-gradient(70% 55% at 50% 95%, rgba( 95, 208, 194, 0.06) 0%, transparent 65%);
+
+    /* Dark aurora overrides — see [data-theme="dark"] block above for
+       rationale. Mirror values here so prefers-color-scheme: dark works
+       without an explicit theme toggle. */
+    --aurora-blue: 0.08;
+    --aurora-violet: 0.07;
+    --aurora-mint: 0.06;
   }
 }
 

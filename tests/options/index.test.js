@@ -47,8 +47,10 @@ const OPTIONS_HTML = `
     </section>
     <section>
       <fieldset class="settings-field">
-        <label><input type="radio" name="aurora" value="on"> On</label>
         <label><input type="radio" name="aurora" value="off"> Off</label>
+        <label><input type="radio" name="aurora" value="low"> Low</label>
+        <label><input type="radio" name="aurora" value="medium"> Medium</label>
+        <label><input type="radio" name="aurora" value="high"> High</label>
       </fieldset>
     </section>
     <section>
@@ -240,12 +242,13 @@ describe('options page — dirty transitions', () => {
     expect(document.getElementById('saveBtn').disabled).toBe(false);
   });
 
-  it('aurora toggle marks dirty + enables Save', async () => {
+  it('aurora intensity change marks dirty + enables Save', async () => {
     await boot(defaultInitial());
 
-    const off = document.querySelector('input[name="aurora"][value="off"]');
-    off.checked = true;
-    off.dispatchEvent(new Event('change', { bubbles: true }));
+    // Default is medium; switching to low should mark dirty.
+    const low = document.querySelector('input[name="aurora"][value="low"]');
+    low.checked = true;
+    low.dispatchEvent(new Event('change', { bubbles: true }));
 
     expect(document.getElementById('saveBtn').disabled).toBe(false);
     expect(document.getElementById('dirtyDot').hidden).toBe(false);

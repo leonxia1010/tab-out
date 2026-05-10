@@ -10,12 +10,12 @@
        shared/src/settings.ts#syncThemeCache for the write side. -->
   <script src="../shared/theme-bootstrap.js"></script>
 
-  <!-- Google Fonts (Direction A redesign):
-       Inter Tight (body sans, weights 300/400/500/600) +
+  <!-- Google Fonts (Direction A redesign, aligned with design bundle):
+       Inter (body sans, weights 300/400/500/600) +
        Instrument Serif (display serif, regular + italic). -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="style.css">
 </head>
@@ -131,7 +131,8 @@
   </div><!-- end .dashboard-columns -->
 
   <!-- ================================================================
-       FOOTER — global stats + refresh control
+       FOOTER — global stats only. Original author credit lives in the
+       LICENSE file; the dashboard chrome stays minimal.
        ================================================================ -->
   <footer>
     <div class="footer-stats">
@@ -139,9 +140,6 @@
         <div class="stat-num" id="statTabs">—</div>
         <div class="stat-label">Open tabs</div>
       </div>
-    </div>
-    <div class="last-refresh">
-      <span style="color: var(--muted); font-size: 11px;"><a href="https://github.com/zarazhangrui/tab-out" target="_top" style="color: var(--muted); text-decoration: underline; text-underline-offset: 2px;">Tab Out</a> by <a href="https://x.com/zarazhangrui" target="_top" style="color: var(--muted); text-decoration: underline; text-underline-offset: 2px;">Zara</a></span>
     </div>
   </footer>
 

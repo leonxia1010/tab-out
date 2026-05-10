@@ -490,7 +490,7 @@ function isLayout(v: string): v is Layout {
 }
 
 function isAurora(v: string): v is AuroraMode {
-  return v === 'on' || v === 'off';
+  return v === 'off' || v === 'low' || v === 'medium' || v === 'high';
 }
 
 function isTemperatureUnit(v: string): v is TemperatureUnit {

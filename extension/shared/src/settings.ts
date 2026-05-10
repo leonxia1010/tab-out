@@ -26,7 +26,7 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 export type ClockFormat = '12h' | '24h';
 export type Layout = 'masonry' | 'grid';
 export type TemperatureUnit = 'C' | 'F';
-export type AuroraMode = 'on' | 'off';
+export type AuroraMode = 'off' | 'low' | 'medium' | 'high';
 
 export interface ShortcutPin {
   url: string;
@@ -78,7 +78,7 @@ export function defaultSettings(): ToutSettings {
     theme: 'system',
     clock: { format: inferClockFormat() },
     layout: 'masonry',
-    aurora: 'on',
+    aurora: 'medium',
     priorityHostnames: [...DEFAULT_PRIORITY_HOSTNAMES],
     domainAliases: { ...DEFAULT_DOMAIN_ALIASES },
     friendlyDomains: {},
@@ -116,7 +116,7 @@ function isLayout(v: unknown): v is Layout {
 }
 
 function isAurora(v: unknown): v is AuroraMode {
-  return v === 'on' || v === 'off';
+  return v === 'off' || v === 'low' || v === 'medium' || v === 'high';
 }
 
 function isTemperatureUnit(v: unknown): v is TemperatureUnit {
@@ -366,19 +366,20 @@ export function syncLayoutCache(layout: Layout): void {
   }
 }
 
-// Mirror of settings.aurora. 'on' is the default — clear the key so the
-// base body::before rule paints the gradient. Only 'off' writes; the
-// bootstrap script sets data-aurora="off" pre-paint and the stylesheet
-// hides body::before via the html[data-aurora="off"] selector.
+// Mirror of settings.aurora. 'medium' is the default — clear the key so
+// the base body::before rule paints at full multiplier. Other modes
+// (off/low/high) write the value; theme-bootstrap.js sets
+// data-aurora="..." pre-paint and the stylesheet adjusts via either
+// `display: none` (off) or a `--aurora-multiplier` override (low/high).
 export function syncAuroraCache(aurora: AuroraMode): void {
   try {
-    if (aurora === 'on') {
+    if (aurora === 'medium') {
       localStorage.removeItem(AURORA_CACHE_KEY);
     } else {
       localStorage.setItem(AURORA_CACHE_KEY, aurora);
     }
   } catch {
-    // Silent degrade — stylesheet default (aurora visible) applies.
+    // Silent degrade — stylesheet default (medium aurora) applies.
   }
 }
 
