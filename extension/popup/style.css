@@ -6,43 +6,48 @@
  */
 
 :root {
-  --paper:        #f8f5f0;
-  --card-bg:      #fffdf9;
-  --ink:          #1a1613;
-  --muted:        #9a918a;
-  --warm-gray:    #e8e2da;
-  --accent-amber: #c8713a;
-  --border:       rgba(26, 22, 19, 0.08);
-  --shadow:       rgba(26, 22, 19, 0.06);
-  --row-hover:    rgba(26, 22, 19, 0.05);
-  --row-active:   rgba(26, 22, 19, 0.09);
+  /* Direction A redesign — quiet near-monochrome cool palette to match
+     dashboard + options. Popup intentionally stays on system-ui so it
+     boots without the Google Fonts round-trip and stays snappy. */
+  --paper:        #f5f5f7;
+  --card-bg:      #ffffff;
+  --ink:          #0e0e10;
+  --muted:        #5f656e;
+  --warm-gray:    #ececee;
+  --accent-amber: #0e0e10;
+  --border:       rgba(15, 17, 21, 0.08);
+  --shadow:       rgba(15, 17, 21, 0.06);
+  --row-hover:    rgba(15, 17, 21, 0.05);
+  --row-active:   rgba(15, 17, 21, 0.09);
 }
 
 html[data-theme="dark"] {
-  --paper:        #1a1714;
-  --card-bg:      #241f1a;
-  --ink:          #ebe8e3;
-  --muted:        #8a847d;
-  --warm-gray:    #3a342e;
-  --accent-amber: #d98a50;
-  --border:       rgba(235, 232, 227, 0.10);
-  --shadow:       rgba(0, 0, 0, 0.3);
-  --row-hover:    rgba(235, 232, 227, 0.06);
-  --row-active:   rgba(235, 232, 227, 0.10);
+  /* Aligned with dashboard's mockup-v2 dark refresh: surface #15171a,
+     hairline 7% alpha, muted #6a7280. */
+  --paper:        #0a0b0d;
+  --card-bg:      #15171a;
+  --ink:          #f3f5f8;
+  --muted:        #6a7280;
+  --warm-gray:    rgba(255, 255, 255, 0.07);
+  --accent-amber: #f3f5f8;
+  --border:       rgba(255, 255, 255, 0.07);
+  --shadow:       rgba(0, 0, 0, 0.5);
+  --row-hover:    rgba(255, 255, 255, 0.06);
+  --row-active:   rgba(255, 255, 255, 0.10);
 }
 
 @media (prefers-color-scheme: dark) {
   html:not([data-theme]) {
-    --paper:        #1a1714;
-    --card-bg:      #241f1a;
-    --ink:          #ebe8e3;
-    --muted:        #8a847d;
-    --warm-gray:    #3a342e;
-    --accent-amber: #d98a50;
-    --border:       rgba(235, 232, 227, 0.10);
-    --shadow:       rgba(0, 0, 0, 0.3);
-    --row-hover:    rgba(235, 232, 227, 0.06);
-    --row-active:   rgba(235, 232, 227, 0.10);
+    --paper:        #0a0b0d;
+    --card-bg:      #15171a;
+    --ink:          #f3f5f8;
+    --muted:        #6a7280;
+    --warm-gray:    rgba(255, 255, 255, 0.07);
+    --accent-amber: #f3f5f8;
+    --border:       rgba(255, 255, 255, 0.07);
+    --shadow:       rgba(0, 0, 0, 0.5);
+    --row-hover:    rgba(255, 255, 255, 0.06);
+    --row-active:   rgba(255, 255, 255, 0.10);
   }
 }
 
