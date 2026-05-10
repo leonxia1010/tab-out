@@ -196,7 +196,12 @@ header {
 }
 
 .tab-cleanup-btn:hover {
-  background: #25272b;
+  /* Inverse on hover — swap ink/paper so the affordance flips: dark
+     filled CTA → light card with dark text. inset 1px ink outline keeps
+     the button visible in dark mode where paper ≈ page bg. */
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
   transform: translateY(-1px);
 }
 
@@ -598,7 +603,10 @@ html[data-layout="grid"] .domains > * {
 }
 
 .action-btn.primary:hover {
-  background: #25272b;
+  /* Same inverse-on-hover treatment as .tab-cleanup-btn. */
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 /* close-tabs reads as a destructive pair of the row — default ink, hover
@@ -976,7 +984,10 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .update-banner-btn:hover {
-  background: #25272b; /* slightly lifted ink */
+  /* Inverse on hover — see .tab-cleanup-btn for rationale. */
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 .update-banner-btn:disabled {
