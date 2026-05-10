@@ -7,42 +7,45 @@
 
 :root {
   color-scheme: light;
-  --paper: #f8f5f0;
-  --card-bg: #fffdf9;
-  --ink: #1a1613;
-  --muted: #9a918a;
-  --warm-gray: #e8e2da;
-  --accent-amber: #c8713a;
-  --accent-sage: #5a7a62;
-  --border: rgba(26, 22, 19, 0.08);
-  --shadow: rgba(26, 22, 19, 0.06);
+  /* Direction A redesign — quiet near-monochrome cool palette. amber
+     token retained for backwards compat with existing selectors but
+     collapses to ink so primary CTAs read as ink-on-paper. */
+  --paper: #f5f5f7;
+  --card-bg: #ffffff;
+  --ink: #0e0e10;
+  --muted: #5f656e;
+  --warm-gray: #ececee;
+  --accent-amber: #0e0e10;        /* primary CTA = ink */
+  --accent-sage: #1f8a5b;         /* status: positive */
+  --border: rgba(15, 17, 21, 0.08);
+  --shadow: rgba(15, 17, 21, 0.06);
 }
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --paper: #1a1714;
-  --card-bg: #241f1a;
-  --ink: #ebe8e3;
-  --muted: #8a847d;
-  --warm-gray: #3a342e;
-  --accent-amber: #d98a50;
-  --accent-sage: #7fa388;
-  --border: rgba(235, 232, 227, 0.10);
-  --shadow: rgba(0, 0, 0, 0.3);
+  --paper: #0a0b0d;
+  --card-bg: #131418;
+  --ink: #f3f5f8;
+  --muted: #9098a3;
+  --warm-gray: rgba(255, 255, 255, 0.10);
+  --accent-amber: #f3f5f8;
+  --accent-sage: #36b07c;
+  --border: rgba(255, 255, 255, 0.10);
+  --shadow: rgba(0, 0, 0, 0.5);
 }
 
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) {
     color-scheme: dark;
-    --paper: #1a1714;
-    --card-bg: #241f1a;
-    --ink: #ebe8e3;
-    --muted: #8a847d;
-    --warm-gray: #3a342e;
-    --accent-amber: #d98a50;
-    --accent-sage: #7fa388;
-    --border: rgba(235, 232, 227, 0.10);
-    --shadow: rgba(0, 0, 0, 0.3);
+    --paper: #0a0b0d;
+    --card-bg: #131418;
+    --ink: #f3f5f8;
+    --muted: #9098a3;
+    --warm-gray: rgba(255, 255, 255, 0.10);
+    --accent-amber: #f3f5f8;
+    --accent-sage: #36b07c;
+    --border: rgba(255, 255, 255, 0.10);
+    --shadow: rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -50,7 +53,7 @@ html[data-theme="dark"] {
 
 body {
   margin: 0;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Inter Tight', system-ui, sans-serif;
   background: var(--paper);
   color: var(--ink);
   padding: 48px 24px;
@@ -67,7 +70,7 @@ body {
 }
 
 .settings-header h1 {
-  font-family: 'Newsreader', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 400;
   font-size: 32px;
   margin: 0;
@@ -103,7 +106,7 @@ body {
 }
 
 .settings-section h2 {
-  font-family: 'Newsreader', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 400;
   font-size: 20px;
   margin: 0 0 16px;
@@ -311,7 +314,7 @@ body {
 }
 
 .settings-btn {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 13px;
   font-weight: 500;
   padding: 8px 16px;

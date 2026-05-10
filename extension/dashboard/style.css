@@ -6,39 +6,50 @@
 
 :root {
   color-scheme: light;
-  --ink: #1a1613;
-  --paper: #f8f5f0;
-  --warm-gray: #e8e2da;
-  --muted: #9a918a;
-  --accent-amber: #c8713a;
-  --accent-sage: #5a7a62;
-  --accent-slate: #5a6b7a;
-  --accent-rose: #b35a5a;
-  --status-active: #3d7a4a;
-  --status-cooling: #b8892e;
-  --status-abandoned: #b35a5a;
-  --card-bg: #fffdf9;
-  --shadow: rgba(26, 22, 19, 0.06);
+  /* Direction A (Dia) — quiet near-monochrome, no warm paper, no amber CTA.
+     amber/sage/rose token names kept for backwards compat with every selector
+     that already uses them (chip-save:hover, action-btn.close-tabs, etc.).
+     Their values collapse to ink for primary surfaces and stay coloured only
+     where the semantic is genuinely status (success / warning / danger). */
+  --ink: #0e0e10;
+  --paper: #f5f5f7;
+  --warm-gray: #ececee;
+  --muted: #5f656e;
+  --accent-amber: #0e0e10;        /* Primary CTA = ink (no amber under direction A) */
+  --accent-sage: #1f8a5b;         /* Status: positive */
+  --accent-slate: #5f656e;
+  --accent-rose: #c1373a;         /* Status: danger */
+  --status-active: #1f8a5b;
+  --status-cooling: #b97509;
+  --status-abandoned: #c1373a;
+  --card-bg: #ffffff;
+  --shadow: rgba(15, 17, 21, 0.06);
+  /* Apple-style multi-layer card shadow (Direction B card surface). */
+  --shadow-card-1: 0 1px 0 rgba(15, 17, 21, 0.04),
+                   0 1px 2px rgba(15, 17, 21, 0.05);
+  --shadow-card-2: 0 1px 0 rgba(15, 17, 21, 0.04),
+                   0 4px 14px rgba(15, 17, 21, 0.06),
+                   0 2px 4px rgba(15, 17, 21, 0.04);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont,
+               'SF Pro Text', system-ui, sans-serif;
   background: var(--paper);
   color: var(--ink);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.005em;
 }
 
-/* Subtle paper texture */
+/* Direction A removes the warm-paper noise texture. Keep the rule shape so
+   any historical callers selecting body::before don't crash, but render
+   nothing — the cool flat #f5f5f7 page reads as the surface. */
 body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 0;
+  content: none;
 }
 
 .container {
@@ -66,7 +77,7 @@ header {
 }
 
 .header-left h1 {
-  font-family: 'Newsreader', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 300;
   font-size: 28px;
   letter-spacing: -0.5px;
@@ -84,27 +95,29 @@ header {
 
 /* ---- Tab cleanup banner ---- */
 .tab-cleanup-banner {
-  background: linear-gradient(135deg, rgba(200, 113, 58, 0.04), rgba(200, 113, 58, 0.09));
-  border: 1px solid rgba(200, 113, 58, 0.18);
-  border-radius: 8px;
-  padding: 16px 24px;
+  /* Direction A banner recipe: card surface + hairline + ink content. */
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 12px;
+  padding: 14px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  box-shadow: var(--shadow-card-1);
 }
 
 .tab-cleanup-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
 .tab-cleanup-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: rgba(200, 113, 58, 0.1);
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(15, 17, 21, 0.05);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -112,9 +125,9 @@ header {
 }
 
 .tab-cleanup-icon svg {
-  width: 18px;
-  height: 18px;
-  color: var(--accent-amber);
+  width: 16px;
+  height: 16px;
+  color: var(--ink);
 }
 
 .tab-cleanup-text {
@@ -128,41 +141,45 @@ header {
 }
 
 .tab-cleanup-btn {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 12px;
-  font-weight: 600;
-  padding: 8px 20px;
-  border-radius: 6px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 7px;
   border: none;
-  background: var(--accent-amber);
-  color: white;
+  background: var(--ink);
+  color: #fff;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, transform 0.2s;
   white-space: nowrap;
 }
 
 .tab-cleanup-btn:hover {
-  opacity: 0.85;
+  background: #25272b;
   transform: translateY(-1px);
 }
 
 /* ---- Nudge banner ---- */
 .nudge-banner {
-  background: linear-gradient(135deg, rgba(179, 90, 90, 0.04), rgba(179, 90, 90, 0.08));
-  border: 1px solid rgba(179, 90, 90, 0.15);
-  border-radius: 8px;
-  padding: 16px 24px;
+  /* Direction A banner recipe — neutral surface, danger only as the icon
+     accent so the user still spots the "rest your tabs" attention cue
+     without the full red-tinted strip the warm palette used. */
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 12px;
+  padding: 14px 18px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   margin-bottom: 40px;
+  box-shadow: var(--shadow-card-1);
 }
 
 .nudge-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: rgba(179, 90, 90, 0.1);
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(193, 55, 58, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -170,9 +187,9 @@ header {
 }
 
 .nudge-icon svg {
-  width: 18px;
-  height: 18px;
-  color: var(--status-abandoned);
+  width: 16px;
+  height: 16px;
+  color: var(--accent-rose);
 }
 
 .nudge-text {
@@ -195,7 +212,7 @@ header {
 }
 
 .section-header h2 {
-  font-family: 'Newsreader', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 400;
   font-size: 18px;
   font-style: italic;
@@ -263,7 +280,13 @@ html[data-layout="grid"] .domains > * {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  /* Direction B card surface: pure white card lifted off the cool gray
+     paper with a default multi-layer shadow. Hover deepens it. The
+     default shadow is what gives the white-on-gray contrast its
+     "floating" feel — without it the card just looks flat. */
+  box-shadow: var(--shadow-card-1);
+  transition: box-shadow 0.25s cubic-bezier(0.32, 0.72, 0, 1),
+              transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   cursor: pointer;
   position: relative;
   overflow: hidden;
@@ -285,7 +308,7 @@ html[data-layout="grid"] .domains > * {
 .domain-card.has-neutral-bar::before { background: var(--warm-gray); }
 
 .domain-card:hover {
-  box-shadow: 0 4px 20px var(--shadow);
+  box-shadow: var(--shadow-card-2);
   transform: translateY(-1px);
 }
 
@@ -338,7 +361,7 @@ html[data-layout="grid"] .domains > * {
   font-size: 10px;
   font-weight: 500;
   color: var(--accent-amber);
-  background: rgba(200, 113, 58, 0.08);
+  background: rgba(15, 17, 21, 0.08);
   padding: 2px 8px;
   border-radius: 3px;
 }
@@ -362,7 +385,7 @@ html[data-layout="grid"] .domains > * {
   padding: 8px 4px;
   border-radius: 0;
   border: none;
-  border-bottom: 1px solid rgba(154, 145, 138, 0.1);
+  border-bottom: 1px solid rgba(15, 17, 21, 0.1);
   position: relative;
   display: flex;
   /* flex-start so when the title wraps to two lines the favicon stays
@@ -411,7 +434,7 @@ html[data-layout="grid"] .domains > * {
 
 /* Duplicate border highlight */
 .chip-has-dupes {
-  border-color: rgba(200, 113, 58, 0.25);
+  border-color: rgba(15, 17, 21, 0.25);
 }
 
 /* Action buttons grouped on the right */
@@ -446,17 +469,17 @@ html[data-layout="grid"] .domains > * {
 
 .chip-action:hover {
   opacity: 1;
-  background: rgba(154, 145, 138, 0.1);
+  background: rgba(15, 17, 21, 0.1);
 }
 
 .chip-save:hover {
   color: var(--accent-sage);
-  background: rgba(90, 122, 98, 0.08);
+  background: rgba(31, 138, 91, 0.08);
 }
 
 .chip-close:hover {
   color: var(--status-abandoned);
-  background: rgba(179, 90, 90, 0.08);
+  background: rgba(193, 55, 58, 0.08);
 }
 
 .page-chip.clickable {
@@ -465,7 +488,7 @@ html[data-layout="grid"] .domains > * {
 }
 
 .page-chip.clickable:hover {
-  background: rgba(200, 113, 58, 0.04);
+  background: rgba(15, 17, 21, 0.04);
 }
 
 /* "+N more" overflow chip */
@@ -479,7 +502,7 @@ html[data-layout="grid"] .domains > * {
 
 .domain-page-count {
   font-size: 20px;
-  font-family: 'Newsreader', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 300;
   color: var(--ink);
   line-height: 1;
@@ -501,24 +524,26 @@ html[data-layout="grid"] .domains > * {
 
 .action-btn {
   font-size: 11px;
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-weight: 500;
   white-space: nowrap;
-  padding: 5px 14px;
-  border-radius: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 7px;
+  /* mockup .mini token: hairline border + card bg, ink text. Hover bumps
+     to a subtle ink-tint background instead of changing border color. */
   border: 1px solid var(--warm-gray);
   background: var(--card-bg);
-  color: var(--muted);
+  color: var(--ink);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
   display: inline-flex;
   align-items: center;
   gap: 5px;
 }
 
 .action-btn:hover {
-  border-color: var(--ink);
-  color: var(--ink);
+  background: rgba(15, 17, 21, 0.04);
 }
 
 .action-btn svg {
@@ -528,34 +553,41 @@ html[data-layout="grid"] .domains > * {
 
 .action-btn.primary {
   background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
+  color: #fff;
+  border-color: transparent;
 }
 
 .action-btn.primary:hover {
-  opacity: 0.85;
+  background: #25272b;
 }
 
+/* close-tabs reads as a destructive pair of the row — default ink, hover
+   reveals the danger semantic so the user notices red only when about to
+   commit. Same recipe mockup uses for `.mini.danger`. */
 .action-btn.close-tabs {
-  border-color: rgba(200, 113, 58, 0.3);
-  color: var(--accent-amber);
-  background: rgba(200, 113, 58, 0.04);
+  border-color: var(--warm-gray);
+  color: var(--ink);
+  background: var(--card-bg);
 }
 
 .action-btn.close-tabs:hover {
-  background: rgba(200, 113, 58, 0.1);
-  border-color: var(--accent-amber);
+  background: rgba(193, 55, 58, 0.06);
+  border-color: rgba(193, 55, 58, 0.22);
+  color: var(--accent-rose);
 }
 
+/* save-tabs mirrors close-tabs but in the positive direction — quiet by
+   default, sage tint when committing. */
 .action-btn.save-tabs {
-  border-color: rgba(90, 122, 98, 0.3);
-  color: var(--accent-sage);
-  background: rgba(90, 122, 98, 0.04);
+  border-color: var(--warm-gray);
+  color: var(--ink);
+  background: var(--card-bg);
 }
 
 .action-btn.save-tabs:hover {
-  background: rgba(90, 122, 98, 0.1);
-  border-color: var(--accent-sage);
+  background: rgba(31, 138, 91, 0.06);
+  border-color: rgba(31, 138, 91, 0.22);
+  color: var(--accent-sage);
 }
 
 .action-btn.danger {
@@ -575,7 +607,7 @@ html[data-layout="grid"] .domains > * {
   transform: translateX(-50%) translateY(80px);
   background: var(--ink);
   color: var(--paper);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 13px;
   font-weight: 500;
   padding: 12px 24px;
@@ -605,11 +637,14 @@ html[data-layout="grid"] .domains > * {
    Inline with the text so a single toast row carries both the message
    and the reversal affordance. Pointer-events re-enabled because the
    toast container sets pointer-events: none. */
+/* Toast surface is ink-on-paper — Direction A's --accent-amber collapses
+   to ink so this button would be black on black. Use paper directly so
+   the undo affordance reads against the dark toast bg. */
 .toast-action {
   background: transparent;
   border: none;
-  color: var(--accent-amber);
-  font-family: 'DM Sans', sans-serif;
+  color: var(--paper);
+  font-family: 'Inter Tight', sans-serif;
   font-size: 13px;
   font-weight: 500;
   padding: 2px 6px;
@@ -618,7 +653,7 @@ html[data-layout="grid"] .domains > * {
   pointer-events: auto;
   border-radius: 4px;
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: 3px;
 }
 
 .toast-action:hover {
@@ -627,7 +662,7 @@ html[data-layout="grid"] .domains > * {
 }
 
 .toast-action:focus-visible {
-  outline: 2px solid var(--accent-amber);
+  outline: 2px solid var(--paper);
   outline-offset: 2px;
 }
 
@@ -651,7 +686,7 @@ footer {
 }
 
 .stat-num {
-  font-family: 'Newsreader', serif;
+  font-family: 'Instrument Serif', serif;
   font-size: 28px;
   font-weight: 300;
   color: var(--ink);
@@ -673,7 +708,7 @@ footer {
 }
 
 .refresh-btn {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 11px;
   font-weight: 500;
   color: var(--accent-amber);
@@ -771,12 +806,12 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: rgba(90, 122, 98, 0.1);
-  border: 1.5px solid rgba(90, 122, 98, 0.3);
+  background: rgba(31, 138, 91, 0.1);
+  border: 1.5px solid rgba(31, 138, 91, 0.3);
 
   /* Soft sage glow */
-  box-shadow: 0 0 0 8px rgba(90, 122, 98, 0.05),
-              0 0 0 16px rgba(90, 122, 98, 0.03);
+  box-shadow: 0 0 0 8px rgba(31, 138, 91, 0.05),
+              0 0 0 16px rgba(31, 138, 91, 0.03);
 
   display: flex;
   align-items: center;
@@ -799,7 +834,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .empty-title {
-  font-family: 'Newsreader', serif;
+  font-family: 'Instrument Serif', serif;
   font-size: 20px;
   font-weight: 400;
   font-style: italic;
@@ -833,10 +868,13 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   justify-content: space-between;
   gap: 12px;
 
-  background: linear-gradient(135deg, rgba(90, 122, 98, 0.05), rgba(90, 122, 98, 0.10));
-  border: 1px solid rgba(90, 122, 98, 0.22);
-  border-radius: 6px;
-  padding: 8px 14px;
+  /* Direction A treats update info as quiet, not "celebratory" — drop the
+     sage gradient for a neutral surface that reads as a hairline-bordered
+     announcement strip, matching the mockup's `.banner` recipe. */
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 12px;
+  padding: 10px 14px;
 
   /* Offset container's 48px top padding so the strip hugs the viewport
    * edge; push header down so the layout below shifts only a little. */
@@ -860,11 +898,14 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .update-banner-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--accent-sage);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(15, 17, 21, 0.04);
+  color: var(--ink);
   flex-shrink: 0;
-  opacity: 0.85;
 }
 
 .update-banner-text {
@@ -883,24 +924,24 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   flex-shrink: 0;
 }
 
-/* "Update now" button — small, filled, sage green */
+/* "Update now" button — Direction A primary: ink-on-paper, no green */
 .update-banner-btn {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 12px;
   font-weight: 500;
   color: #fff;
-  background: var(--accent-sage);
+  background: var(--ink);
   border: none;
-  border-radius: 5px;
+  border-radius: 7px;
   padding: 5px 12px;
   cursor: pointer;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
   transition: background 0.2s, opacity 0.2s;
   white-space: nowrap;
 }
 
 .update-banner-btn:hover {
-  background: #4a6952; /* slightly darker sage */
+  background: #25272b; /* slightly lifted ink */
 }
 
 .update-banner-btn:disabled {
@@ -926,7 +967,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .update-banner-dismiss:hover {
-  background: rgba(26, 22, 19, 0.06);
+  background: rgba(15, 17, 21, 0.06);
   color: var(--ink);
 }
 
@@ -996,7 +1037,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   align-items: flex-start;
   gap: 10px;
   padding: 10px 0;
-  border-bottom: 1px solid rgba(154, 145, 138, 0.12);
+  border-bottom: 1px solid rgba(15, 17, 21, 0.12);
   min-width: 0;
 }
 
@@ -1135,7 +1176,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .archive-toggle {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
@@ -1174,7 +1215,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 /* Inline Clear all button — sits in the header next to the toggle. Only
  * shown when renderDeferredColumn detects archived.length > 0. */
 .archive-clear-all {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);
@@ -1188,8 +1229,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .archive-clear-all:hover {
-  color: var(--accent-rose, #b35a5a);
-  border-color: var(--accent-rose, #b35a5a);
+  color: var(--accent-rose, #c1373a);
+  border-color: var(--accent-rose, #c1373a);
 }
 
 /* Smooth fold/expand using grid-template-rows 0fr → 1fr trick. Chrome 117+
@@ -1215,7 +1256,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .archive-search {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 12px;
   width: 100%;
   padding: 8px 12px;
@@ -1292,7 +1333,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .search-widget-input {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 14px;
   font-weight: 400;
   flex: 1;
@@ -1466,7 +1507,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   inset: auto;
 }
 
@@ -1507,7 +1548,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   flex-direction: column;
   gap: 2px;
   padding: 6px 0;
-  border-bottom: 1px solid rgba(154, 145, 138, 0.08);
+  border-bottom: 1px solid rgba(15, 17, 21, 0.08);
   min-width: 0;
 }
 
@@ -1636,7 +1677,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   align-items: center;
   gap: 12px;
   /* Lift the cluster to match h1's visible glyph top. The h1 is
-     Newsreader serif with its own ascent padding, and pulling h1 up
+     Instrument Serif with its own ascent padding, and pulling h1 up
      via negative margin would break out of the container top padding
      (since the container uses padding for top breathing room).
      Keeping the offset on the right cluster is the contained fix. */
@@ -1649,7 +1690,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   align-items: center;
   height: 36px;
   line-height: 1;
-  font-family: 'Newsreader', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 300;
   font-size: 22px;
   color: var(--ink);
@@ -1726,7 +1767,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   /* Clear UA default inset so our top/left win. */
   inset: auto;
 }
@@ -1812,7 +1853,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: transparent;
   cursor: pointer;
   color: var(--muted);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 14px;
   font-weight: 400;
   line-height: 1;
@@ -1882,7 +1923,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   inset: auto;
 }
 
@@ -1897,7 +1938,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .weather-popover-temp {
-  font-family: 'Newsreader', serif;
+  font-family: 'Instrument Serif', serif;
   font-weight: 300;
   font-size: 28px;
   margin-bottom: 10px;
@@ -1930,7 +1971,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   border-radius: 10px;
   color: var(--ink);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 14px;
   line-height: 1;
   transition: border-color 0.2s, background 0.2s;
@@ -1991,12 +2032,16 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   color: var(--ink);
 }
 
+/* Direction A collapses --accent-amber to ink for primary CTAs, but the
+   countdown's "running" state genuinely needs a warm attention cue —
+   --status-cooling carries the warning palette and survives the amber
+   collapse. */
 .countdown-widget.countdown-running {
-  border-color: var(--accent-amber, var(--muted));
+  border-color: var(--status-cooling);
 }
 
 .countdown-widget.countdown-running .countdown-time-btn {
-  color: var(--accent-amber, var(--ink));
+  color: var(--status-cooling);
 }
 
 .countdown-popover {
@@ -2009,7 +2054,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   inset: auto;
 }
 
@@ -2118,36 +2163,44 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
    ============================================================ */
 html[data-theme="dark"] {
   color-scheme: dark;
-  --ink: #ebe8e3;
-  --paper: #1a1714;
-  --warm-gray: #3a332c;
-  --muted: #8a847d;
-  --card-bg: #241f1a;
-  --shadow: rgba(0, 0, 0, 0.4);
-  --accent-amber: #d4895f;
-  --accent-sage: #7a9584;
-  --accent-slate: #7a8d9e;
-  --accent-rose: #c47c7c;
-  --status-active: #6a9a6e;
+  --ink: #f3f5f8;
+  --paper: #0a0b0d;
+  --warm-gray: rgba(255, 255, 255, 0.10);
+  --muted: #9098a3;
+  --card-bg: #131418;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --shadow-card-1: 0 1px 0 rgba(0, 0, 0, 0.4),
+                   0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-card-2: 0 1px 0 rgba(0, 0, 0, 0.4),
+                   0 6px 18px rgba(0, 0, 0, 0.6);
+  --accent-amber: #f3f5f8;
+  --accent-sage: #36b07c;
+  --accent-slate: #9098a3;
+  --accent-rose: #e15c5e;
+  --status-active: #36b07c;
   --status-cooling: #d4a558;
-  --status-abandoned: #c47c7c;
+  --status-abandoned: #e15c5e;
 }
 
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) {
     color-scheme: dark;
-    --ink: #ebe8e3;
-    --paper: #1a1714;
-    --warm-gray: #3a332c;
-    --muted: #8a847d;
-    --card-bg: #241f1a;
-    --shadow: rgba(0, 0, 0, 0.4);
-    --accent-amber: #d4895f;
-    --accent-sage: #7a9584;
-    --accent-slate: #7a8d9e;
-    --accent-rose: #c47c7c;
-    --status-active: #6a9a6e;
+    --ink: #f3f5f8;
+    --paper: #0a0b0d;
+    --warm-gray: rgba(255, 255, 255, 0.10);
+    --muted: #9098a3;
+    --card-bg: #131418;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --shadow-card-1: 0 1px 0 rgba(0, 0, 0, 0.4),
+                     0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-card-2: 0 1px 0 rgba(0, 0, 0, 0.4),
+                     0 6px 18px rgba(0, 0, 0, 0.6);
+    --accent-amber: #f3f5f8;
+    --accent-sage: #36b07c;
+    --accent-slate: #9098a3;
+    --accent-rose: #e15c5e;
+    --status-active: #36b07c;
     --status-cooling: #d4a558;
-    --status-abandoned: #c47c7c;
+    --status-abandoned: #e15c5e;
   }
 }
