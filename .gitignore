@@ -13,3 +13,4 @@ extension/options/dist/
 extension/popup/dist/
 extension/shared/dist/
 *.tsbuildinfo
+preview-*.html
