@@ -15,9 +15,11 @@ import {
   onSettingsChange,
   syncThemeCache,
   syncLayoutCache,
+  syncAuroraCache,
   SETTINGS_KEY,
   THEME_CACHE_KEY,
   LAYOUT_CACHE_KEY,
+  AURORA_CACHE_KEY,
 } from '../../extension/shared/src/settings.ts';
 
 function installMocks(initialStorage = {}, initialLocal = {}) {
@@ -76,6 +78,11 @@ describe('defaultSettings', () => {
   it('defaults layout to masonry (v2.3.0)', () => {
     installMocks();
     expect(defaultSettings().layout).toBe('masonry');
+  });
+
+  it('defaults aurora to medium (v2.10+)', () => {
+    installMocks();
+    expect(defaultSettings().aurora).toBe('medium');
   });
 
   it('defaults weather to enabled with no location (v2.6.0)', () => {
@@ -150,6 +157,7 @@ describe('normalizeSettings', () => {
       theme: 'dark',
       clock: { format: '24h' },
       layout: 'grid',
+      aurora: 'medium',
       priorityHostnames: d.priorityHostnames,
       domainAliases: d.domainAliases,
       friendlyDomains: d.friendlyDomains,
@@ -172,6 +180,27 @@ describe('normalizeSettings', () => {
     installMocks();
     expect(normalizeSettings({ layout: 'staircase' }).layout).toBe('masonry');
     expect(normalizeSettings({ layout: 42 }).layout).toBe('masonry');
+  });
+
+  it('defaults aurora to medium when key missing', () => {
+    installMocks();
+    expect(normalizeSettings({}).aurora).toBe('medium');
+  });
+
+  it('rejects invalid aurora values and falls back to medium', () => {
+    installMocks();
+    expect(normalizeSettings({ aurora: 'on' }).aurora).toBe('medium');     // pre-v2.10 value, no longer valid
+    expect(normalizeSettings({ aurora: 'subtle' }).aurora).toBe('medium');
+    expect(normalizeSettings({ aurora: 0 }).aurora).toBe('medium');
+    expect(normalizeSettings({ aurora: null }).aurora).toBe('medium');
+  });
+
+  it('preserves all four valid aurora intensity values', () => {
+    installMocks();
+    expect(normalizeSettings({ aurora: 'off' }).aurora).toBe('off');
+    expect(normalizeSettings({ aurora: 'low' }).aurora).toBe('low');
+    expect(normalizeSettings({ aurora: 'medium' }).aurora).toBe('medium');
+    expect(normalizeSettings({ aurora: 'high' }).aurora).toBe('high');
   });
 
   // ── shortcut fields (v2.3.0) ────────────────────────────────────────────────
@@ -375,6 +404,7 @@ describe('getSettings', () => {
       theme: 'dark',
       clock: { format: '24h' },
       layout: 'grid',
+      aurora: 'medium',
       priorityHostnames: d.priorityHostnames,
       domainAliases: d.domainAliases,
       friendlyDomains: d.friendlyDomains,
@@ -402,6 +432,7 @@ describe('setSettings', () => {
       theme: 'dark',
       clock: { format: '12h' },
       layout: 'masonry',
+      aurora: 'medium',
       priorityHostnames: d.priorityHostnames,
       domainAliases: d.domainAliases,
       friendlyDomains: d.friendlyDomains,
@@ -498,6 +529,25 @@ describe('setSettings', () => {
     const { local } = installMocks({}, { [LAYOUT_CACHE_KEY]: 'grid' });
     await setSettings({ layout: 'masonry' });
     expect(local.has(LAYOUT_CACHE_KEY)).toBe(false);
+  });
+
+  it('persists aurora and writes the aurora cache on off/low/high', async () => {
+    const { store, local } = installMocks({});
+    await setSettings({ aurora: 'off' });
+    expect(store.get(SETTINGS_KEY).aurora).toBe('off');
+    expect(local.get(AURORA_CACHE_KEY)).toBe('off');
+
+    await setSettings({ aurora: 'low' });
+    expect(local.get(AURORA_CACHE_KEY)).toBe('low');
+
+    await setSettings({ aurora: 'high' });
+    expect(local.get(AURORA_CACHE_KEY)).toBe('high');
+  });
+
+  it('clears aurora cache when setting aurora back to medium', async () => {
+    const { local } = installMocks({}, { [AURORA_CACHE_KEY]: 'high' });
+    await setSettings({ aurora: 'medium' });
+    expect(local.has(AURORA_CACHE_KEY)).toBe(false);
   });
 
   // Without withLock, two concurrent setSettings calls both read the same
@@ -624,6 +674,36 @@ describe('syncLayoutCache', () => {
   });
 });
 
+describe('syncAuroraCache', () => {
+  it('writes "off" / "low" / "high" to localStorage', () => {
+    const { local } = installMocks();
+    syncAuroraCache('off');
+    expect(local.get(AURORA_CACHE_KEY)).toBe('off');
+    syncAuroraCache('low');
+    expect(local.get(AURORA_CACHE_KEY)).toBe('low');
+    syncAuroraCache('high');
+    expect(local.get(AURORA_CACHE_KEY)).toBe('high');
+  });
+
+  it('removes the key on "medium" so default body::before paints at multiplier=1', () => {
+    const { local } = installMocks({}, { [AURORA_CACHE_KEY]: 'high' });
+    syncAuroraCache('medium');
+    expect(local.has(AURORA_CACHE_KEY)).toBe(false);
+  });
+
+  it('swallows localStorage failures silently', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => { throw new Error('blocked'); },
+      setItem: () => { throw new Error('blocked'); },
+      removeItem: () => { throw new Error('blocked'); },
+    });
+    expect(() => syncAuroraCache('medium')).not.toThrow();
+    expect(() => syncAuroraCache('off')).not.toThrow();
+    expect(() => syncAuroraCache('low')).not.toThrow();
+    expect(() => syncAuroraCache('high')).not.toThrow();
+  });
+});
+
 // onSettingsChange is the dashboard ↔ options cross-page sync hook —
 // storage.onChanged fires when one page writes via setSettings and the
 // other page's listener receives the normalized shape. Production path
@@ -646,6 +726,7 @@ describe('onSettingsChange', () => {
       theme: 'dark',
       clock: { format: '12h' },
       layout: 'grid',
+      aurora: 'medium',
       priorityHostnames: d.priorityHostnames,
       domainAliases: d.domainAliases,
       friendlyDomains: d.friendlyDomains,
@@ -686,17 +767,23 @@ describe('onSettingsChange', () => {
     expect(cb).not.toHaveBeenCalled();
   });
 
-  it('mirrors theme + layout to localStorage so bootstrap scripts stay synced', () => {
+  it('mirrors theme + layout + aurora to localStorage so bootstrap scripts stay synced', () => {
     const { fireChange, local } = installMocks();
     onSettingsChange(() => {});
 
     fireChange({
       [SETTINGS_KEY]: {
-        newValue: { theme: 'dark', clock: { format: '24h' }, layout: 'grid' },
+        newValue: {
+          theme: 'dark',
+          clock: { format: '24h' },
+          layout: 'grid',
+          aurora: 'off',
+        },
       },
     }, 'local');
 
     expect(local.get(THEME_CACHE_KEY)).toBe('dark');
     expect(local.get(LAYOUT_CACHE_KEY)).toBe('grid');
+    expect(local.get(AURORA_CACHE_KEY)).toBe('off');
   });
 });

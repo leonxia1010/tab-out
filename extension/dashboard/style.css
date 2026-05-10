@@ -30,6 +30,28 @@
   --shadow-card-2: 0 1px 0 rgba(15, 17, 21, 0.04),
                    0 4px 14px rgba(15, 17, 21, 0.06),
                    0 2px 4px rgba(15, 17, 21, 0.04);
+
+  /* Aurora ambient backdrop tokens. Light-mode base alphas; dark-mode
+     overrides live in the [data-theme="dark"] / @media blocks below.
+     --aurora-multiplier scales all three layers in lock-step so a single
+     attribute (data-aurora=low|high) controls intensity. medium=1.0 is
+     the default; low (0.7) and high (1.5) are user-selectable in
+     Settings → Backdrop. data-aurora=off bypasses this whole calc with
+     a display:none override. */
+  --aurora-blue: 0.10;
+  --aurora-violet: 0.09;
+  --aurora-mint: 0.08;
+  --aurora-multiplier: 1;
+
+  /* Primary-CTA tokens — independent of the ink/paper inversion so the
+     filled CTA reads correctly on both themes.
+     light: dark fill (matches PR-base look) → slightly lifted hover.
+     dark : the same lifted-grey fill as light's hover → inverted hover
+            (white pill with dark text), per design feedback. */
+  --cta-bg: #0e0e10;
+  --cta-color: #fff;
+  --cta-bg-hover: #25272b;
+  --cta-color-hover: #fff;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -46,11 +68,15 @@ body {
 }
 
 /* Aurora ambient backdrop — three soft radial gradients (blue / violet /
-   mint) layered onto the cool paper #f5f5f7. position: fixed (instead of
-   absolute) keeps the gradients pinned to the viewport so scrolling
-   doesn't reveal a hard boundary at the bottom of the page. The
-   .container above it already sets position:relative + z-index:1, so it
-   floats over this layer cleanly. */
+   mint) layered onto the cool paper. position: fixed keeps the gradients
+   pinned to the viewport so scrolling doesn't reveal a hard boundary at
+   the page bottom. The .container above sets position:relative +
+   z-index:1, so it floats over this layer cleanly.
+
+   Alpha values are products of two CSS vars: --aurora-blue/violet/mint
+   (theme-dependent base) × --aurora-multiplier (intensity 0/0.7/1/1.5).
+   Single rule replaces the three duplicated body::before blocks the
+   previous design carried for light + explicit-dark + system-dark. */
 body::before {
   content: '';
   position: fixed;
@@ -58,10 +84,21 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(60% 50% at 12% 8%,  rgba(107, 139, 255, 0.10) 0%, transparent 60%),
-    radial-gradient(55% 45% at 88% 18%, rgba(179, 136, 255, 0.09) 0%, transparent 65%),
-    radial-gradient(70% 55% at 50% 95%, rgba( 95, 208, 194, 0.08) 0%, transparent 65%);
+    radial-gradient(60% 50% at 12% 8%,
+      rgba(107, 139, 255, calc(var(--aurora-blue)   * var(--aurora-multiplier))) 0%,
+      transparent 60%),
+    radial-gradient(55% 45% at 88% 18%,
+      rgba(179, 136, 255, calc(var(--aurora-violet) * var(--aurora-multiplier))) 0%,
+      transparent 65%),
+    radial-gradient(70% 55% at 50% 95%,
+      rgba( 95, 208, 194, calc(var(--aurora-mint)   * var(--aurora-multiplier))) 0%,
+      transparent 65%);
 }
+
+/* Intensity overrides — only multiplier changes; colour ramps are
+   untouched so dark mode + low/high stays coherent. */
+html[data-aurora="low"]  { --aurora-multiplier: 0.7; }
+html[data-aurora="high"] { --aurora-multiplier: 1.5; }
 
 .container {
   position: relative;
@@ -161,15 +198,17 @@ header {
   padding: 7px 14px;
   border-radius: 7px;
   border: none;
-  background: var(--ink);
-  color: #fff;
+  /* Primary CTA tokens drive both themes — see :root for values. */
+  background: var(--cta-bg);
+  color: var(--cta-color);
   cursor: pointer;
-  transition: background 0.2s, transform 0.2s;
+  transition: background 0.2s, color 0.2s, transform 0.2s;
   white-space: nowrap;
 }
 
 .tab-cleanup-btn:hover {
-  background: #25272b;
+  background: var(--cta-bg-hover);
+  color: var(--cta-color-hover);
   transform: translateY(-1px);
 }
 
@@ -565,13 +604,15 @@ html[data-layout="grid"] .domains > * {
 }
 
 .action-btn.primary {
-  background: var(--ink);
-  color: #fff;
+  /* Same CTA token set as .tab-cleanup-btn. */
+  background: var(--cta-bg);
+  color: var(--cta-color);
   border-color: transparent;
 }
 
 .action-btn.primary:hover {
-  background: #25272b;
+  background: var(--cta-bg-hover);
+  color: var(--cta-color-hover);
 }
 
 /* close-tabs reads as a destructive pair of the row — default ink, hover
@@ -713,11 +754,6 @@ footer {
   letter-spacing: 1.5px;
   color: var(--muted);
   margin-top: 4px;
-}
-
-.last-refresh {
-  font-size: 11px;
-  color: var(--muted);
 }
 
 .refresh-btn {
@@ -937,24 +973,26 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   flex-shrink: 0;
 }
 
-/* "Update now" button — Direction A primary: ink-on-paper, no green */
+/* "Update now" button — Direction A primary CTA, shares --cta-* tokens
+   with .tab-cleanup-btn / .action-btn.primary. */
 .update-banner-btn {
   font-family: 'Inter Tight', sans-serif;
   font-size: 12px;
   font-weight: 500;
-  color: #fff;
-  background: var(--ink);
+  color: var(--cta-color);
+  background: var(--cta-bg);
   border: none;
   border-radius: 7px;
   padding: 5px 12px;
   cursor: pointer;
   letter-spacing: 0.1px;
-  transition: background 0.2s, opacity 0.2s;
+  transition: background 0.2s, color 0.2s, opacity 0.2s;
   white-space: nowrap;
 }
 
 .update-banner-btn:hover {
-  background: #25272b; /* slightly lifted ink */
+  background: var(--cta-bg-hover);
+  color: var(--cta-color-hover);
 }
 
 .update-banner-btn:disabled {
@@ -2198,14 +2236,19 @@ html[data-theme="dark"] {
   --status-active: #36b07c;
   --status-cooling: #d4a558;
   --status-abandoned: #e15c5e;
-}
 
-/* dark 模式下让光晕更幽深一点，不刺眼 */
-html[data-theme="dark"] body::before {
-  background:
-    radial-gradient(60% 50% at 12% 8%,  rgba(107, 139, 255, 0.08) 0%, transparent 60%),
-    radial-gradient(55% 45% at 88% 18%, rgba(179, 136, 255, 0.07) 0%, transparent 65%),
-    radial-gradient(70% 55% at 50% 95%, rgba( 95, 208, 194, 0.06) 0%, transparent 65%);
+  /* Dark aurora — quieter so the gradient reads as ambient mood lighting,
+     not foreground noise. Multiplier still flows through (low/high). */
+  --aurora-blue: 0.08;
+  --aurora-violet: 0.07;
+  --aurora-mint: 0.06;
+
+  /* Primary-CTA dark overrides: default uses the lifted-grey we'd use as
+     hover in light mode (same shade as light's hover); hover inverts to
+     a white pill with dark text. */
+  --cta-bg: #25272b;
+  --cta-bg-hover: #fff;
+  --cta-color-hover: #0e0e10;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -2229,11 +2272,24 @@ html[data-theme="dark"] body::before {
     --status-active: #36b07c;
     --status-cooling: #d4a558;
     --status-abandoned: #e15c5e;
+
+    /* Dark aurora overrides — see [data-theme="dark"] block above for
+       rationale. Mirror values here so prefers-color-scheme: dark works
+       without an explicit theme toggle. */
+    --aurora-blue: 0.08;
+    --aurora-violet: 0.07;
+    --aurora-mint: 0.06;
+
+    /* Primary-CTA dark overrides — mirror the [data-theme="dark"] block. */
+    --cta-bg: #25272b;
+    --cta-bg-hover: #fff;
+    --cta-color-hover: #0e0e10;
   }
-  html:not([data-theme="light"]) body::before {
-    background:
-      radial-gradient(60% 50% at 12% 8%,  rgba(107, 139, 255, 0.08) 0%, transparent 60%),
-      radial-gradient(55% 45% at 88% 18%, rgba(179, 136, 255, 0.07) 0%, transparent 65%),
-      radial-gradient(70% 55% at 50% 95%, rgba( 95, 208, 194, 0.06) 0%, transparent 65%);
-  }
+}
+
+/* Aurora opt-out — kill the body::before gradient when the user picks
+   "Off" in Settings → Backdrop. Sits at file end so it overrides the
+   light, explicit-dark, and system-dark variants on equal specificity. */
+html[data-aurora="off"] body::before {
+  display: none;
 }

@@ -15,7 +15,7 @@ import { renderDashboard, renderOpenTabsOnly } from './renderers.js';
 import { attachTabsListeners } from './refresh.js';
 import { dismissUpdateBanner, getUpdateStatus } from './api.js';
 import { el, svg } from '../../shared/dist/dom-utils.js';
-import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
+import { getSettings, onSettingsChange, type AuroraMode } from '../../shared/dist/settings.js';
 import { getDomainAliases, getPriorityHostnames, setDomainAliases, setPriorityHostnames } from './state.js';
 import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
 import { mountClock, type ClockHandle } from './widgets/clock.js';
@@ -96,12 +96,24 @@ function applyLayout(layout: 'masonry' | 'grid'): void {
   }
 }
 
+function applyAurora(mode: AuroraMode): void {
+  // 'on' is the default — clear the attribute so body::before paints.
+  // Only 'off' writes the override that hides the gradient.
+  const root = document.documentElement;
+  if (mode === 'off') {
+    root.dataset.aurora = 'off';
+  } else {
+    delete root.dataset.aurora;
+  }
+}
+
 async function bootstrapSettings(): Promise<void> {
   const slot = document.getElementById('headerRight');
   const middleSlot = document.getElementById('middleSection');
   const settings = await getSettings();
   applyTheme(settings.theme);
   applyLayout(settings.layout);
+  applyAurora(settings.aurora);
   setPriorityHostnames(new Set(settings.priorityHostnames));
   setDomainAliases(settings.domainAliases);
   setFriendlyDomainsMap(settings.friendlyDomains);
@@ -136,6 +148,7 @@ async function bootstrapSettings(): Promise<void> {
   onSettingsChange((next) => {
     applyTheme(next.theme);
     applyLayout(next.layout);
+    applyAurora(next.aurora);
     themeToggle?.syncIcon(next.theme);
     clock?.applyFormat(next.clock.format);
     shortcuts?.applySettings(next);

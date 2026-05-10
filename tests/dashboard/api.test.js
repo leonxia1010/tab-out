@@ -285,6 +285,12 @@ describe('saveDefer', () => {
 
 describe('getDeferred', () => {
   it('partitions rows by archived flag and orders both DESC by timestamp', async () => {
+    // Fixture timestamps are April 2026; pin "now" inside that window so
+    // the 30-day age-out (api.ts:180) doesn't sweep id=1 into archive
+    // when the test is run on later wall-clock dates.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-15T00:00:00Z'));
+
     installChromeStorage({
       deferredTabs: [
         { id: 1, url: 'a', title: 'A', favicon_url: null, source_mission: null, deferred_at: '2026-04-10', checked: 0, checked_at: null, dismissed: 0, archived: 0, archived_at: null },
@@ -296,6 +302,8 @@ describe('getDeferred', () => {
     const { active, archived } = await getDeferred();
     expect(active.map((t) => t.id)).toEqual([2, 1]);
     expect(archived.map((t) => t.id)).toEqual([4, 3]);
+
+    vi.useRealTimers();
   });
 
   it('age-outs rows older than 30 days on read and writes them back', async () => {
