@@ -42,6 +42,16 @@
   --aurora-violet: 0.09;
   --aurora-mint: 0.08;
   --aurora-multiplier: 1;
+
+  /* Primary-CTA tokens — independent of the ink/paper inversion so the
+     filled CTA reads correctly on both themes.
+     light: dark fill (matches PR-base look) → slightly lifted hover.
+     dark : the same lifted-grey fill as light's hover → inverted hover
+            (white pill with dark text), per design feedback. */
+  --cta-bg: #0e0e10;
+  --cta-color: #fff;
+  --cta-bg-hover: #25272b;
+  --cta-color-hover: #fff;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -188,20 +198,17 @@ header {
   padding: 7px 14px;
   border-radius: 7px;
   border: none;
-  /* Primary CTA stays a dark filled button on both themes — does not
-     follow the ink/paper inversion. Values are the light-mode ink/paper
-     literals (#0e0e10 / #fff), so light-mode appearance is unchanged
-     and dark mode no longer reads as a near-invisible white-on-white
-     pill. */
-  background: #0e0e10;
-  color: #fff;
+  /* Primary CTA tokens drive both themes — see :root for values. */
+  background: var(--cta-bg);
+  color: var(--cta-color);
   cursor: pointer;
-  transition: background 0.2s, transform 0.2s;
+  transition: background 0.2s, color 0.2s, transform 0.2s;
   white-space: nowrap;
 }
 
 .tab-cleanup-btn:hover {
-  background: #25272b;
+  background: var(--cta-bg-hover);
+  color: var(--cta-color-hover);
   transform: translateY(-1px);
 }
 
@@ -597,14 +604,15 @@ html[data-layout="grid"] .domains > * {
 }
 
 .action-btn.primary {
-  /* Stays dark on both themes — see .tab-cleanup-btn for rationale. */
-  background: #0e0e10;
-  color: #fff;
+  /* Same CTA token set as .tab-cleanup-btn. */
+  background: var(--cta-bg);
+  color: var(--cta-color);
   border-color: transparent;
 }
 
 .action-btn.primary:hover {
-  background: #25272b;
+  background: var(--cta-bg-hover);
+  color: var(--cta-color-hover);
 }
 
 /* close-tabs reads as a destructive pair of the row — default ink, hover
@@ -965,25 +973,26 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   flex-shrink: 0;
 }
 
-/* "Update now" button — Direction A primary: stays a dark filled
-   pill on both themes (see .tab-cleanup-btn for rationale). */
+/* "Update now" button — Direction A primary CTA, shares --cta-* tokens
+   with .tab-cleanup-btn / .action-btn.primary. */
 .update-banner-btn {
   font-family: 'Inter Tight', sans-serif;
   font-size: 12px;
   font-weight: 500;
-  color: #fff;
-  background: #0e0e10;
+  color: var(--cta-color);
+  background: var(--cta-bg);
   border: none;
   border-radius: 7px;
   padding: 5px 12px;
   cursor: pointer;
   letter-spacing: 0.1px;
-  transition: background 0.2s, opacity 0.2s;
+  transition: background 0.2s, color 0.2s, opacity 0.2s;
   white-space: nowrap;
 }
 
 .update-banner-btn:hover {
-  background: #25272b;
+  background: var(--cta-bg-hover);
+  color: var(--cta-color-hover);
 }
 
 .update-banner-btn:disabled {
@@ -2233,6 +2242,13 @@ html[data-theme="dark"] {
   --aurora-blue: 0.08;
   --aurora-violet: 0.07;
   --aurora-mint: 0.06;
+
+  /* Primary-CTA dark overrides: default uses the lifted-grey we'd use as
+     hover in light mode (same shade as light's hover); hover inverts to
+     a white pill with dark text. */
+  --cta-bg: #25272b;
+  --cta-bg-hover: #fff;
+  --cta-color-hover: #0e0e10;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -2263,6 +2279,11 @@ html[data-theme="dark"] {
     --aurora-blue: 0.08;
     --aurora-violet: 0.07;
     --aurora-mint: 0.06;
+
+    /* Primary-CTA dark overrides — mirror the [data-theme="dark"] block. */
+    --cta-bg: #25272b;
+    --cta-bg-hover: #fff;
+    --cta-color-hover: #0e0e10;
   }
 }
 
