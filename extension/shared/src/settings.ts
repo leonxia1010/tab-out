@@ -26,6 +26,7 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 export type ClockFormat = '12h' | '24h';
 export type Layout = 'masonry' | 'grid';
 export type TemperatureUnit = 'C' | 'F';
+export type AuroraMode = 'on' | 'off';
 
 export interface ShortcutPin {
   url: string;
@@ -49,6 +50,7 @@ export interface ToutSettings {
   theme: ThemeMode;
   clock: { format: ClockFormat };
   layout: Layout;
+  aurora: AuroraMode;
   priorityHostnames: string[];
   domainAliases: Record<string, string>;
   friendlyDomains: Record<string, string>;
@@ -61,6 +63,7 @@ export interface ToutSettings {
 export const SETTINGS_KEY = 'tabout:settings';
 export const THEME_CACHE_KEY = 'tabout:theme-cache';
 export const LAYOUT_CACHE_KEY = 'tabout:layout-cache';
+export const AURORA_CACHE_KEY = 'tabout:aurora-cache';
 
 function inferClockFormat(): ClockFormat {
   try {
@@ -75,6 +78,7 @@ export function defaultSettings(): ToutSettings {
     theme: 'system',
     clock: { format: inferClockFormat() },
     layout: 'masonry',
+    aurora: 'on',
     priorityHostnames: [...DEFAULT_PRIORITY_HOSTNAMES],
     domainAliases: { ...DEFAULT_DOMAIN_ALIASES },
     friendlyDomains: {},
@@ -109,6 +113,10 @@ function isClockFormat(v: unknown): v is ClockFormat {
 
 function isLayout(v: unknown): v is Layout {
   return v === 'masonry' || v === 'grid';
+}
+
+function isAurora(v: unknown): v is AuroraMode {
+  return v === 'on' || v === 'off';
 }
 
 function isTemperatureUnit(v: unknown): v is TemperatureUnit {
@@ -232,6 +240,7 @@ export function normalizeSettings(raw: unknown): ToutSettings {
       format: r.clock && isClockFormat(r.clock.format) ? r.clock.format : d.clock.format,
     },
     layout: isLayout(r.layout) ? r.layout : d.layout,
+    aurora: isAurora(r.aurora) ? r.aurora : d.aurora,
     priorityHostnames: r.priorityHostnames === undefined
       ? d.priorityHostnames
       : normalizePriorityHostnames(r.priorityHostnames),
@@ -294,6 +303,7 @@ export function setSettings(patch: Partial<ToutSettings>): Promise<ToutSettings>
       // silently drop the rest on every unrelated setSettings call.
       clock: { ...current.clock, ...(patch.clock ?? {}) },
       layout: patch.layout ?? current.layout,
+      aurora: patch.aurora ?? current.aurora,
       // Arrays: normalize the patch so callers can pass raw input
       // without bypassing the defensive shape check.
       priorityHostnames: patch.priorityHostnames
@@ -319,6 +329,7 @@ export function setSettings(patch: Partial<ToutSettings>): Promise<ToutSettings>
     await storage().set({ [SETTINGS_KEY]: next });
     syncThemeCache(next.theme);
     syncLayoutCache(next.layout);
+    syncAuroraCache(next.aurora);
     return next;
   });
 }
@@ -355,6 +366,22 @@ export function syncLayoutCache(layout: Layout): void {
   }
 }
 
+// Mirror of settings.aurora. 'on' is the default — clear the key so the
+// base body::before rule paints the gradient. Only 'off' writes; the
+// bootstrap script sets data-aurora="off" pre-paint and the stylesheet
+// hides body::before via the html[data-aurora="off"] selector.
+export function syncAuroraCache(aurora: AuroraMode): void {
+  try {
+    if (aurora === 'on') {
+      localStorage.removeItem(AURORA_CACHE_KEY);
+    } else {
+      localStorage.setItem(AURORA_CACHE_KEY, aurora);
+    }
+  } catch {
+    // Silent degrade — stylesheet default (aurora visible) applies.
+  }
+}
+
 export function onSettingsChange(cb: (next: ToutSettings) => void): () => void {
   const listener = (
     changes: Record<string, chrome.storage.StorageChange>,
@@ -364,6 +391,7 @@ export function onSettingsChange(cb: (next: ToutSettings) => void): () => void {
     const next = normalizeSettings(changes[SETTINGS_KEY].newValue);
     syncThemeCache(next.theme);
     syncLayoutCache(next.layout);
+    syncAuroraCache(next.aurora);
     cb(next);
   };
   chrome.storage.onChanged.addListener(listener);

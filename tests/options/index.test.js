@@ -46,6 +46,12 @@ const OPTIONS_HTML = `
       </fieldset>
     </section>
     <section>
+      <fieldset class="settings-field">
+        <label><input type="radio" name="aurora" value="on"> On</label>
+        <label><input type="radio" name="aurora" value="off"> Off</label>
+      </fieldset>
+    </section>
+    <section>
       <label class="settings-toggle"><input type="checkbox" id="weatherEnabled"> Show weather widget</label>
       <div class="settings-field">
         <input type="text" id="weatherLocation">
@@ -232,6 +238,17 @@ describe('options page — dirty transitions', () => {
     grid.dispatchEvent(new Event('change', { bubbles: true }));
 
     expect(document.getElementById('saveBtn').disabled).toBe(false);
+  });
+
+  it('aurora toggle marks dirty + enables Save', async () => {
+    await boot(defaultInitial());
+
+    const off = document.querySelector('input[name="aurora"][value="off"]');
+    off.checked = true;
+    off.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
+    expect(document.getElementById('dirtyDot').hidden).toBe(false);
   });
 });
 

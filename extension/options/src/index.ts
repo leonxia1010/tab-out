@@ -8,6 +8,7 @@ import {
   type ThemeMode,
   type ClockFormat,
   type Layout,
+  type AuroraMode,
   type TemperatureUnit,
 } from '../../shared/dist/settings.js';
 import {
@@ -32,6 +33,7 @@ function cloneSettings(s: ToutSettings): ToutSettings {
     theme: s.theme,
     clock: { ...s.clock },
     layout: s.layout,
+    aurora: s.aurora,
     priorityHostnames: [...s.priorityHostnames],
     domainAliases: { ...s.domainAliases },
     friendlyDomains: { ...s.friendlyDomains },
@@ -68,6 +70,7 @@ function isDirty(): boolean {
   return draft.theme !== baseline.theme
     || draft.clock.format !== baseline.clock.format
     || draft.layout !== baseline.layout
+    || draft.aurora !== baseline.aurora
     || draft.priorityHostnames.join('\u0001') !== baseline.priorityHostnames.join('\u0001')
     || recordKey(draft.domainAliases) !== recordKey(baseline.domainAliases)
     || recordKey(draft.friendlyDomains) !== recordKey(baseline.friendlyDomains)
@@ -455,6 +458,7 @@ function renderForm(): void {
   setRadioValue('theme', draft.theme);
   setRadioValue('clockFormat', draft.clock.format);
   setRadioValue('layout', draft.layout);
+  setRadioValue('aurora', draft.aurora);
   renderPriorityList();
   renderDomainGroups();
   renderPinnedList();
@@ -483,6 +487,10 @@ function isClockFormat(v: string): v is ClockFormat {
 
 function isLayout(v: string): v is Layout {
   return v === 'masonry' || v === 'grid';
+}
+
+function isAurora(v: string): v is AuroraMode {
+  return v === 'on' || v === 'off';
 }
 
 function isTemperatureUnit(v: string): v is TemperatureUnit {
@@ -714,6 +722,13 @@ async function bootstrap(): Promise<void> {
   wireRadio('layout', (value) => {
     if (isLayout(value)) {
       draft.layout = value;
+      renderDirtyState();
+    }
+  });
+
+  wireRadio('aurora', (value) => {
+    if (isAurora(value)) {
+      draft.aurora = value;
       renderDirtyState();
     }
   });
