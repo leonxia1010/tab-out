@@ -47,13 +47,8 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: 'Inter', 'InterVariable', -apple-system, BlinkMacSystemFont,
+  font-family: 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont,
                'SF Pro Text', system-ui, sans-serif;
-  /* Inter stylistic alternates from the design bundle:
-     ss01 — single-storey lowercase a; cv05 — l with tail (capital I
-     disambiguation); cv11 — single-storey g. Matches colors_and_type.css
-     in the v2 design system. */
-  font-feature-settings: 'ss01', 'cv11', 'cv05';
   background: var(--paper);
   color: var(--ink);
   min-height: 100vh;
@@ -187,14 +182,14 @@ header {
 }
 
 .tab-cleanup-btn {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 12px;
   font-weight: 500;
   padding: 7px 14px;
   border-radius: 7px;
   border: none;
   background: var(--ink);
-  color: #fff;
+  color: var(--paper);
   cursor: pointer;
   transition: background 0.2s, transform 0.2s;
   white-space: nowrap;
@@ -569,7 +564,7 @@ html[data-layout="grid"] .domains > * {
 
 .action-btn {
   font-size: 11px;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-weight: 500;
   white-space: nowrap;
   height: 26px;
@@ -598,7 +593,7 @@ html[data-layout="grid"] .domains > * {
 
 .action-btn.primary {
   background: var(--ink);
-  color: #fff;
+  color: var(--paper);
   border-color: transparent;
 }
 
@@ -652,7 +647,7 @@ html[data-layout="grid"] .domains > * {
   transform: translateX(-50%) translateY(80px);
   background: var(--ink);
   color: var(--paper);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 13px;
   font-weight: 500;
   padding: 12px 24px;
@@ -689,7 +684,7 @@ html[data-layout="grid"] .domains > * {
   background: transparent;
   border: none;
   color: var(--paper);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 13px;
   font-weight: 500;
   padding: 2px 6px;
@@ -748,7 +743,7 @@ footer {
 }
 
 .refresh-btn {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 11px;
   font-weight: 500;
   color: var(--accent-amber);
@@ -966,10 +961,10 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 /* "Update now" button — Direction A primary: ink-on-paper, no green */
 .update-banner-btn {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 12px;
   font-weight: 500;
-  color: #fff;
+  color: var(--paper);
   background: var(--ink);
   border: none;
   border-radius: 7px;
@@ -1216,7 +1211,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .archive-toggle {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
@@ -1255,7 +1250,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 /* Inline Clear all button — sits in the header next to the toggle. Only
  * shown when renderDeferredColumn detects archived.length > 0. */
 .archive-clear-all {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);
@@ -1296,7 +1291,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .archive-search {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 12px;
   width: 100%;
   padding: 8px 12px;
@@ -1373,7 +1368,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .search-widget-input {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 14px;
   font-weight: 400;
   flex: 1;
@@ -1547,7 +1542,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   inset: auto;
 }
 
@@ -1807,7 +1802,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   /* Clear UA default inset so our top/left win. */
   inset: auto;
 }
@@ -1893,7 +1888,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: transparent;
   cursor: pointer;
   color: var(--muted);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 14px;
   font-weight: 400;
   line-height: 1;
@@ -1963,7 +1958,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   inset: auto;
 }
 
@@ -2011,7 +2006,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   border-radius: 10px;
   color: var(--ink);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 14px;
   line-height: 1;
   transition: border-color 0.2s, background 0.2s;
@@ -2094,7 +2089,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   background: var(--card-bg);
   box-shadow: 0 8px 32px var(--shadow);
   color: var(--ink);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   inset: auto;
 }
 
