@@ -45,11 +45,22 @@ body {
   letter-spacing: -0.005em;
 }
 
-/* Direction A removes the warm-paper noise texture. Keep the rule shape so
-   any historical callers selecting body::before don't crash, but render
-   nothing — the cool flat #f5f5f7 page reads as the surface. */
+/* Aurora ambient backdrop — three soft radial gradients (blue / violet /
+   mint) layered onto the cool paper #f5f5f7. position: fixed (instead of
+   absolute) keeps the gradients pinned to the viewport so scrolling
+   doesn't reveal a hard boundary at the bottom of the page. The
+   .container above it already sets position:relative + z-index:1, so it
+   floats over this layer cleanly. */
 body::before {
-  content: none;
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 12% 8%,  rgba(107, 139, 255, 0.10) 0%, transparent 60%),
+    radial-gradient(55% 45% at 88% 18%, rgba(179, 136, 255, 0.09) 0%, transparent 65%),
+    radial-gradient(70% 55% at 50% 95%, rgba( 95, 208, 194, 0.08) 0%, transparent 65%);
 }
 
 .container {
@@ -2184,6 +2195,14 @@ html[data-theme="dark"] {
   --status-abandoned: #e15c5e;
 }
 
+/* dark 模式下让光晕更幽深一点，不刺眼 */
+html[data-theme="dark"] body::before {
+  background:
+    radial-gradient(60% 50% at 12% 8%,  rgba(107, 139, 255, 0.08) 0%, transparent 60%),
+    radial-gradient(55% 45% at 88% 18%, rgba(179, 136, 255, 0.07) 0%, transparent 65%),
+    radial-gradient(70% 55% at 50% 95%, rgba( 95, 208, 194, 0.06) 0%, transparent 65%);
+}
+
 @media (prefers-color-scheme: dark) {
   html:not([data-theme="light"]) {
     color-scheme: dark;
@@ -2204,5 +2223,11 @@ html[data-theme="dark"] {
     --status-active: #36b07c;
     --status-cooling: #d4a558;
     --status-abandoned: #e15c5e;
+  }
+  html:not([data-theme="light"]) body::before {
+    background:
+      radial-gradient(60% 50% at 12% 8%,  rgba(107, 139, 255, 0.08) 0%, transparent 60%),
+      radial-gradient(55% 45% at 88% 18%, rgba(179, 136, 255, 0.07) 0%, transparent 65%),
+      radial-gradient(70% 55% at 50% 95%, rgba( 95, 208, 194, 0.06) 0%, transparent 65%);
   }
 }
