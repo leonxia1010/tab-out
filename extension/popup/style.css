@@ -22,13 +22,15 @@
 }
 
 html[data-theme="dark"] {
+  /* Aligned with dashboard's mockup-v2 dark refresh: surface #15171a,
+     hairline 7% alpha, muted #6a7280. */
   --paper:        #0a0b0d;
-  --card-bg:      #131418;
+  --card-bg:      #15171a;
   --ink:          #f3f5f8;
-  --muted:        #9098a3;
-  --warm-gray:    rgba(255, 255, 255, 0.10);
+  --muted:        #6a7280;
+  --warm-gray:    rgba(255, 255, 255, 0.07);
   --accent-amber: #f3f5f8;
-  --border:       rgba(255, 255, 255, 0.10);
+  --border:       rgba(255, 255, 255, 0.07);
   --shadow:       rgba(0, 0, 0, 0.5);
   --row-hover:    rgba(255, 255, 255, 0.06);
   --row-active:   rgba(255, 255, 255, 0.10);
@@ -37,12 +39,12 @@ html[data-theme="dark"] {
 @media (prefers-color-scheme: dark) {
   html:not([data-theme]) {
     --paper:        #0a0b0d;
-    --card-bg:      #131418;
+    --card-bg:      #15171a;
     --ink:          #f3f5f8;
-    --muted:        #9098a3;
-    --warm-gray:    rgba(255, 255, 255, 0.10);
+    --muted:        #6a7280;
+    --warm-gray:    rgba(255, 255, 255, 0.07);
     --accent-amber: #f3f5f8;
-    --border:       rgba(255, 255, 255, 0.10);
+    --border:       rgba(255, 255, 255, 0.07);
     --shadow:       rgba(0, 0, 0, 0.5);
     --row-hover:    rgba(255, 255, 255, 0.06);
     --row-active:   rgba(255, 255, 255, 0.10);

@@ -23,14 +23,16 @@
 
 html[data-theme="dark"] {
   color-scheme: dark;
+  /* Aligned with dashboard's mockup-v2 dark refresh: surface #15171a,
+     hairline 7% alpha, muted #6a7280. */
   --paper: #0a0b0d;
-  --card-bg: #131418;
+  --card-bg: #15171a;
   --ink: #f3f5f8;
-  --muted: #9098a3;
-  --warm-gray: rgba(255, 255, 255, 0.10);
+  --muted: #6a7280;
+  --warm-gray: rgba(255, 255, 255, 0.07);
   --accent-amber: #f3f5f8;
   --accent-sage: #36b07c;
-  --border: rgba(255, 255, 255, 0.10);
+  --border: rgba(255, 255, 255, 0.07);
   --shadow: rgba(0, 0, 0, 0.5);
 }
 
@@ -38,13 +40,13 @@ html[data-theme="dark"] {
   html:not([data-theme="light"]) {
     color-scheme: dark;
     --paper: #0a0b0d;
-    --card-bg: #131418;
+    --card-bg: #15171a;
     --ink: #f3f5f8;
-    --muted: #9098a3;
-    --warm-gray: rgba(255, 255, 255, 0.10);
+    --muted: #6a7280;
+    --warm-gray: rgba(255, 255, 255, 0.07);
     --accent-amber: #f3f5f8;
     --accent-sage: #36b07c;
-    --border: rgba(255, 255, 255, 0.10);
+    --border: rgba(255, 255, 255, 0.07);
     --shadow: rgba(0, 0, 0, 0.5);
   }
 }

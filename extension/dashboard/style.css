@@ -2176,16 +2176,21 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
    ============================================================ */
 html[data-theme="dark"] {
   color-scheme: dark;
+  /* Direction A · Dark — values aligned with the design-system update
+     (mockup v2: hairline 7% alpha for a lighter divider, surface
+     #15171a one stop above paper, t3 muted #6a7280, three-layer
+     hover shadow). */
   --ink: #f3f5f8;
   --paper: #0a0b0d;
-  --warm-gray: rgba(255, 255, 255, 0.10);
-  --muted: #9098a3;
-  --card-bg: #131418;
+  --warm-gray: rgba(255, 255, 255, 0.07);
+  --muted: #6a7280;
+  --card-bg: #15171a;
   --shadow: rgba(0, 0, 0, 0.5);
   --shadow-card-1: 0 1px 0 rgba(0, 0, 0, 0.4),
                    0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-card-2: 0 1px 0 rgba(0, 0, 0, 0.4),
-                   0 6px 18px rgba(0, 0, 0, 0.6);
+                   0 6px 18px rgba(0, 0, 0, 0.55),
+                   0 2px 6px rgba(0, 0, 0, 0.45);
   --accent-amber: #f3f5f8;
   --accent-sage: #36b07c;
   --accent-slate: #9098a3;
@@ -2208,14 +2213,15 @@ html[data-theme="dark"] body::before {
     color-scheme: dark;
     --ink: #f3f5f8;
     --paper: #0a0b0d;
-    --warm-gray: rgba(255, 255, 255, 0.10);
-    --muted: #9098a3;
-    --card-bg: #131418;
+    --warm-gray: rgba(255, 255, 255, 0.07);
+    --muted: #6a7280;
+    --card-bg: #15171a;
     --shadow: rgba(0, 0, 0, 0.5);
     --shadow-card-1: 0 1px 0 rgba(0, 0, 0, 0.4),
                      0 1px 2px rgba(0, 0, 0, 0.5);
     --shadow-card-2: 0 1px 0 rgba(0, 0, 0, 0.4),
-                     0 6px 18px rgba(0, 0, 0, 0.6);
+                     0 6px 18px rgba(0, 0, 0, 0.55),
+                     0 2px 6px rgba(0, 0, 0, 0.45);
     --accent-amber: #f3f5f8;
     --accent-sage: #36b07c;
     --accent-slate: #9098a3;
