@@ -95,16 +95,19 @@ header {
 
 /* ---- Tab cleanup banner ---- */
 .tab-cleanup-banner {
-  /* Direction A banner recipe: card surface + hairline + ink content. */
-  background: var(--card-bg);
-  border: 1px solid var(--warm-gray);
+  /* Direction A: hairline strip, no card lift. The amber tint is half
+     the warm-palette intensity so the banner reads as a quiet attention
+     cue, not a coloured callout. RGB is the warning-status hue
+     (--status-cooling #b97509) hardcoded into the gradient because
+     gradients can't take CSS variable channels. */
+  background: linear-gradient(135deg, rgba(185, 117, 9, 0.03), rgba(185, 117, 9, 0.07));
+  border: 1px solid rgba(185, 117, 9, 0.16);
   border-radius: 12px;
   padding: 14px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
-  box-shadow: var(--shadow-card-1);
 }
 
 .tab-cleanup-left {
@@ -117,7 +120,7 @@ header {
   width: 32px;
   height: 32px;
   border-radius: 999px;
-  background: rgba(15, 17, 21, 0.05);
+  background: rgba(185, 117, 9, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -127,7 +130,7 @@ header {
 .tab-cleanup-icon svg {
   width: 16px;
   height: 16px;
-  color: var(--ink);
+  color: var(--status-cooling);
 }
 
 .tab-cleanup-text {
@@ -161,25 +164,24 @@ header {
 
 /* ---- Nudge banner ---- */
 .nudge-banner {
-  /* Direction A banner recipe — neutral surface, danger only as the icon
-     accent so the user still spots the "rest your tabs" attention cue
-     without the full red-tinted strip the warm palette used. */
-  background: var(--card-bg);
-  border: 1px solid var(--warm-gray);
+  /* Direction A: hairline strip with an extra-quiet rose wash. Roughly
+     half the warm-palette saturation so it still reads as "rest your
+     tabs" without dominating the page. */
+  background: linear-gradient(135deg, rgba(193, 55, 58, 0.025), rgba(193, 55, 58, 0.06));
+  border: 1px solid rgba(193, 55, 58, 0.14);
   border-radius: 12px;
   padding: 14px 18px;
   display: flex;
   align-items: center;
   gap: 14px;
   margin-bottom: 40px;
-  box-shadow: var(--shadow-card-1);
 }
 
 .nudge-icon {
   width: 32px;
   height: 32px;
   border-radius: 999px;
-  background: rgba(193, 55, 58, 0.08);
+  background: rgba(193, 55, 58, 0.10);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -868,11 +870,11 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   justify-content: space-between;
   gap: 12px;
 
-  /* Direction A treats update info as quiet, not "celebratory" — drop the
-     sage gradient for a neutral surface that reads as a hairline-bordered
-     announcement strip, matching the mockup's `.banner` recipe. */
-  background: var(--card-bg);
-  border: 1px solid var(--warm-gray);
+  /* Direction A: extra-quiet sage wash so the update strip reads as a
+     positive announcement (new version available) without the full
+     "success-banner" intensity. Roughly half the warm-palette saturation. */
+  background: linear-gradient(135deg, rgba(31, 138, 91, 0.03), rgba(31, 138, 91, 0.06));
+  border: 1px solid rgba(31, 138, 91, 0.14);
   border-radius: 12px;
   padding: 10px 14px;
 
@@ -903,8 +905,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: rgba(15, 17, 21, 0.04);
-  color: var(--ink);
+  background: rgba(31, 138, 91, 0.10);
+  color: var(--accent-sage);
   flex-shrink: 0;
 }
 
