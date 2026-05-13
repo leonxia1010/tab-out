@@ -15,7 +15,7 @@ import { renderDashboard, renderOpenTabsOnly } from './renderers.js';
 import { attachTabsListeners } from './refresh.js';
 import { dismissUpdateBanner, getUpdateStatus } from './api.js';
 import { el, svg } from '../../shared/dist/dom-utils.js';
-import { getSettings, onSettingsChange, type AuroraMode } from '../../shared/dist/settings.js';
+import { getSettings, onSettingsChange } from '../../shared/dist/settings.js';
 import { getDomainAliases, getPriorityHostnames, setDomainAliases, setPriorityHostnames } from './state.js';
 import { applyTheme, mountThemeToggle, type ThemeToggleHandle } from './widgets/theme.js';
 import { mountClock, type ClockHandle } from './widgets/clock.js';
@@ -25,6 +25,7 @@ import { mountSettingsLink } from './widgets/settings-link.js';
 import { mountWeather, type WeatherHandle } from './widgets/weather.js';
 import { mountCountdown, type CountdownHandle } from './widgets/countdown.js';
 import { setFriendlyDomainsMap } from './utils.js';
+import { applyAurora, applyLayout } from './settings-appliers.js';
 
 const RELEASE_URL = 'https://github.com/leonxia1010/tab-out/releases/latest';
 
@@ -85,28 +86,6 @@ async function checkForUpdates(): Promise<void> {
 // getSettings() swallows chrome.storage errors and returns defaults,
 // so no try/catch needed here. Mount order: clock on the left, theme
 // toggle on the right (header reads left-to-right).
-function applyLayout(layout: 'masonry' | 'grid'): void {
-  // 'masonry' is the default — clear the attribute so the base .domains
-  // rule applies. Only 'grid' needs the explicit override selector.
-  const root = document.documentElement;
-  if (layout === 'grid') {
-    root.dataset.layout = 'grid';
-  } else {
-    delete root.dataset.layout;
-  }
-}
-
-function applyAurora(mode: AuroraMode): void {
-  // 'on' is the default — clear the attribute so body::before paints.
-  // Only 'off' writes the override that hides the gradient.
-  const root = document.documentElement;
-  if (mode === 'off') {
-    root.dataset.aurora = 'off';
-  } else {
-    delete root.dataset.aurora;
-  }
-}
-
 async function bootstrapSettings(): Promise<void> {
   const slot = document.getElementById('headerRight');
   const middleSlot = document.getElementById('middleSection');
