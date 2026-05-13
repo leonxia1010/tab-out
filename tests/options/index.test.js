@@ -232,7 +232,7 @@ describe('options page — dirty transitions', () => {
     expect(document.getElementById('dirtyText').hidden).toBe(false);
   });
 
-  it('layout and clock changes also mark dirty', async () => {
+  it('layout changes also mark dirty', async () => {
     await boot(defaultInitial());
 
     const grid = document.querySelector('input[name="layout"][value="grid"]');
@@ -240,6 +240,17 @@ describe('options page — dirty transitions', () => {
     grid.dispatchEvent(new Event('change', { bubbles: true }));
 
     expect(document.getElementById('saveBtn').disabled).toBe(false);
+  });
+
+  it('clock changes also mark dirty', async () => {
+    await boot(defaultInitial());
+
+    const clock24h = document.querySelector('input[name="clockFormat"][value="24h"]');
+    clock24h.checked = true;
+    clock24h.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(document.getElementById('saveBtn').disabled).toBe(false);
+    expect(document.getElementById('dirtyDot').hidden).toBe(false);
   });
 
   it('aurora intensity change marks dirty + enables Save', async () => {
