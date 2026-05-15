@@ -98,7 +98,7 @@ export async function closeDuplicates(
   if (toClose.length > 0) await swallow(chrome.tabs.remove(toClose), 'chrome.tabs.remove');
 }
 
-// Per-window collapse of multiple Tab Out dashboard tabs down to one.
+// Per-window collapse of multiple Tab Deck dashboard tabs down to one.
 // Another window's duplicates are that window's problem.
 export async function closeTabOutDupes(): Promise<void> {
   if (!chromeAvailable()) return;
@@ -125,7 +125,7 @@ export interface OrganizeResult {
 }
 
 // v2.5.0 — reorder the current window's tab bar to match the dashboard's
-// domain-card order. Pinned tabs stay where Chrome enforces them; Tab Out
+// domain-card order. Pinned tabs stay where Chrome enforces them; Tab Deck
 // tabs move to the end so the user's tool drops out of the way once the
 // reorder lands. Returns a snapshot of every non-pinned tab's original
 // index so the caller can reverse the move for a 60s undo flow
@@ -151,7 +151,7 @@ export async function organizeTabs(
   }
 
   // Build the desired tabId sequence from the domain cards, then append
-  // Tab Out tabs. Skip pinned tabs everywhere — Chrome rejects moves that
+  // Tab Deck tabs. Skip pinned tabs everywhere — Chrome rejects moves that
   // would violate the "pinned before unpinned" invariant anyway, so
   // filtering upfront keeps the intent explicit.
   const seen = new Set<number>();
@@ -162,7 +162,7 @@ export async function organizeTabs(
       if (seen.has(tab.id)) continue;
       const real = tabsById.get(tab.id);
       if (!real || real.pinned) continue;
-      if (real.url && tabOutUrls.has(real.url)) continue; // Tab Out handled below
+      if (real.url && tabOutUrls.has(real.url)) continue; // Tab Deck handled below
       seen.add(tab.id);
       domainTabIds.push(tab.id);
     }
@@ -208,9 +208,9 @@ export async function undoOrganizeTabs(
 }
 
 // v2.7.0 — close every non-pinned tab in the current window that isn't Tab
-// Out. Guarantees the user keeps a dashboard entry point: if no Tab Out tab
+// Out. Guarantees the user keeps a dashboard entry point: if no Tab Deck tab
 // exists beforehand, a fresh one is opened first. Powers the toolbar
-// popup's "Close all N tabs (keep Tab Out)" action.
+// popup's "Close all N tabs (keep Tab Deck)" action.
 export async function closeAllExceptTabout(
   preloadedTabs?: ReadonlyArray<chrome.tabs.Tab>,
 ): Promise<{
@@ -228,7 +228,7 @@ export async function closeAllExceptTabout(
   // implementation `await`ed create before remove, which broke the popup
   // path: creating chrome://newtab/ steals focus from the active tab,
   // chrome auto-closes the popup before the remove() call ever runs, so
-  // the user had to click twice ("first opens Tab Out, second actually
+  // the user had to click twice ("first opens Tab Deck, second actually
   // closes the rest"). Same-tick IPC ordering is mojom-guaranteed —
   // create still hits the browser process before remove.
   let createPromise: Promise<unknown> | null = null;
@@ -279,9 +279,9 @@ export function countCloseable(tabs: ReadonlyArray<chrome.tabs.Tab>): number {
 export function countDuplicates(tabs: ReadonlyArray<chrome.tabs.Tab>): number {
   // Per URL, count total copies + pinned copies so the final "closable"
   // figure mirrors closeDuplicates' keeper rule (pinned > active > first,
-  // pinned always preserved). Tab Out URLs are counted like any other —
+  // pinned always preserved). Tab Deck URLs are counted like any other —
   // the popup's dedup button is the one place the user can clean up
-  // duplicate Tab Out tabs without detouring through the dashboard.
+  // duplicate Tab Deck tabs without detouring through the dashboard.
   const perUrl = new Map<string, { total: number; pinned: number }>();
   for (const t of tabs) {
     if (!t.url) continue;

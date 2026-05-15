@@ -1,6 +1,6 @@
-# Tab Out
+# Tab Deck
 
-**Keep tabs on your tabs.** New tab page that groups your open tabs by domain and lets you close them with style.
+New tab dashboard that groups your open tabs by domain so you can jump, save, or close them fast.
 
 > **Note**: This is a personal-use fork of [zarazhangrui/tab-out](https://github.com/zarazhangrui/tab-out) (built by [Zara](https://x.com/zarazhangrui)). The upstream version runs a local Node/Express/SQLite server with AI-powered "mission" clustering. This fork strips all of that out: **single Chrome MV3 extension, no server, no AI, local-only via `chrome.storage.local`**. If you want the original feature set, use upstream.
 
@@ -8,13 +8,13 @@
 
 ## Install
 
-1. Download `tab-out-vX.Y.Z.zip` from the [latest Release](https://github.com/leonxia1010/tab-out/releases/latest).
+1. Download `tab-deck-vX.Y.Z.zip` from the [latest Release](https://github.com/leonxia1010/tab-out/releases/latest).
 2. Unzip it.
 3. Open `chrome://extensions` in Chrome.
 4. Enable **Developer mode** (top-right toggle).
 5. Click **Load unpacked** and pick the unzipped folder.
 
-Open a new tab — you'll see Tab Out.
+Open a new tab — you'll see Tab Deck.
 
 ---
 

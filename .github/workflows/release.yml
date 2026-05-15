@@ -44,7 +44,7 @@ jobs:
 
       - name: Package extension zip
         run: |
-          zip -r "tab-out-${GITHUB_REF_NAME}.zip" extension \
+          zip -r "tab-deck-${GITHUB_REF_NAME}.zip" extension \
             -x 'extension/dashboard/src/*' \
             -x 'extension/options/src/*' \
             -x 'extension/shared/src/*' \
@@ -52,7 +52,7 @@ jobs:
             -x '*.d.ts' \
             -x '*.tsbuildinfo' \
             -x '*/.DS_Store'
-          ls -la tab-out-*.zip
+          ls -la tab-deck-*.zip
 
       - name: Extract release notes from CHANGELOG
         id: notes
@@ -81,7 +81,7 @@ jobs:
           # this hint is the cheapest way to steer users correctly.
           {
             echo 'body<<EOF'
-            echo "> **Install:** download \`tab-out-${GITHUB_REF_NAME}.zip\` below."
+            echo "> **Install:** download \`tab-deck-${GITHUB_REF_NAME}.zip\` below."
             echo "> GitHub also auto-attaches _Source code (zip/tar.gz)_ — those are"
             echo "> repo snapshots without the compiled \`dist/\` output, so they will"
             echo "> **not** load as an unpacked extension. Ignore them."
@@ -97,6 +97,6 @@ jobs:
         # comment when that happens.
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: tab-out-*.zip
+          files: tab-deck-*.zip
           body: ${{ steps.notes.outputs.body }}
           fail_on_unmatched_files: true

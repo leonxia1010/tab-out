@@ -317,7 +317,7 @@ export function renderOpenTabsSection(sortedGroups: DomainGroup[], realTabsCount
 
   // Always reveal the section. When there are no domains to render we fall
   // back to the "inbox zero" empty state instead of hiding the whole column
-  // — otherwise refreshing the dashboard while Tab Out is the only open tab
+  // — otherwise refreshing the dashboard while Tab Deck is the only open tab
   // erases the affirmation the user just earned by closing everything.
   openTabsSection.style.display = 'block';
 

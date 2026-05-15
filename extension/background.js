@@ -168,7 +168,7 @@ async function handleCountdownComplete() {
     if (chrome.notifications && chrome.notifications.create) {
       chrome.notifications.create(COUNTDOWN_NOTIFICATION_ID, {
         type: 'basic',
-        iconUrl: chrome.runtime.getURL('icons/icon48.png'),
+        iconUrl: chrome.runtime.getURL('icons/tab-deck-toolbar48.png'),
         title: 'Countdown complete',
         message: `Your ${durationMin}-minute timer finished.`,
         requireInteraction: false,

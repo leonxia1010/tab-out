@@ -414,7 +414,7 @@ describe('handleCloseAllOpenTabs — never closes the dashboard tab', () => {
     const { state, handlers, bridge } = await loadHandlersWithMocks();
     state.setOpenTabs([
       { url: 'https://a.com/', title: 'A' },
-      { url: 'chrome-extension://EXTID/dashboard/index.html', title: 'Tab Out', isTabOut: true },
+      { url: 'chrome-extension://EXTID/dashboard/index.html', title: 'Tab Deck', isTabOut: true },
       { url: 'https://b.com/', title: 'B' },
     ]);
     handlers.attachListeners();
@@ -432,10 +432,10 @@ describe('handleCloseAllOpenTabs — never closes the dashboard tab', () => {
     expect(exact).toBe(true);
   });
 
-  it('returns early when only Tab Out tabs are open (no closeTabsByUrls call)', async () => {
+  it('returns early when only Tab Deck tabs are open (no closeTabsByUrls call)', async () => {
     const { state, handlers, bridge } = await loadHandlersWithMocks();
     state.setOpenTabs([
-      { url: 'chrome-extension://EXTID/dashboard/index.html', title: 'Tab Out', isTabOut: true },
+      { url: 'chrome-extension://EXTID/dashboard/index.html', title: 'Tab Deck', isTabOut: true },
     ]);
     handlers.attachListeners();
 

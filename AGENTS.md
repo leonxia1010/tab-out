@@ -1,6 +1,6 @@
-# AGENTS.md — Tab Out: Onboarding
+# AGENTS.md — Tab Deck: Onboarding
 
-You're installing **Tab Out** for the user. It's a Chrome MV3 extension that replaces the new tab page with a domain-grouped tab dashboard. No server, no AI, all local.
+You're installing **Tab Deck** for the user. It's a Chrome MV3 extension that replaces the new tab page with a domain-grouped tab dashboard. No server, no AI, all local.
 
 This is the [`leonxia1010/tab-out`](https://github.com/leonxia1010/tab-out) fork. The [upstream](https://github.com/zarazhangrui/tab-out) version runs a local server with AI clustering; this one is just a single extension.
 
@@ -10,7 +10,7 @@ This is the [`leonxia1010/tab-out`](https://github.com/leonxia1010/tab-out) fork
 
 Tell the user:
 
-> **Tab Out** replaces your new tab page with a dashboard that shows everything you have open — grouped by domain. Close tabs with a swoosh + confetti. Save tabs for later. 100% local.
+> **Tab Deck** replaces your new tab page with a dashboard that shows everything you have open — grouped by domain. Close tabs with a swoosh + confetti. Save tabs for later. 100% local.
 
 ---
 
@@ -20,7 +20,7 @@ Tell the user:
 - Linux: `xdg-open https://github.com/leonxia1010/tab-out/releases/latest`
 - Windows: `start https://github.com/leonxia1010/tab-out/releases/latest`
 
-Tell them: "Download `tab-out-vX.Y.Z.zip` and unzip it."
+Tell them: "Download `tab-deck-vX.Y.Z.zip` and unzip it."
 
 ---
 
@@ -29,7 +29,7 @@ Tell them: "Download `tab-out-vX.Y.Z.zip` and unzip it."
 1. `open "chrome://extensions"` (or platform equivalent).
 2. Tell them: "Toggle **Developer mode** on (top-right corner)."
 3. Tell them: "Click **Load unpacked** and pick the unzipped folder."
-4. Open a fresh new tab — Tab Out should render.
+4. Open a fresh new tab — Tab Deck should render.
 
 ---
 

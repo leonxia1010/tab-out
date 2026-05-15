@@ -1,4 +1,4 @@
-// Tab Out data layer backed by chrome.storage.local.
+// Tab Deck data layer backed by chrome.storage.local.
 //
 // KV layout:
 //   deferredTabs   DeferredTab[]          ← saved-for-later list

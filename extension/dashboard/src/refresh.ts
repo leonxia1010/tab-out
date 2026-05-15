@@ -75,9 +75,9 @@ export function scheduleRefresh(): void {
     try {
       const before = displayableSignature();
       await fetchOpenTabs();
-      // Refresh the "you have N Tab Out tabs open" banner unconditionally:
-      // opening/closing a Tab Out tab doesn't change the displayable
-      // signature (Tab Out is filtered out), so without this call the
+      // Refresh the "you have N Tab Deck tabs open" banner unconditionally:
+      // opening/closing a Tab Deck tab doesn't change the displayable
+      // signature (Tab Deck is filtered out), so without this call the
       // signature-based early-return below would short-circuit before the
       // banner state updated.
       checkTabOutDupes();

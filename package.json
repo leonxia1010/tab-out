@@ -1,7 +1,7 @@
 {
-  "name": "tab-out",
+  "name": "tab-deck",
   "version": "2.7.1",
-  "description": "Keep tabs on your tabs -- new tab page that groups your open tabs by domain and lets you close them with style",
+  "description": "New tab dashboard that groups your open tabs by domain so you can jump, save, or close them fast",
   "scripts": {
     "build": "tsc -b",
     "build:watch": "tsc -b --watch",

@@ -658,7 +658,7 @@ describe('groupTabsByDomain', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // renderOpenTabsSection — empty-state behaviour
 //
-// Regression for the "refresh while Tab Out is the only open tab erases the
+// Regression for the "refresh while Tab Deck is the only open tab erases the
 // inbox-zero empty state" bug. The old implementation hid the whole section
 // when sortedGroups was empty, so the affirmation disappeared on every
 // reload even though the user genuinely had zero non-TabOut tabs.
