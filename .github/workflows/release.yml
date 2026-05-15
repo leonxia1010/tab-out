@@ -43,7 +43,13 @@ jobs:
         run: npm run build
 
       - name: Package extension zip
+        # MIT §2: copyright + license notice must ship in every "copy of
+        # the Software". The zip is the only artifact users actually
+        # load, so LICENSE has to land inside it — not just at the repo
+        # root. Stage it into extension/ so it's also visible when the
+        # zip is loaded unpacked.
         run: |
+          cp LICENSE extension/LICENSE
           zip -r "tab-deck-${GITHUB_REF_NAME}.zip" extension \
             -x 'extension/dashboard/src/*' \
             -x 'extension/options/src/*' \

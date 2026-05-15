@@ -6,6 +6,20 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [3.0.1] — 2026-05-15
+
+Ship the MIT `LICENSE` file inside the release zip so every distributed
+copy carries the copyright + permission notice required by MIT §2.
+v3.0.0's zip only contained `extension/` and omitted the license — this
+release fixes that. No code changes.
+
+### Fixed
+
+- **MIT compliance.** Release workflow now stages `LICENSE` into
+  `extension/` before packaging, so the file ships alongside
+  `manifest.json` in every `tab-deck-vX.Y.Z.zip`. Visible to users who
+  load the unpacked extension.
+
 ## [3.0.0] — 2026-05-15
 
 Rebrand to **Tab Deck**, full UI redesign (cool monochrome + Inter Tight),

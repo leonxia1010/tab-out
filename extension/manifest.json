@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tab Deck",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "New tab dashboard that groups your open tabs by domain so you can jump, save, or close them fast.",
   "minimum_chrome_version": "114",
   "permissions": ["tabs", "storage", "alarms", "search", "topSites", "favicon", "notifications", "geolocation"],
