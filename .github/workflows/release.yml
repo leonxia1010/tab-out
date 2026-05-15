@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -97,11 +97,12 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Create release
-        # Pinned to the commit SHA of the v2 tag (as of 2026-04-18) so a
-        # compromised/retargeted branch can't hand our release workflow
-        # arbitrary code. Dependabot can bump this in place; bump the
-        # comment when that happens.
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        # Pinned to the commit SHA of the v3.0.0 tag (as of 2026-05-15)
+        # so a compromised/retargeted branch can't hand our release
+        # workflow arbitrary code. Dependabot can bump this in place;
+        # bump the comment when that happens. Major v3 bump was for the
+        # Node 24 runtime migration.
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           files: tab-deck-*.zip
           body: ${{ steps.notes.outputs.body }}

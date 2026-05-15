@@ -6,6 +6,20 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [3.0.2] — 2026-05-15
+
+Bump GitHub Actions in the release workflow to their Node 24 majors —
+GitHub starts forcing Node 24 on 2026-06-02 and removes Node 20 from
+runners on 2026-09-16. No code changes; this is workflow hygiene so
+future releases don't break.
+
+### Changed
+
+- **`actions/checkout` v4 → v6** (Node 20 → Node 24).
+- **`actions/setup-node` v4 → v6** (Node 20 → Node 24).
+- **`softprops/action-gh-release` v2 → v3** (Node 20 → Node 24).
+  Re-pinned to the commit SHA of `v3.0.0`; comment updated.
+
 ## [3.0.1] — 2026-05-15
 
 Ship the MIT `LICENSE` file inside the release zip so every distributed
