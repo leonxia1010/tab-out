@@ -1,6 +1,6 @@
 {
   "name": "tab-deck",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "New tab dashboard that groups your open tabs by domain so you can jump, save, or close them fast",
   "scripts": {
     "build": "tsc -b",

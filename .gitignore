@@ -14,3 +14,4 @@ extension/popup/dist/
 extension/shared/dist/
 *.tsbuildinfo
 preview-*.html
+extension/LICENSE
