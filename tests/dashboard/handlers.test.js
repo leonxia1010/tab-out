@@ -67,6 +67,7 @@ async function loadHandlersWithMocks() {
   };
   const renderSpies = {
     checkAndShowEmptyState: vi.fn(),
+    rebuildCard: vi.fn(),
     refreshOpenTabsCounters: vi.fn(),
     renderArchiveItem: vi.fn(() => document.createElement('div')),
     renderDeferredColumn: vi.fn().mockResolvedValue(undefined),
@@ -199,9 +200,37 @@ describe('handleCloseSingleTab', () => {
     click(closeBtn);
     await vi.runAllTimersAsync();
 
-    expect(bridge.closeTabsByUrls).toHaveBeenCalledWith(['https://a.com/page']);
+    expect(bridge.closeTabsByUrls).toHaveBeenCalledWith(['https://a.com/page'], true);
     expect(anim.playCloseSound).toHaveBeenCalledTimes(1);
     expect(anim.showToast).toHaveBeenCalledWith('Tab closed');
+  });
+
+  it('calls rebuildCard on non-empty cards after chip removal', async () => {
+    const { handlers, bridge, render } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+
+    const card = document.createElement('div');
+    card.className = 'domain-card';
+    const chip1 = document.createElement('div');
+    chip1.className = 'page-chip';
+    chip1.dataset.action = 'focus-tab';
+    chip1.dataset.tabUrl = 'https://a.com/page1';
+    const closeBtn = document.createElement('button');
+    closeBtn.dataset.action = 'close-single-tab';
+    closeBtn.dataset.tabUrl = 'https://a.com/page1';
+    chip1.appendChild(closeBtn);
+    const chip2 = document.createElement('div');
+    chip2.className = 'page-chip';
+    chip2.dataset.action = 'focus-tab';
+    chip2.dataset.tabUrl = 'https://a.com/page2';
+    card.appendChild(chip1);
+    card.appendChild(chip2);
+    document.getElementById('openTabsDomains').appendChild(card);
+
+    click(closeBtn);
+    await vi.runAllTimersAsync();
+
+    expect(render.rebuildCard).toHaveBeenCalledWith(card);
   });
 });
 
@@ -223,7 +252,7 @@ describe('handleDeferSingleTab', () => {
     await vi.runAllTimersAsync();
 
     expect(api.saveDefer).toHaveBeenCalledWith([{ url: 'https://b.com/x', title: 'B Page' }]);
-    expect(bridge.closeTabsByUrls).toHaveBeenCalledWith(['https://b.com/x']);
+    expect(bridge.closeTabsByUrls).toHaveBeenCalledWith(['https://b.com/x'], true);
     expect(render.renderDeferredColumn).toHaveBeenCalledTimes(1);
     expect(anim.showToast).toHaveBeenCalledWith('Saved for later');
   });
@@ -277,6 +306,35 @@ describe('handleDeferSingleTab', () => {
     expect(anim.showToast).toHaveBeenCalledWith('Failed to save tab');
 
     err.mockRestore();
+  });
+
+  it('calls rebuildCard on non-empty cards after chip removal', async () => {
+    const { handlers, render } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+
+    const card = document.createElement('div');
+    card.className = 'domain-card';
+    const chip1 = document.createElement('div');
+    chip1.className = 'page-chip';
+    chip1.dataset.action = 'focus-tab';
+    chip1.dataset.tabUrl = 'https://b.com/x';
+    const saveBtn = document.createElement('button');
+    saveBtn.dataset.action = 'defer-single-tab';
+    saveBtn.dataset.tabUrl = 'https://b.com/x';
+    saveBtn.dataset.tabTitle = 'B';
+    chip1.appendChild(saveBtn);
+    const chip2 = document.createElement('div');
+    chip2.className = 'page-chip';
+    chip2.dataset.action = 'focus-tab';
+    chip2.dataset.tabUrl = 'https://b.com/y';
+    card.appendChild(chip1);
+    card.appendChild(chip2);
+    document.getElementById('openTabsDomains').appendChild(card);
+
+    click(saveBtn);
+    await vi.runAllTimersAsync();
+
+    expect(render.rebuildCard).toHaveBeenCalledWith(card);
   });
 });
 
@@ -450,10 +508,28 @@ describe('handleCloseAllOpenTabs — never closes the dashboard tab', () => {
   });
 });
 
-// v2.5.0 — cross-domain "Close all N duplicates" header button. Aggregates
-// every per-card dedup-keep-one action's url list, hits closeDuplicates in
-// one shot, then fades the stale badges so the header/card visuals settle
-// without a full remount.
+describe('handleDedupKeepOne — per-card dedup rebuilds card', () => {
+  it('calls rebuildCard on the parent card after closing duplicates', async () => {
+    const { handlers, bridge, render } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+
+    const card = document.createElement('div');
+    card.className = 'domain-card';
+    const btn = document.createElement('button');
+    btn.dataset.action = 'dedup-keep-one';
+    btn.dataset.dupeUrls = encodeURIComponent('https://a.com/x');
+    card.appendChild(btn);
+    document.getElementById('openTabsDomains').appendChild(card);
+
+    click(btn);
+    await vi.runAllTimersAsync();
+
+    expect(bridge.closeDuplicates).toHaveBeenCalledWith(['https://a.com/x']);
+    expect(render.rebuildCard).toHaveBeenCalledWith(card);
+    expect(render.refreshOpenTabsCounters).toHaveBeenCalled();
+  });
+});
+
 describe('handleCloseAllDupesGlobal — aggregates per-card dedup actions', () => {
   function seedDupes() {
     const grid = document.getElementById('openTabsDomains');
@@ -525,6 +601,17 @@ describe('handleCloseAllDupesGlobal — aggregates per-card dedup actions', () =
 
     expect(anim.playCloseSound).toHaveBeenCalled();
     expect(render.refreshOpenTabsCounters).toHaveBeenCalled();
+  });
+
+  it('calls rebuildCard on every domain card after global dedup', async () => {
+    const { handlers, render } = await loadHandlersWithMocks();
+    handlers.attachListeners();
+    seedDupes();
+
+    click(document.querySelector('[data-action="close-all-dupes-global"]'));
+    await vi.runAllTimersAsync();
+
+    expect(render.rebuildCard).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -8,10 +8,12 @@
 // don't double-fire handlers.
 
 import { el, mount } from '../../shared/dist/dom-utils.js';
-import { friendlyDomain } from './utils.js';
+import { friendlyDomain, getDisplayableTabs } from './utils.js';
 import {
+  getDomainAliases,
   getDomainGroups,
   getOpenTabs,
+  getPriorityHostnames,
   getUndoSnapshot,
   setUndoSnapshot,
 } from './state.js';
@@ -44,6 +46,8 @@ import {
 import {
   checkAndShowEmptyState,
   domainIdFor,
+  groupTabsByDomain,
+  rebuildCard,
   refreshOpenTabsCounters,
   renderArchiveItem,
   renderDeferredColumn,
@@ -91,6 +95,7 @@ function fadeChipAndCleanupCards(
     document.querySelectorAll<HTMLElement>('.domain-card').forEach(c => {
       const remainingTabs = c.querySelectorAll('.page-chip[data-action="focus-tab"]');
       if (remainingTabs.length === 0) animateCardOut(c);
+      else rebuildCard(c);
     });
   }, CHIP_FADE_DURATION_MS);
 }
@@ -133,7 +138,7 @@ async function handleCloseSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
   const tabUrl = actionEl.dataset.tabUrl;
   if (!tabUrl) return;
 
-  await closeTabsByUrls([tabUrl]);
+  await closeTabsByUrls([tabUrl], true);
   playCloseSound();
 
   const chip = actionEl.closest<HTMLElement>('.page-chip');
@@ -159,7 +164,7 @@ async function handleDeferSingleTab(e: Event, actionEl: HTMLElement): Promise<vo
     return;
   }
 
-  await closeTabsByUrls([tabUrl]);
+  await closeTabsByUrls([tabUrl], true);
 
   const chip = actionEl.closest<HTMLElement>('.page-chip');
   if (chip) fadeChipAndCleanupCards(chip);
@@ -306,28 +311,7 @@ async function handleDedupKeepOne(actionEl: HTMLElement, card: HTMLElement | nul
   await fetchOpenTabs();
   playCloseSound();
 
-  actionEl.style.transition = 'opacity 0.2s';
-  actionEl.style.opacity = '0';
-  setTimeout(() => actionEl.remove(), 200);
-
-  if (card) {
-    card.querySelectorAll<HTMLElement>('.chip-dupe-badge').forEach(b => {
-      b.style.transition = 'opacity 0.2s';
-      b.style.opacity = '0';
-      setTimeout(() => b.remove(), 200);
-    });
-    card.querySelectorAll<HTMLElement>('.open-tabs-badge').forEach(badge => {
-      if ((badge.textContent || '').includes('duplicate')) {
-        badge.style.transition = 'opacity 0.2s';
-        badge.style.opacity = '0';
-        setTimeout(() => badge.remove(), 200);
-      }
-    });
-    card.classList.remove('has-amber-bar');
-    card.classList.add('has-neutral-bar');
-    const statusBar = card.querySelector<HTMLElement>('.status-bar');
-    if (statusBar) statusBar.style.background = '';
-  }
+  if (card) rebuildCard(card);
 
   refreshOpenTabsCounters();
   showToast('Closed duplicates, kept one copy each');
@@ -383,33 +367,10 @@ async function handleCloseAllDupesGlobal(): Promise<void> {
   await fetchOpenTabs();
   playCloseSound();
 
-  // Fade per-card dedup buttons + duplicate badges so the grid visually
-  // settles without a full re-mount (refreshOpenTabsCounters below
-  // re-renders the header, not the cards).
-  actionEls.forEach((el) => {
-    el.style.transition = 'opacity 0.2s';
-    el.style.opacity = '0';
-    setTimeout(() => el.remove(), 200);
-  });
-  document.querySelectorAll<HTMLElement>('#openTabsDomains .chip-dupe-badge').forEach((b) => {
-    b.style.transition = 'opacity 0.2s';
-    b.style.opacity = '0';
-    setTimeout(() => b.remove(), 200);
-  });
-  document.querySelectorAll<HTMLElement>('#openTabsDomains .open-tabs-badge').forEach((badge) => {
-    if ((badge.textContent || '').includes('duplicate')) {
-      badge.style.transition = 'opacity 0.2s';
-      badge.style.opacity = '0';
-      setTimeout(() => badge.remove(), 200);
-    }
-  });
-
-  // Remove the global button itself so the header tidies up immediately
-  // instead of waiting for the refresh debounce.
-  document.querySelectorAll<HTMLElement>('[data-action="close-all-dupes-global"]').forEach((btn) => {
-    btn.style.transition = 'opacity 0.2s';
-    btn.style.opacity = '0';
-    setTimeout(() => btn.remove(), 200);
+  const realTabs = getDisplayableTabs(getOpenTabs());
+  const sortedGroups = groupTabsByDomain(realTabs, getPriorityHostnames(), getDomainAliases());
+  document.querySelectorAll<HTMLElement>('#openTabsDomains .domain-card').forEach(c => {
+    rebuildCard(c, sortedGroups);
   });
 
   refreshOpenTabsCounters();
