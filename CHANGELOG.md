@@ -6,10 +6,17 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-05-15
+
+Rebrand to **Tab Deck**, full UI redesign (cool monochrome + Inter Tight),
+aurora 4-tier theme toggle, configurable priority hostnames, editable
+domain grouping with display names, and five bug fixes for chip-close and
+dedup card rendering.
+
 ### Added
 
-- **Editable domain grouping + display names (v2.9.0).** Options → Domain
-  groups exposes the previously-hardcoded alias map: each canonical group
+- **Editable domain grouping + display names.** Options → Domain groups
+  exposes the previously-hardcoded alias map: each canonical group
   (e.g. `bilibili.com`) renders as one collapsible row listing the
   hostnames that fold into it (`www.bilibili.com`, `b23.tv`, …).
   Expand to add or remove aliases, click Edit for a popover that overrides
@@ -26,53 +33,54 @@ All notable changes to this fork land here. Format based on
   (substack / github.io / strip-TLD + capitalize), so all the built-in
   pretty names still work without bloating settings storage with 71
   entries.
-
-### Changed
-
-- `effectiveDomain(hostname, aliases?)` and
-  `groupTabsByDomain(tabs, priorityHostnames, aliases?)` now accept an
-  optional aliases override. `normalizePriorityHostnames` keeps using the
-  hardcoded defaults (avoids a chicken-and-egg where normalizing settings
-  would require settings). Dashboard and popup thread the user's live
-  `domainAliases` through every grouping call site; `onSettingsChange`
-  re-renders the grid when aliases, priority hostnames, or display-name
-  overrides change.
-- `DOMAIN_ALIASES` exported constant renamed to `DEFAULT_DOMAIN_ALIASES`
-  (seed, not runtime source of truth). `DEFAULT_FRIENDLY_DOMAINS` moved
-  from `dashboard/src/utils.ts` into `shared/src/domain-grouping.ts` so
-  the options page can reuse it for the Reset-to-defaults flow.
-
 - **Configurable priority hostnames.** Options → Priority hostnames lets
   you pick which domains pin to the top of the open-tabs grid. Add via
   the text input, remove with the per-row button. Defaults to the
   pre-v2.8.0 pinned set (mail.google.com, x.com, www.linkedin.com,
   github.com) so existing installs see no visible change until they
-  edit. Within the priority tier, cards still sort by
-  first-opened — the list controls membership, not order
-  (drag-to-reorder lands in v2.9.0). Input is normalized to card-key form
-  (trim + lowercase + `effectiveDomain` alias), so typing `twitter.com`
-  lands as `x.com` and actually pins the collapsed group.
+  edit.
+- **Aurora 4-tier theme toggle** with dark-mode button fix and footer
+  cleanup.
 
 ### Changed
 
-- `groupTabsByDomain` signature now takes the priority set as a
-  parameter (`ReadonlySet<string>`) instead of reading a shared
-  module-level `PRIORITY_HOSTNAMES` constant. Every consumer (dashboard
-  renderers, diff, popup) passes the set explicitly; dashboard seeds a
-  module-local cache in `state.ts` that `onSettingsChange` refreshes
-  and triggers a grid re-render only when the list actually changes.
-  `PRIORITY_HOSTNAMES` removed from the shared exports;
-  `DEFAULT_PRIORITY_HOSTNAMES` (array) takes its place as the default
-  seed for `tabout:settings.priorityHostnames`. No storage migration —
-  missing key falls through to defaults.
+- **Rebrand: Tab Out → Tab Deck.** Extension name, manifest, icons, and
+  all user-facing strings updated.
+- **UI redesign.** Cool monochrome palette with Inter Tight typography
+  (Direction A).
+- `effectiveDomain(hostname, aliases?)` and
+  `groupTabsByDomain(tabs, priorityHostnames, aliases?)` now accept an
+  optional aliases override. Dashboard and popup thread the user's live
+  `domainAliases` through every grouping call site.
+- `DOMAIN_ALIASES` renamed to `DEFAULT_DOMAIN_ALIASES`. `DEFAULT_FRIENDLY_DOMAINS`
+  moved to `shared/src/domain-grouping.ts`.
+- `groupTabsByDomain` takes priority set as a parameter instead of reading
+  a module-level constant.
+- Popup fire-and-forget + tab-ops Map indexing for bulk operations.
 
 ### Removed
 
-- `twitter.com` dropped from the default priority list. `DOMAIN_ALIASES`
-  already collapses twitter.com tabs into the `x.com` group, so the
-  entry was dead code even before v2.8.0; the settings normalizer would
-  silently dedupe it against `x.com` on every round-trip. Users who had
-  customized the list keep whatever they stored.
+- `twitter.com` dropped from the default priority list (dead code — aliases
+  already collapse it into `x.com`).
+
+### Fixed
+
+- **Single chip close/defer used hostname-mode instead of exact URL
+  match.** Clicking the X or bookmark icon on one page chip closed ALL
+  tabs on that hostname, not just the targeted URL. Root cause:
+  `closeTabsByUrls` was called without `exact=true`.
+- **Single chip close/defer left stale card counts on multi-tab cards.**
+  After closing one tab from a card with several, the "N tabs open"
+  badge, "Close all N tabs" button, and internal signature were not
+  updated. Now calls `rebuildCard` on non-empty cards after chip removal.
+- **Per-card "Close N duplicates" left tab count and close-all button
+  stale.** `handleDedupKeepOne` manually patched some DOM elements but
+  missed the tab badge, close-all button text, and dataset signature.
+  Replaced with `rebuildCard` for complete state sync.
+- **Global "Close all N duplicates" left amber bar on every card.**
+  `handleCloseAllDupesGlobal` had the same incomplete DOM patching plus
+  missed the `has-amber-bar` → `has-neutral-bar` class toggle. Replaced
+  with per-card `rebuildCard` calls.
 
 ## [2.7.1] — 2026-04-21
 

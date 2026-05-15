@@ -27,6 +27,7 @@ export {
   domainIdFor,
   effectiveDomain,
   groupTabsByDomain,
+  rebuildCard,
   refreshOpenTabsCounters,
   renderDomainCard,
   renderOpenTabsHeader,

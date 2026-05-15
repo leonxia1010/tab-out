@@ -345,6 +345,20 @@ export function refreshOpenTabsCounters(): void {
   if (statTabs) statTabs.textContent = String(getOpenTabs().length);
 }
 
+export function rebuildCard(card: HTMLElement, precomputed?: DomainGroup[]): void {
+  const sortedGroups = precomputed ?? groupTabsByDomain(
+    getDisplayableTabs(getOpenTabs()),
+    getPriorityHostnames(),
+    getDomainAliases(),
+  );
+  const domainId = card.dataset.domainId;
+  const idx = sortedGroups.findIndex(g => domainIdFor(g.domain) === domainId);
+  if (idx < 0) return;
+  const newCard = renderDomainCard(sortedGroups[idx], idx);
+  newCard.style.animation = 'none';
+  card.replaceWith(newCard);
+}
+
 // Re-render only the open-tabs grid. Assumes openTabs is already in sync
 // (refresh.ts awaits fetchOpenTabs before calling). No Save-for-later
 // touch, no greeting/date rewrite — scoped to what chrome.tabs events can
