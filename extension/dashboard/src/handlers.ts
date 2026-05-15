@@ -110,7 +110,7 @@ async function handleCloseTabOutDupes(): Promise<void> {
     setTimeout(() => { banner.style.display = 'none'; banner.style.opacity = '1'; }, 400);
   }
   refreshOpenTabsCounters();
-  showToast('Closed extra Tab Out tabs');
+  showToast('Closed extra Tab Deck tabs');
 }
 
 function handleExpandChips(actionEl: HTMLElement): void {
@@ -646,4 +646,3 @@ export function attachListeners(): void {
   document.addEventListener('click', dispatchClick);
   document.addEventListener('input', dispatchArchiveSearch);
 }
-

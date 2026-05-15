@@ -211,7 +211,7 @@ export function smartTitle(
 // stubbing state.
 
 // Allowlist filter: keep tabs the dashboard should render. We drop other-
-// browser internals (about/edge/brave) and Tab Out's own newtab pages so the
+// browser internals (about/edge/brave) and Tab Deck's own newtab pages so the
 // dashboard never lists itself in the Extensions card. chrome:// and
 // chrome-extension:// (other extensions) intentionally pass through.
 export function getDisplayableTabs(tabs: ReadonlyArray<Tab>): Tab[] {

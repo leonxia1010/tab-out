@@ -117,7 +117,7 @@ describe('closeDuplicates', () => {
 // ─── closeTabOutDupes ──────────────────────────────────────────────────────
 
 describe('closeTabOutDupes', () => {
-  it('keeps the active dashboard tab, closes the other Tab Out pages', async () => {
+  it('keeps the active dashboard tab, closes the other Tab Deck pages', async () => {
     const { tabsApi } = installChrome({
       tabs: [
         { id: 1, url: NEWTAB_URL, active: true },
@@ -130,7 +130,7 @@ describe('closeTabOutDupes', () => {
     expect(tabsApi.remove).toHaveBeenCalledWith([2, 3]);
   });
 
-  it('does nothing when only one Tab Out tab is open', async () => {
+  it('does nothing when only one Tab Deck tab is open', async () => {
     const { tabsApi } = installChrome({
       tabs: [{ id: 1, url: NEWTAB_URL, active: true }],
     });
@@ -138,7 +138,7 @@ describe('closeTabOutDupes', () => {
     expect(tabsApi.remove).not.toHaveBeenCalled();
   });
 
-  it('v2.5.0: ignores Tab Out tabs in other windows (per-window scope)', async () => {
+  it('v2.5.0: ignores Tab Deck tabs in other windows (per-window scope)', async () => {
     const { tabsApi } = installChrome({
       currentWindowId: 2,
       tabs: [
@@ -151,7 +151,7 @@ describe('closeTabOutDupes', () => {
     expect(tabsApi.remove).toHaveBeenCalledWith([3]);
   });
 
-  it('does nothing when the current window has only one Tab Out (even if another window has more)', async () => {
+  it('does nothing when the current window has only one Tab Deck (even if another window has more)', async () => {
     const { tabsApi } = installChrome({
       currentWindowId: 2,
       tabs: [
@@ -168,7 +168,7 @@ describe('closeTabOutDupes', () => {
 // ─── organizeTabs ──────────────────────────────────────────────────────────
 
 describe('organizeTabs', () => {
-  it('batches chrome.tabs.move with domain-card order + Tab Out appended', async () => {
+  it('batches chrome.tabs.move with domain-card order + Tab Deck appended', async () => {
     const { tabsApi } = installChrome({
       currentWindowId: 1,
       tabs: [
@@ -230,7 +230,7 @@ describe('organizeTabs', () => {
     ]);
   });
 
-  it('Tab Out tabs land at the end regardless of desired order', async () => {
+  it('Tab Deck tabs land at the end regardless of desired order', async () => {
     const { tabsApi } = installChrome({
       currentWindowId: 1,
       tabs: [
@@ -305,7 +305,7 @@ describe('closeAllExceptTabout', () => {
     expect(result.closed).toBe(1);
   });
 
-  it('creates a new Tab Out tab first when none exists', async () => {
+  it('creates a new Tab Deck tab first when none exists', async () => {
     const { tabsApi } = installChrome({
       currentWindowId: 1,
       tabs: [
@@ -319,7 +319,7 @@ describe('closeAllExceptTabout', () => {
     expect(result).toEqual({ closed: 2, createdTabOut: true });
   });
 
-  it('skips the close path when nothing is closeable and Tab Out already exists', async () => {
+  it('skips the close path when nothing is closeable and Tab Deck already exists', async () => {
     const { tabsApi } = installChrome({
       currentWindowId: 1,
       tabs: [
@@ -354,7 +354,7 @@ describe('countCloseable', () => {
     expect(countCloseable(tabs)).toBe(2);
   });
 
-  it('returns 0 when only Tab Out + pinned tabs are open', () => {
+  it('returns 0 when only Tab Deck + pinned tabs are open', () => {
     installChrome({});
     const tabs = [
       { id: 1, url: NEWTAB_URL, pinned: false },
@@ -365,7 +365,7 @@ describe('countCloseable', () => {
 });
 
 describe('countDuplicates', () => {
-  it('counts extras per URL including Tab Out duplicates', () => {
+  it('counts extras per URL including Tab Deck duplicates', () => {
     installChrome({});
     const tabs = [
       { id: 1, url: 'https://a.test', pinned: false },
@@ -376,11 +376,11 @@ describe('countDuplicates', () => {
       { id: 6, url: NEWTAB_URL, pinned: false },
       { id: 7, url: NEWTAB_URL, pinned: false },
     ];
-    // a has 2 extras (3-1), b has 1 extra (2-1), Tab Out has 1 extra (2-1) = 4
+    // a has 2 extras (3-1), b has 1 extra (2-1), Tab Deck has 1 extra (2-1) = 4
     expect(countDuplicates(tabs)).toBe(4);
   });
 
-  it('v2.7: counts Tab Out-only duplicates so the popup button can enable', () => {
+  it('v2.7: counts Tab Deck-only duplicates so the popup button can enable', () => {
     installChrome({});
     const tabs = [
       { id: 1, url: NEWTAB_URL, pinned: false },

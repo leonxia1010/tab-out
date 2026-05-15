@@ -95,8 +95,8 @@ describe('fetchOpenTabs', () => {
       currentWindowId: 10,
       tabs: [
         { id: 1, url: 'https://github.com', title: 'GH', windowId: 10, active: true },
-        { id: 2, url: NEWTAB_URL, title: 'Tab Out', windowId: 10, active: false },
-        { id: 3, url: 'chrome://newtab/', title: 'Tab Out', windowId: 10, active: false },
+        { id: 2, url: NEWTAB_URL, title: 'Tab Deck', windowId: 10, active: false },
+        { id: 3, url: 'chrome://newtab/', title: 'Tab Deck', windowId: 10, active: false },
         { id: 4, url: 'https://example.com', title: 'EX', windowId: 10, active: false },
       ],
     });
@@ -302,7 +302,7 @@ describe('focusTab', () => {
 
 // ─── closeTabsByUrls skipSelf guard ─────────────────────────────────────────
 //
-// Bug 1 / Bug 2 defense: any bulk close path must preserve the Tab Out
+// Bug 1 / Bug 2 defense: any bulk close path must preserve the Tab Deck
 // dashboard tab itself — otherwise closing it pulls the user's new-tab entry
 // point out from under them, and if it's the last remaining tab it can
 // trigger Chrome to exit. `skipSelf` defaults to true, so all existing

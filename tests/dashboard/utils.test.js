@@ -286,7 +286,7 @@ describe('getDisplayableTabs', () => {
     ]);
   });
 
-  it('drops Tab Out\'s own newtab pages (isTabOut flag)', () => {
+  it('drops Tab Deck\'s own newtab pages (isTabOut flag)', () => {
     const tabs = [
       { url: 'https://github.com', isTabOut: false },
       { url: 'chrome-extension://myid/dashboard/index.html', isTabOut: true },

@@ -66,7 +66,7 @@ async function checkForUpdates(): Promise<void> {
       el('div', { className: 'update-banner-left' }, [
         el('span', { className: 'update-banner-icon' }, ['\u2728']),
         el('span', { className: 'update-banner-text' }, [
-          'A new version of Tab Out is available.',
+          'A new version of Tab Deck is available.',
         ]),
       ]),
       el('div', { className: 'update-banner-right' }, [ctaLink, dismissBtn]),

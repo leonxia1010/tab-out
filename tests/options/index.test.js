@@ -24,7 +24,7 @@ const SETTINGS_KEY = 'tabout:settings';
 const OPTIONS_HTML = `
   <main class="settings-container">
     <header class="settings-header">
-      <h1>Tab Out <span class="settings-heading-accent">— Settings</span><span class="dirty-dot" id="dirtyDot" hidden></span></h1>
+      <h1>Tab Deck <span class="settings-heading-accent">— Settings</span><span class="dirty-dot" id="dirtyDot" hidden></span></h1>
     </header>
     <section>
       <fieldset class="settings-field">

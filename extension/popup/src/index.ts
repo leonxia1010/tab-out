@@ -1,4 +1,4 @@
-// Tab Out toolbar popup — three quick-action buttons reachable from any
+// Tab Deck toolbar popup — three quick-action buttons reachable from any
 // page. Per-window scope mirrors the dashboard's v2.5.0 semantics. Popup
 // closes on every action click (window.close()) so no undo affordance is
 // offered; undo stays a dashboard-only flow.
@@ -12,7 +12,7 @@
 // though the popup's V8 context is torn down. Without this, close-all
 // would await chrome.tabs.create({newtab}) before chrome.tabs.remove(),
 // the new tab would steal focus, chrome would auto-close the popup, and
-// the remove() call never ran — first click only created Tab Out, user
+// the remove() call never ran — first click only created Tab Deck, user
 // had to click again to actually close the rest.
 
 import {
@@ -44,8 +44,8 @@ const BUTTONS: ButtonSpec[] = [
     id: 'popup-close-all',
     action: 'close-all',
     label: (n) => (n === 0
-      ? 'Close all tabs (keep Tab Out)'
-      : `Close all ${n} tab${n === 1 ? '' : 's'} (keep Tab Out)`),
+      ? 'Close all tabs (keep Tab Deck)'
+      : `Close all ${n} tab${n === 1 ? '' : 's'} (keep Tab Deck)`),
   },
   {
     id: 'popup-close-dupes',

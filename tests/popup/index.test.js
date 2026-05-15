@@ -82,17 +82,17 @@ describe('popup mount', () => {
       { id: 3, url: 'https://x.com', pinned: false },
     ]);
     const btn = document.getElementById('popup-close-all');
-    expect(btn.textContent).toBe('Close all 2 tabs (keep Tab Out)');
+    expect(btn.textContent).toBe('Close all 2 tabs (keep Tab Deck)');
     expect(btn.disabled).toBe(false);
   });
 
-  it('disables close-all when only Tab Out + pinned remain', async () => {
+  it('disables close-all when only Tab Deck + pinned remain', async () => {
     await mountPopup([
       { id: 1, url: NEWTAB_URL, pinned: false },
       { id: 2, url: 'https://pinned.com', pinned: true },
     ]);
     const btn = document.getElementById('popup-close-all');
-    expect(btn.textContent).toBe('Close all tabs (keep Tab Out)');
+    expect(btn.textContent).toBe('Close all tabs (keep Tab Deck)');
     expect(btn.disabled).toBe(true);
   });
 
@@ -102,7 +102,7 @@ describe('popup mount', () => {
       { id: 2, url: 'https://github.com', pinned: false },
     ]);
     const btn = document.getElementById('popup-close-all');
-    expect(btn.textContent).toBe('Close all 1 tab (keep Tab Out)');
+    expect(btn.textContent).toBe('Close all 1 tab (keep Tab Deck)');
   });
 
   it('renders duplicate count reflecting pinned-preservation', async () => {
@@ -119,7 +119,7 @@ describe('popup mount', () => {
     expect(btn.disabled).toBe(false);
   });
 
-  it('v2.7: enables dedup button when only Tab Out tabs are duplicated', async () => {
+  it('v2.7: enables dedup button when only Tab Deck tabs are duplicated', async () => {
     await mountPopup([
       { id: 1, url: NEWTAB_URL, pinned: false },
       { id: 2, url: NEWTAB_URL, pinned: false },
@@ -137,14 +137,14 @@ describe('popup mount', () => {
       { id: 4, url: NEWTAB_URL, pinned: false },
     ]);
     const btn = document.getElementById('popup-organize');
-    // Includes Tab Out tab (organize appends it at the end).
+    // Includes Tab Deck tab (organize appends it at the end).
     expect(btn.textContent).toBe('Organize 3 tabs');
     expect(btn.disabled).toBe(false);
   });
 });
 
 describe('popup actions', () => {
-  it('close-all click creates Tab Out first if absent, then removes non-pinned non-TabOut, closes window', async () => {
+  it('close-all click creates Tab Deck first if absent, then removes non-pinned non-TabOut, closes window', async () => {
     const { tabsApi } = await mountPopup([
       { id: 1, url: 'https://github.com', pinned: false },
       { id: 2, url: 'https://x.com', pinned: false },
@@ -169,7 +169,7 @@ describe('popup actions', () => {
     expect(window.close).toHaveBeenCalledTimes(1);
   });
 
-  it('v2.7: close-dupes click closes Tab Out duplicates too', async () => {
+  it('v2.7: close-dupes click closes Tab Deck duplicates too', async () => {
     const { tabsApi } = await mountPopup([
       { id: 1, url: NEWTAB_URL, pinned: false },
       { id: 2, url: NEWTAB_URL, pinned: false },
@@ -177,14 +177,14 @@ describe('popup actions', () => {
     ]);
     document.getElementById('popup-close-dupes').click();
     await flushAsync();
-    // Only Tab Out has ≥2 copies; one closes. github has a single copy so
+    // Only Tab Deck has ≥2 copies; one closes. github has a single copy so
     // it stays. The label in the mount test above asserts N=1; this
     // asserts the click actually realizes that promise.
     expect(tabsApi.remove).toHaveBeenCalledWith([2]);
     expect(window.close).toHaveBeenCalledTimes(1);
   });
 
-  it('organize click moves non-pinned tabs with Tab Out appended, closes window', async () => {
+  it('organize click moves non-pinned tabs with Tab Deck appended, closes window', async () => {
     const { tabsApi } = await mountPopup([
       { id: 10, url: 'https://github.com/a', pinned: false, index: 0, windowId: 1 },
       { id: 11, url: 'https://twitter.com/x', pinned: false, index: 1, windowId: 1 },

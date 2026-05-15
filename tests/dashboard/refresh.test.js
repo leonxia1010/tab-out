@@ -147,16 +147,16 @@ describe('scheduleRefresh — signature-based dedup', () => {
     expect(renderSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('v2.7: refreshes Tab Out banner even when displayable signature is unchanged', async () => {
-    // Opening/closing a Tab Out tab leaves the displayable signature
-    // stable (Tab Out is filtered out), so without the unconditional
+  it('v2.7: refreshes Tab Deck banner even when displayable signature is unchanged', async () => {
+    // Opening/closing a Tab Deck tab leaves the displayable signature
+    // stable (Tab Deck is filtered out), so without the unconditional
     // checkTabOutDupes() call after fetchOpenTabs, the signature-based
     // early-return would leave the banner's last-rendered state stuck
     // until some other tab event kicked the cycle again.
     installChrome({ queryResults: [[
       { id: 1, url: 'https://a.com', title: 'A' },
-      { id: 2, url: `chrome-extension://${EXT_ID}/dashboard/index.html`, title: 'Tab Out' },
-      { id: 3, url: `chrome-extension://${EXT_ID}/dashboard/index.html`, title: 'Tab Out' },
+      { id: 2, url: `chrome-extension://${EXT_ID}/dashboard/index.html`, title: 'Tab Deck' },
+      { id: 3, url: `chrome-extension://${EXT_ID}/dashboard/index.html`, title: 'Tab Deck' },
     ]] });
     const renderSpy = vi.fn().mockResolvedValue(undefined);
     const banner = vi.fn();
@@ -173,7 +173,7 @@ describe('scheduleRefresh — signature-based dedup', () => {
     await vi.advanceTimersByTimeAsync(500);
     // Displayable set (just 'https://a.com') is unchanged → no diff render.
     expect(renderSpy).not.toHaveBeenCalled();
-    // Banner check still fires so open/close of Tab Out tabs reflects live.
+    // Banner check still fires so open/close of Tab Deck tabs reflects live.
     expect(banner).toHaveBeenCalledTimes(1);
   });
 

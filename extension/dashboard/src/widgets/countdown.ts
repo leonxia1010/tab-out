@@ -145,7 +145,7 @@ export function mountCountdown(
   let state: CountdownState | null = null;
   // Last-used duration in the current session. Reset to DEFAULT_MINUTES
   // on destroy; intentionally not persisted — the default-10 hint is
-  // that "open Tab Out, hit play, get a 10-min timer" is the baseline
+  // that "open Tab Deck, hit play, get a 10-min timer" is the baseline
   // experience and lingering 45-min picks would erode it.
   let selectedMinutes: number = DEFAULT_MINUTES;
   let destroyed = false;

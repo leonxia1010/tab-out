@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tab Out</title>
+  <title>Tab Deck</title>
+  <link rel="icon" type="image/png" sizes="16x16" href="../icons/tab-deck-favicon16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/tab-deck-favicon32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="../icons/tab-deck-favicon48.png">
 
   <!-- Sync script: sets html[data-theme] from localStorage before stylesheet
        parses, preventing FOUC on explicit light/dark theme choices. See
@@ -22,7 +25,7 @@
 <body>
 <!-- Focus sink (v2.6.1) — Chrome forces omnibox focus on every new-tab
      open, which leaves the cursor sitting in the URL bar asking for a
-     URL even when the user just wanted to look at Tab Out. `autofocus`
+     URL even when the user just wanted to look at Tab Deck. `autofocus`
      on a visually-hidden, tab-index-excluded button hands focus to
      this sink instead, so the visible state reads as "no focus" — no
      omnibox caret, no search-box caret, no Tab trap (tabindex=-1
@@ -31,7 +34,7 @@
      actually touched. `aria-label` gives AT users a meaningful
      announcement (v2.6.2 — earlier `aria-hidden` tripped Chrome's
      "focus must not be hidden from AT" a11y rule). -->
-<button type="button" class="focus-sink" autofocus tabindex="-1" aria-label="Tab Out dashboard"></button>
+<button type="button" class="focus-sink" autofocus tabindex="-1" aria-label="Tab Deck dashboard"></button>
 <div class="container">
 
 
@@ -57,9 +60,9 @@
   <section class="middle-section" id="middleSection"></section>
 
   <!-- ================================================================
-       TAB OUT DUPES BANNER — appears when you have extra Tab Out tabs open.
+       TAB DECK DUPES BANNER — appears when you have extra Tab Deck tabs open.
        Hidden by default; extension-bridge.ts#checkTabOutDupes reveals it
-       when more than one Tab Out tab is open.
+       when more than one Tab Deck tab is open.
        ================================================================ -->
   <div class="tab-cleanup-banner" id="tabOutDupeBanner" style="display:none">
     <div class="tab-cleanup-left">
@@ -69,7 +72,7 @@
         </svg>
       </div>
       <div class="tab-cleanup-text">
-        You have <strong id="tabOutDupeCount"></strong> Tab Out tabs open. Keep just this one?
+        You have <strong id="tabOutDupeCount"></strong> Tab Deck tabs open. Keep just this one?
       </div>
     </div>
     <button class="tab-cleanup-btn" data-action="close-tabout-dupes">Close extras</button>

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Tab Out",
+  "name": "Tab Deck",
   "version": "2.7.1",
-  "description": "Keep tabs on your tabs. New tab page that groups your open tabs by domain and lets you close them with style.",
+  "description": "New tab dashboard that groups your open tabs by domain so you can jump, save, or close them fast.",
   "minimum_chrome_version": "114",
   "permissions": ["tabs", "storage", "alarms", "search", "topSites", "favicon", "notifications", "geolocation"],
   "host_permissions": [
@@ -17,16 +17,16 @@
   "options_ui": { "page": "options/index.html", "open_in_tab": true },
   "background": { "service_worker": "background.js" },
   "action": {
-    "default_title": "Tab Out",
+    "default_title": "Tab Deck",
     "default_popup": "popup/index.html",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png"
+      "16": "icons/tab-deck-toolbar16.png",
+      "48": "icons/tab-deck-toolbar48.png"
     }
   },
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icons/tab-deck-toolbar16.png",
+    "48": "icons/tab-deck-toolbar48.png",
+    "128": "icons/tab-deck-app128.png"
   }
 }
