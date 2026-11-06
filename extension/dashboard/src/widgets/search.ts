@@ -7,6 +7,7 @@
 //                 (same URL the official 小红书快捷搜索 extension opens
 //                 from its context menu)
 //   bilibili    → https://search.bilibili.com/all?keyword=…
+//   x           → https://x.com/search?q=…&src=typed_query
 //   googlemaps  → https://www.google.com/maps/search/…
 //
 // Every engine is an explicit URL (no chrome.search.query): the picker
@@ -34,7 +35,7 @@ export interface SearchHandle {
   destroy(): void;
 }
 
-export type SearchEngineId = 'google' | 'baidu' | 'xiaohongshu' | 'bilibili' | 'googlemaps';
+export type SearchEngineId = 'google' | 'baidu' | 'xiaohongshu' | 'bilibili' | 'x' | 'googlemaps';
 
 interface SearchEngine {
   id: SearchEngineId;
@@ -84,6 +85,14 @@ const ENGINES: readonly SearchEngine[] = [
     placeholder: 'Search Bilibili...',
     icon: `${ICON_DIR}/bilibili.png`,
     buildUrl: (q) => `https://search.bilibili.com/all?keyword=${encodeURIComponent(q)}`,
+  },
+  {
+    id: 'x',
+    label: 'X',
+    placeholder: 'Search X...',
+    icon: `${ICON_DIR}/x.png`,
+    // src=typed_query is what x.com's own search box appends.
+    buildUrl: (q) => `https://x.com/search?q=${encodeURIComponent(q)}&src=typed_query`,
   },
   {
     id: 'googlemaps',

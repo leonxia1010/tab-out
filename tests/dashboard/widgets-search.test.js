@@ -18,7 +18,7 @@ import { resolve } from 'node:path';
 
 import { mountSearch, SEARCH_ENGINE_KEY } from '../../extension/dashboard/src/widgets/search.ts';
 
-const ORDER = ['google', 'baidu', 'xiaohongshu', 'bilibili', 'googlemaps'];
+const ORDER = ['google', 'baidu', 'xiaohongshu', 'bilibili', 'x', 'googlemaps'];
 
 function installChrome(updateImpl) {
   const update = vi.fn(updateImpl);
@@ -81,13 +81,13 @@ describe('mountSearch structure', () => {
     expect(menu.getAttribute('role')).toBe('menu');
     const items = [...menu.querySelectorAll('.search-engine-option')];
     expect(items.map((i) => i.dataset.engine)).toEqual(ORDER);
-    expect(items.map((i) => i.textContent)).toEqual(['Google', '百度', '小红书', 'B站', 'Google Maps']);
+    expect(items.map((i) => i.textContent)).toEqual(['Google', '百度', '小红书', 'B站', 'X', 'Google Maps']);
     items.forEach((i) => {
       expect(i.getAttribute('role')).toBe('menuitemradio');
       expect(i.getAttribute('type')).toBe('button');
       expect(i.querySelector(`img[data-icon="${i.dataset.engine}"]`)).not.toBeNull();
     });
-    expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false', 'false']);
+    expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false', 'false', 'false']);
   });
 
   it('every engine icon points at a bundled file under extension/icons/engines', () => {
@@ -216,6 +216,7 @@ describe('mountSearch submit', () => {
     ['baidu', 'https://www.baidu.com/s?wd=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
     ['xiaohongshu', 'https://www.xiaohongshu.com/search_result?keyword=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
     ['bilibili', 'https://search.bilibili.com/all?keyword=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['x', 'https://x.com/search?q=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87&src=typed_query'],
     ['googlemaps', 'https://www.google.com/maps/search/%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
   ];
 
