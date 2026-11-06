@@ -6,6 +6,22 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+### Added
+
+- **Search engine switcher (Google / 小红书 / B站).** The search box now
+  has an engine button on the left where the magnifying glass used to
+  be. Click it, or press Tab inside the input, to cycle
+  default → Xiaohongshu → Bilibili. Xiaohongshu opens
+  `xiaohongshu.com/search_result?keyword=…`, Bilibili opens
+  `search.bilibili.com/all?keyword=…`, both in the current tab. The
+  default engine still routes through `chrome.search.query`. Shift+Tab
+  keeps native focus behavior; Tab during IME composition is not
+  intercepted. No new permissions.
+- **Last-used engine is remembered** in
+  `localStorage['tabout:search-engine']` (deliberately not in
+  `tabout:settings`, so cycling engines doesn't broadcast a settings
+  change and re-render the shortcuts row).
+
 ## [3.0.2] — 2026-05-15
 
 Bump GitHub Actions in the release workflow to their Node 24 majors —

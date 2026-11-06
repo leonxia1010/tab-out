@@ -1373,14 +1373,31 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   box-shadow: 0 4px 20px var(--shadow);
 }
 
-.search-widget-field svg {
-  width: 16px;
-  height: 16px;
-  color: var(--muted);
+/* Engine switcher (Google / 小红书 / B站) sits where the magnifying
+   glass used to be. Click cycles engines; Tab inside the input does
+   the same. Small muted pill so it reads as a label first, a control
+   second. */
+.search-widget-engine {
+  font-family: 'Inter Tight', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
   flex-shrink: 0;
-  /* Icon is decoration; clicks should pass through to the input so
-     the whole box feels like one affordance. */
-  pointer-events: none;
+  padding: 5px 9px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.search-widget-engine:hover,
+.search-widget-engine:focus-visible {
+  color: var(--ink);
+  border-color: var(--accent-amber);
+  outline: none;
 }
 
 .search-widget-input {
