@@ -1400,9 +1400,11 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
 }
 
 .search-engine-icon {
+  display: block;
   width: 18px;
   height: 18px;
   flex-shrink: 0;
+  border-radius: 4px;
 }
 
 .search-engine-chevron {
@@ -1418,7 +1420,7 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   pointer-events: none;
 }
 
-.search-widget.is-loading .search-widget-engine > svg {
+.search-widget.is-loading .search-widget-engine > * {
   visibility: hidden;
 }
 

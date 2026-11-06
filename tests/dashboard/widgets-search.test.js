@@ -13,6 +13,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { mountSearch, SEARCH_ENGINE_KEY } from '../../extension/dashboard/src/widgets/search.ts';
 
@@ -73,7 +75,7 @@ describe('mountSearch structure', () => {
     expect(button.getAttribute('aria-haspopup')).toBe('menu');
     expect(button.getAttribute('popovertarget')).toBe(menu.id);
     expect(button.dataset.engine).toBe('google');
-    expect(button.querySelector('svg[data-icon="google"]')).not.toBeNull();
+    expect(button.querySelector('img[data-icon="google"]')).not.toBeNull();
 
     expect(menu.getAttribute('popover')).toBe('auto');
     expect(menu.getAttribute('role')).toBe('menu');
@@ -83,9 +85,23 @@ describe('mountSearch structure', () => {
     items.forEach((i) => {
       expect(i.getAttribute('role')).toBe('menuitemradio');
       expect(i.getAttribute('type')).toBe('button');
-      expect(i.querySelector(`svg[data-icon="${i.dataset.engine}"]`)).not.toBeNull();
+      expect(i.querySelector(`img[data-icon="${i.dataset.engine}"]`)).not.toBeNull();
     });
     expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false', 'false']);
+  });
+
+  it('every engine icon points at a bundled file under extension/icons/engines', () => {
+    installChrome();
+    const { menu } = mountInSlot();
+    const dashboardDir = resolve(__dirname, '../../extension/dashboard');
+    const imgs = [...menu.querySelectorAll('img.search-engine-icon')];
+    expect(imgs).toHaveLength(ORDER.length);
+    imgs.forEach((img) => {
+      const src = img.getAttribute('src');
+      expect(src).toBe(`../icons/engines/${img.dataset.icon}.png`);
+      expect(existsSync(resolve(dashboardDir, src))).toBe(true);
+      expect(img.getAttribute('alt')).toBe('');
+    });
   });
 
   it('does NOT steal focus on mount', () => {
@@ -111,11 +127,19 @@ describe('mountSearch engine menu', () => {
     option('bilibili').click();
 
     expect(button.dataset.engine).toBe('bilibili');
-    expect(button.querySelector('svg[data-icon="bilibili"]')).not.toBeNull();
-    expect(button.querySelector('svg[data-icon="google"]')).toBeNull();
+    expect(button.querySelector('img[data-icon="bilibili"]')).not.toBeNull();
+    expect(button.querySelector('img[data-icon="google"]')).toBeNull();
     expect(input.placeholder).toBe('Search Bilibili...');
     const checked = [...menu.querySelectorAll('[aria-checked="true"]')].map((i) => i.dataset.engine);
     expect(checked).toEqual(['bilibili']);
+  });
+
+  it('xiaohongshu is labelled 小红书 in the menu and RedNote in the placeholder', () => {
+    installChrome();
+    const { input, option } = mountInSlot();
+    expect(option('xiaohongshu').textContent).toBe('小红书');
+    option('xiaohongshu').click();
+    expect(input.placeholder).toBe('Search RedNote...');
   });
 
   it('picking an item returns focus to the input', () => {
