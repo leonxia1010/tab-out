@@ -117,7 +117,9 @@ export function iconNode(svgString: string, label = 'icon'): Element {
 
 // Anchor a popover (position:fixed in the browser top layer) to a
 // trigger's bounding rect on every `open` transition. Right-aligned under
-// the trigger with an 8px viewport-edge clamp, dismissed on scroll/resize
+// the trigger by default (`align: 'start'` left-aligns it, for triggers
+// that sit at the left edge of a control) with an 8px viewport-edge
+// clamp, dismissed on scroll/resize
 // so the menu never floats detached from its anchor while the page moves.
 // Listener lifetime is bound to the popover's open state: attached on
 // open, removed on close, so no work is done while the menu is hidden.
@@ -125,6 +127,7 @@ export function anchorPopoverTo(
   trigger: HTMLElement,
   popover: HTMLElement,
   gapPx = 4,
+  align: 'start' | 'end' = 'end',
 ): void {
   const dismiss = (): void => {
     if (typeof popover.hidePopover === 'function') popover.hidePopover();
@@ -135,7 +138,7 @@ export function anchorPopoverTo(
       const tr = trigger.getBoundingClientRect();
       const pw = popover.offsetWidth;
       const vw = window.innerWidth;
-      let left = tr.right - pw;
+      let left = align === 'start' ? tr.left : tr.right - pw;
       if (left < 8) left = 8;
       if (left + pw > vw - 8) left = vw - pw - 8;
       popover.style.top = `${tr.bottom + gapPx}px`;

@@ -6,6 +6,39 @@ All notable changes to this fork land here. Format based on
 
 ## [Unreleased]
 
+### Added
+
+- **Search engine picker: Google, 百度, 小红书 (RedNote), B站, Google Maps.** The
+  magnifying glass is replaced by the current engine's icon: each
+  site's own favicon (downloaded 2026-11-06, bundled under
+  `extension/icons/engines/`, trademarks of their owners). Click it to open a menu and pick an engine
+  (arrow keys / Home / End / Esc work), or press Tab inside the input
+  to cycle to the next one. Shift+Tab keeps native focus behavior; Tab
+  during IME composition is not intercepted. Results open in the
+  current tab via `chrome.tabs.update`.
+- **Busy state after submit.** Search sites can take a second or two
+  to respond while the dashboard stays on screen, so the query now
+  stays in the box (read-only) and a spinner replaces the engine icon
+  until the page navigates. It resets if dispatch fails, if the page is
+  restored from the back/forward cache, or when Esc is pressed (Chrome
+  stops the pending load, and the field becomes editable again).
+- **Last-used engine is remembered** in
+  `localStorage['tabout:search-engine']` (deliberately not in
+  `tabout:settings`, so switching engines doesn't broadcast a settings
+  change and re-render the shortcuts row).
+
+### Changed
+
+- **Google is now an explicit URL** (`google.com/search?q=`) instead of
+  `chrome.search.query`, so the Google icon always means Google
+  regardless of the browser's default engine.
+- `anchorPopoverTo` takes an optional `align: 'start' | 'end'`
+  (default `'end'`, unchanged for existing callers).
+
+### Removed
+
+- **`search` permission**: no longer used.
+
 ## [3.0.2] — 2026-05-15
 
 Bump GitHub Actions in the release workflow to their Node 24 majors —
