@@ -247,6 +247,14 @@ export function mountSearch(container: HTMLElement): SearchHandle {
   };
 
   const onInputKeydown = (e: KeyboardEvent): void => {
+    // Esc while busy: Chrome treats it as "stop loading", which cancels
+    // the pending navigation and leaves this page in place. Drop the
+    // busy state too so the field is editable and Enter works again.
+    // Not preventDefault'd, so the browser still stops the load.
+    if (e.key === 'Escape' && form.classList.contains('is-loading')) {
+      setBusy(false);
+      return;
+    }
     if (e.key !== 'Tab' || e.shiftKey || e.isComposing) return;
     e.preventDefault();
     selectEngine((engineIndex + 1) % ENGINES.length);

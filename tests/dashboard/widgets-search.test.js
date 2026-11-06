@@ -287,6 +287,23 @@ describe('mountSearch submit', () => {
     expect(form.classList.contains('is-loading')).toBe(false);
   });
 
+  it('Esc while busy clears the busy state so the user can search again', () => {
+    const update = installChrome(() => new Promise(() => {}));
+    const { form, input } = mountInSlot();
+    input.value = 'camping';
+    submit(form);
+
+    const ev = keydown(input, 'Escape');
+
+    expect(ev.defaultPrevented).toBe(false);
+    expect(form.classList.contains('is-loading')).toBe(false);
+    expect(input.readOnly).toBe(false);
+    expect(input.value).toBe('camping');
+
+    submit(form);
+    expect(update).toHaveBeenCalledTimes(2);
+  });
+
   it('resets to an empty, idle field when restored from the bfcache', () => {
     installChrome();
     const { form, input } = mountInSlot();

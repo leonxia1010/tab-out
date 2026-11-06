@@ -18,8 +18,9 @@ All notable changes to this fork land here. Format based on
 - **Busy state after submit.** Search sites can take a second or two
   to respond while the dashboard stays on screen, so the query now
   stays in the box (read-only) and a spinner replaces the engine icon
-  until the page navigates. It resets if dispatch fails or the page is
-  restored from the back/forward cache.
+  until the page navigates. It resets if dispatch fails, if the page is
+  restored from the back/forward cache, or when Esc is pressed (Chrome
+  stops the pending load, and the field becomes editable again).
 - **Last-used engine is remembered** in
   `localStorage['tabout:search-engine']` (deliberately not in
   `tabout:settings`, so switching engines doesn't broadcast a settings
