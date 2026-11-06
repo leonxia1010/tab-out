@@ -4,7 +4,7 @@
   "version": "3.0.2",
   "description": "New tab dashboard that groups your open tabs by domain so you can jump, save, or close them fast.",
   "minimum_chrome_version": "114",
-  "permissions": ["tabs", "storage", "alarms", "search", "topSites", "favicon", "notifications", "geolocation"],
+  "permissions": ["tabs", "storage", "alarms", "topSites", "favicon", "notifications", "geolocation"],
   "host_permissions": [
     "https://api.github.com/*",
     "https://api.open-meteo.com/*",

@@ -1373,31 +1373,128 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   box-shadow: 0 4px 20px var(--shadow);
 }
 
-/* Engine switcher (Google / 小红书 / B站) sits where the magnifying
-   glass used to be. Click cycles engines; Tab inside the input does
-   the same. Small muted pill so it reads as a label first, a control
-   second. */
+/* Engine picker sits where the magnifying glass used to be: brand
+   icon + small chevron. Click opens .search-engine-menu (native
+   popover); Tab inside the input cycles engines. */
 .search-widget-engine {
-  font-family: 'Inter Tight', sans-serif;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   flex-shrink: 0;
-  padding: 5px 9px;
-  border: 1px solid var(--warm-gray);
+  margin: -4px 0 -4px -6px;
+  padding: 4px 4px 4px 6px;
+  border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .search-widget-engine:hover,
-.search-widget-engine:focus-visible {
+.search-widget-engine:focus-visible,
+.search-widget-engine[aria-expanded="true"] {
+  background: var(--paper);
   color: var(--ink);
-  border-color: var(--accent-amber);
   outline: none;
+}
+
+.search-engine-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.search-engine-chevron {
+  width: 12px;
+  height: 12px;
+}
+
+/* Busy state after submit: the target site can take a second or two
+   to answer while this page stays on screen. Swap the engine icon for
+   a spinner and dim the query so the press visibly "took". */
+.search-widget.is-loading .search-widget-engine {
+  position: relative;
+  pointer-events: none;
+}
+
+.search-widget.is-loading .search-widget-engine > svg {
+  visibility: hidden;
+}
+
+.search-widget.is-loading .search-widget-engine::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 6px;
+  width: 14px;
+  height: 14px;
+  margin-top: -9px;
+  border: 2px solid var(--warm-gray);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: searchSpin 0.7s linear infinite;
+}
+
+.search-widget.is-loading .search-widget-input {
+  color: var(--muted);
+}
+
+@keyframes searchSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Engine menu — same card tokens as .shortcut-menu. */
+.search-engine-menu {
+  position: fixed;
+  margin: 0;
+  padding: 4px;
+  min-width: 168px;
+  border: 1px solid var(--warm-gray);
+  border-radius: 6px;
+  background: var(--card-bg);
+  box-shadow: 0 8px 32px var(--shadow);
+  color: var(--ink);
+  font-family: 'Inter Tight', sans-serif;
+  inset: auto;
+}
+
+.search-engine-menu::backdrop {
+  background: transparent;
+}
+
+.search-engine-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.search-engine-option:hover,
+.search-engine-option:focus-visible {
+  background: var(--paper);
+  outline: none;
+}
+
+.search-engine-option[aria-checked="true"] {
+  font-weight: 600;
+}
+
+.search-engine-option[aria-checked="true"]::after {
+  content: "\2713";
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .search-widget-input {

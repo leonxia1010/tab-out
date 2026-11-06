@@ -2,37 +2,39 @@
 // tests/dashboard/widgets-search.test.js
 // ─────────────────────────────────────────────────────────────────────────────
 // Unit coverage for extension/dashboard/src/widgets/search.ts — the
-// middle-section search widget. Covers mount structure, submit →
-// chrome.search.query dispatch, empty-query no-op, autofocus, engine
-// switching (click + Tab), per-engine dispatch via chrome.tabs.update,
-// localStorage persistence, and destroy cleanup.
+// middle-section search widget. Covers mount structure, the engine menu
+// (selection, keyboard nav), Tab cycling, per-engine URL dispatch via
+// chrome.tabs.update, the busy state after submit, localStorage
+// persistence, and destroy cleanup.
+//
+// jsdom has no native popover support, so opening the menu via
+// popovertarget is verified in a real browser; here the menu items are
+// clicked directly (they are always in the DOM).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { mountSearch, SEARCH_ENGINE_KEY } from '../../extension/dashboard/src/widgets/search.ts';
 
-function installChromeSearch() {
-  const query = vi.fn();
-  vi.stubGlobal('chrome', { search: { query } });
-  return query;
-}
+const ORDER = ['google', 'baidu', 'xiaohongshu', 'bilibili', 'googlemaps'];
 
-function installChrome() {
-  const query = vi.fn();
-  const update = vi.fn();
-  vi.stubGlobal('chrome', { search: { query }, tabs: { update } });
-  return { query, update };
+function installChrome(updateImpl) {
+  const update = vi.fn(updateImpl);
+  vi.stubGlobal('chrome', { tabs: { update } });
+  return update;
 }
 
 function mountInSlot() {
   const slot = document.getElementById('slot');
-  mountSearch(slot);
+  const handle = mountSearch(slot);
   return {
     slot,
+    handle,
     form: slot.querySelector('form.search-widget'),
     input: slot.querySelector('input.search-widget-input'),
     button: slot.querySelector('button.search-widget-engine'),
+    menu: slot.querySelector('.search-engine-menu'),
+    option: (id) => slot.querySelector(`.search-engine-option[data-engine="${id}"]`),
   };
 }
 
@@ -42,9 +44,9 @@ function submit(form) {
   return ev;
 }
 
-function pressTab(input, init = {}) {
-  const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true, ...init });
-  input.dispatchEvent(ev);
+function keydown(target, key, init = {}) {
+  const ev = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+  target.dispatchEvent(ev);
   return ev;
 }
 
@@ -58,269 +60,288 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('mountSearch', () => {
-  it('appends a search form + input to the slot', () => {
-    installChromeSearch();
-    const slot = document.getElementById('slot');
-    mountSearch(slot);
+describe('mountSearch structure', () => {
+  it('renders form, engine menu trigger, menu, and input', () => {
+    installChrome();
+    const { form, input, button, menu } = mountInSlot();
 
-    const form = slot.querySelector('form.search-widget');
-    expect(form).not.toBeNull();
     expect(form.getAttribute('role')).toBe('search');
-
-    const field = form.querySelector('.search-widget-field');
-    expect(field).not.toBeNull();
-
-    const button = field.querySelector('button.search-widget-engine');
-    expect(button).not.toBeNull();
-    expect(button.getAttribute('type')).toBe('button');
-    expect(button.textContent).toBe('Google');
-    expect(button.dataset.engine).toBe('default');
-
-    const input = field.querySelector('input.search-widget-input');
-    expect(input).not.toBeNull();
     expect(input.getAttribute('type')).toBe('search');
     expect(input.getAttribute('placeholder')).toBe('Search Google...');
+
+    expect(button.getAttribute('type')).toBe('button');
+    expect(button.getAttribute('aria-haspopup')).toBe('menu');
+    expect(button.getAttribute('popovertarget')).toBe(menu.id);
+    expect(button.dataset.engine).toBe('google');
+    expect(button.querySelector('svg[data-icon="google"]')).not.toBeNull();
+
+    expect(menu.getAttribute('popover')).toBe('auto');
+    expect(menu.getAttribute('role')).toBe('menu');
+    const items = [...menu.querySelectorAll('.search-engine-option')];
+    expect(items.map((i) => i.dataset.engine)).toEqual(ORDER);
+    expect(items.map((i) => i.textContent)).toEqual(['Google', '百度', '小红书', 'B站', 'Google Maps']);
+    items.forEach((i) => {
+      expect(i.getAttribute('role')).toBe('menuitemradio');
+      expect(i.getAttribute('type')).toBe('button');
+      expect(i.querySelector(`svg[data-icon="${i.dataset.engine}"]`)).not.toBeNull();
+    });
+    expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false', 'false']);
   });
 
   it('does NOT steal focus on mount', () => {
-    // Per v2.3.0 UX decision: the search widget is opt-in, so it must
-    // not grab focus when the new tab opens. Keyboard caret stays
-    // wherever the browser put it (typically <body>).
-    installChromeSearch();
-    const slot = document.getElementById('slot');
-    mountSearch(slot);
-
-    const input = slot.querySelector('input.search-widget-input');
+    installChrome();
+    const { input } = mountInSlot();
     expect(document.activeElement).not.toBe(input);
   });
 
-  it('dispatches chrome.search.query with trimmed value + CURRENT_TAB on submit', () => {
-    const query = installChromeSearch();
-    const slot = document.getElementById('slot');
-    mountSearch(slot);
-
-    const form = slot.querySelector('form.search-widget');
-    const input = form.querySelector('input.search-widget-input');
-    input.value = '  typescript monads  ';
-
-    form.dispatchEvent(new Event('submit', { cancelable: true }));
-
-    expect(query).toHaveBeenCalledTimes(1);
-    expect(query).toHaveBeenCalledWith({ text: 'typescript monads', disposition: 'CURRENT_TAB' });
-  });
-
-  it('clears the input after a successful submit', () => {
-    installChromeSearch();
-    const slot = document.getElementById('slot');
-    mountSearch(slot);
-
-    const form = slot.querySelector('form.search-widget');
-    const input = form.querySelector('input.search-widget-input');
-    input.value = 'foo';
-
-    form.dispatchEvent(new Event('submit', { cancelable: true }));
-
-    expect(input.value).toBe('');
-  });
-
-  it('is a no-op when the input is empty or whitespace-only', () => {
-    const query = installChromeSearch();
-    const slot = document.getElementById('slot');
-    mountSearch(slot);
-
-    const form = slot.querySelector('form.search-widget');
-    const input = form.querySelector('input.search-widget-input');
-
-    input.value = '';
-    form.dispatchEvent(new Event('submit', { cancelable: true }));
-    input.value = '   ';
-    form.dispatchEvent(new Event('submit', { cancelable: true }));
-
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('prevents default so the form never navigates', () => {
-    installChromeSearch();
-    const slot = document.getElementById('slot');
-    mountSearch(slot);
-
-    const form = slot.querySelector('form.search-widget');
-    const input = form.querySelector('input.search-widget-input');
-    input.value = 'anything';
-
-    const ev = new Event('submit', { cancelable: true });
-    form.dispatchEvent(ev);
-
-    expect(ev.defaultPrevented).toBe(true);
-  });
-
-  it('swallows submit quietly when chrome.search is unavailable', () => {
-    // No chrome global at all — matches older Chromium / jsdom default.
-    vi.stubGlobal('chrome', undefined);
-    const slot = document.getElementById('slot');
-    mountSearch(slot);
-
-    const form = slot.querySelector('form.search-widget');
-    const input = form.querySelector('input.search-widget-input');
-    input.value = 'fallback';
-
-    expect(() => form.dispatchEvent(new Event('submit', { cancelable: true }))).not.toThrow();
-    expect(input.value).toBe('');
-  });
-
-  it('destroy() removes the form from the slot', () => {
-    installChromeSearch();
-    const slot = document.getElementById('slot');
-    const handle = mountSearch(slot);
-
-    expect(slot.querySelector('form.search-widget')).not.toBeNull();
+  it('destroy() removes the form and the menu', () => {
+    installChrome();
+    const { slot, handle } = mountInSlot();
     handle.destroy();
     expect(slot.querySelector('form.search-widget')).toBeNull();
+    expect(slot.querySelector('.search-engine-menu')).toBeNull();
   });
 });
 
-describe('mountSearch engine switching', () => {
-  it('cycles default → xiaohongshu → bilibili → default on button click', () => {
+describe('mountSearch engine menu', () => {
+  it('picking a menu item switches engine, icon, placeholder, and checked state', () => {
     installChrome();
-    const { input, button } = mountInSlot();
+    const { input, button, menu, option } = mountInSlot();
 
-    const seen = [];
-    for (let i = 0; i < 3; i++) {
-      button.click();
-      seen.push([button.dataset.engine, button.textContent, input.placeholder]);
-    }
+    option('bilibili').click();
 
-    expect(seen).toEqual([
-      ['xiaohongshu', '小红书', 'Search Xiaohongshu...'],
-      ['bilibili', 'B站', 'Search Bilibili...'],
-      ['default', 'Google', 'Search Google...'],
-    ]);
+    expect(button.dataset.engine).toBe('bilibili');
+    expect(button.querySelector('svg[data-icon="bilibili"]')).not.toBeNull();
+    expect(button.querySelector('svg[data-icon="google"]')).toBeNull();
+    expect(input.placeholder).toBe('Search Bilibili...');
+    const checked = [...menu.querySelectorAll('[aria-checked="true"]')].map((i) => i.dataset.engine);
+    expect(checked).toEqual(['bilibili']);
   });
 
-  it('clicking the engine button does NOT submit the form', () => {
-    const { query, update } = installChrome();
-    const { input, button } = mountInSlot();
+  it('picking an item returns focus to the input', () => {
+    installChrome();
+    const { input, option } = mountInSlot();
+    option('baidu').click();
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('clicking the trigger or a menu item never submits', () => {
+    const update = installChrome();
+    const { input, button, option } = mountInSlot();
     input.value = 'should not fire';
 
     button.click();
+    option('xiaohongshu').click();
 
-    expect(query).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
     expect(input.value).toBe('should not fire');
   });
 
-  it('returns focus to the input after a click switch', () => {
+  it('ArrowDown / ArrowUp / Home / End move focus between items, wrapping', () => {
     installChrome();
-    const { input, button } = mountInSlot();
+    const { menu, option } = mountInSlot();
+    option('google').focus();
 
-    button.click();
-
-    expect(document.activeElement).toBe(input);
+    keydown(menu, 'ArrowDown');
+    expect(document.activeElement).toBe(option('baidu'));
+    keydown(menu, 'End');
+    expect(document.activeElement).toBe(option('googlemaps'));
+    keydown(menu, 'ArrowDown');
+    expect(document.activeElement).toBe(option('google'));
+    keydown(menu, 'ArrowUp');
+    expect(document.activeElement).toBe(option('googlemaps'));
+    keydown(menu, 'Home');
+    expect(document.activeElement).toBe(option('google'));
   });
+});
 
-  it('Tab inside the input cycles the engine and prevents default', () => {
+describe('mountSearch Tab cycling', () => {
+  it('Tab inside the input cycles through all engines in order and prevents default', () => {
     installChrome();
     const { input, button } = mountInSlot();
 
-    const ev = pressTab(input);
-    expect(ev.defaultPrevented).toBe(true);
-    expect(button.dataset.engine).toBe('xiaohongshu');
-
-    pressTab(input);
-    expect(button.dataset.engine).toBe('bilibili');
+    const seen = [];
+    for (let i = 0; i < ORDER.length; i++) {
+      const ev = keydown(input, 'Tab');
+      expect(ev.defaultPrevented).toBe(true);
+      seen.push(button.dataset.engine);
+    }
+    expect(seen).toEqual([...ORDER.slice(1), 'google']);
   });
 
   it('Shift+Tab is left native so focus can leave the field', () => {
     installChrome();
     const { input, button } = mountInSlot();
-
-    const ev = pressTab(input, { shiftKey: true });
-
+    const ev = keydown(input, 'Tab', { shiftKey: true });
     expect(ev.defaultPrevented).toBe(false);
-    expect(button.dataset.engine).toBe('default');
+    expect(button.dataset.engine).toBe('google');
   });
 
   it('Tab during IME composition is not intercepted', () => {
     installChrome();
     const { input, button } = mountInSlot();
-
-    const ev = pressTab(input, { isComposing: true });
-
+    const ev = keydown(input, 'Tab', { isComposing: true });
     expect(ev.defaultPrevented).toBe(false);
-    expect(button.dataset.engine).toBe('default');
+    expect(button.dataset.engine).toBe('google');
   });
+});
 
-  it('xiaohongshu submit opens the encoded search_result URL in the current tab', () => {
-    const { query, update } = installChrome();
-    const { form, input, button } = mountInSlot();
-    button.click();
+describe('mountSearch submit', () => {
+  const CASES = [
+    ['google', 'https://www.google.com/search?q=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['baidu', 'https://www.baidu.com/s?wd=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['xiaohongshu', 'https://www.xiaohongshu.com/search_result?keyword=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['bilibili', 'https://search.bilibili.com/all?keyword=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['googlemaps', 'https://www.google.com/maps/search/%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+  ];
+
+  it.each(CASES)('%s opens the encoded, trimmed query in the current tab', (id, url) => {
+    const update = installChrome();
+    const { form, input, option } = mountInSlot();
+    option(id).click();
     input.value = '  露营装备  ';
 
     submit(form);
 
-    expect(query).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledTimes(1);
-    expect(update).toHaveBeenCalledWith({
-      url: 'https://www.xiaohongshu.com/search_result?keyword=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87',
-    });
-    expect(input.value).toBe('');
+    expect(update).toHaveBeenCalledWith({ url });
   });
 
-  it('bilibili submit opens the encoded search URL in the current tab', () => {
-    const { query, update } = installChrome();
-    const { form, input, button } = mountInSlot();
-    button.click();
-    button.click();
-    input.value = 'a&b 测试';
+  it('encodes reserved characters in the query', () => {
+    const update = installChrome();
+    const { form, input } = mountInSlot();
+    input.value = 'a&b c/d?';
+    submit(form);
+    expect(update).toHaveBeenCalledWith({ url: 'https://www.google.com/search?q=a%26b%20c%2Fd%3F' });
+  });
+
+  it('prevents default so the form never navigates', () => {
+    installChrome();
+    const { form, input } = mountInSlot();
+    input.value = 'anything';
+    expect(submit(form).defaultPrevented).toBe(true);
+  });
+
+  it('is a no-op when the input is empty or whitespace-only', () => {
+    const update = installChrome();
+    const { form, input } = mountInSlot();
+    input.value = '';
+    submit(form);
+    input.value = '   ';
+    submit(form);
+    expect(update).not.toHaveBeenCalled();
+    expect(form.classList.contains('is-loading')).toBe(false);
+  });
+
+  it('enters a busy state: keeps the query, read-only input, aria-busy', () => {
+    installChrome();
+    const { form, input } = mountInSlot();
+    input.value = 'camping';
 
     submit(form);
 
-    expect(query).not.toHaveBeenCalled();
-    expect(update).toHaveBeenCalledWith({
-      url: 'https://search.bilibili.com/all?keyword=a%26b%20%E6%B5%8B%E8%AF%95',
-    });
+    expect(form.classList.contains('is-loading')).toBe(true);
+    expect(form.getAttribute('aria-busy')).toBe('true');
+    expect(input.readOnly).toBe(true);
+    expect(input.value).toBe('camping');
   });
 
-  it('non-default engine swallows submit quietly when chrome is unavailable', () => {
+  it('ignores a second submit while busy', () => {
+    const update = installChrome();
+    const { form, input } = mountInSlot();
+    input.value = 'camping';
+    submit(form);
+    submit(form);
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the busy state when chrome.tabs.update rejects', async () => {
+    installChrome(() => Promise.reject(new Error('No current window')));
+    const { form, input } = mountInSlot();
+    input.value = 'camping';
+
+    submit(form);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(form.classList.contains('is-loading')).toBe(false);
+    expect(input.readOnly).toBe(false);
+    expect(input.value).toBe('camping');
+  });
+
+  it('clears the busy state when chrome.tabs.update throws synchronously', () => {
+    installChrome(() => { throw new Error('boom'); });
+    const { form, input } = mountInSlot();
+    input.value = 'camping';
+
+    expect(() => submit(form)).not.toThrow();
+    expect(form.classList.contains('is-loading')).toBe(false);
+  });
+
+  it('swallows submit quietly without entering busy state when chrome is unavailable', () => {
     vi.stubGlobal('chrome', undefined);
-    const { form, input, button } = mountInSlot();
-    button.click();
+    const { form, input } = mountInSlot();
     input.value = 'fallback';
 
     expect(() => submit(form)).not.toThrow();
+    expect(form.classList.contains('is-loading')).toBe(false);
+  });
+
+  it('resets to an empty, idle field when restored from the bfcache', () => {
+    installChrome();
+    const { form, input } = mountInSlot();
+    input.value = 'camping';
+    submit(form);
+
+    const notPersisted = new Event('pageshow');
+    notPersisted.persisted = false;
+    window.dispatchEvent(notPersisted);
+    expect(form.classList.contains('is-loading')).toBe(true);
+
+    const restored = new Event('pageshow');
+    restored.persisted = true;
+    window.dispatchEvent(restored);
+    expect(form.classList.contains('is-loading')).toBe(false);
+    expect(input.readOnly).toBe(false);
     expect(input.value).toBe('');
   });
 });
 
 describe('mountSearch engine persistence', () => {
-  it('persists the chosen engine to localStorage and clears it for default', () => {
+  it('persists the chosen engine and clears the key for google', () => {
     installChrome();
-    const { button } = mountInSlot();
+    const { option } = mountInSlot();
 
-    button.click();
+    option('xiaohongshu').click();
     expect(localStorage.getItem(SEARCH_ENGINE_KEY)).toBe('xiaohongshu');
-    button.click();
-    expect(localStorage.getItem(SEARCH_ENGINE_KEY)).toBe('bilibili');
-    button.click();
+    option('googlemaps').click();
+    expect(localStorage.getItem(SEARCH_ENGINE_KEY)).toBe('googlemaps');
+    option('google').click();
     expect(localStorage.getItem(SEARCH_ENGINE_KEY)).toBeNull();
+  });
+
+  it('Tab cycling persists too', () => {
+    installChrome();
+    const { input } = mountInSlot();
+    keydown(input, 'Tab');
+    expect(localStorage.getItem(SEARCH_ENGINE_KEY)).toBe('baidu');
   });
 
   it('restores the last-used engine on mount', () => {
     installChrome();
     localStorage.setItem(SEARCH_ENGINE_KEY, 'bilibili');
-    const { input, button } = mountInSlot();
+    const { input, button, option } = mountInSlot();
 
     expect(button.dataset.engine).toBe('bilibili');
     expect(input.placeholder).toBe('Search Bilibili...');
+    expect(option('bilibili').getAttribute('aria-checked')).toBe('true');
   });
 
-  it('falls back to default for an unknown stored value', () => {
+  it('falls back to google for an unknown stored value', () => {
     installChrome();
-    localStorage.setItem(SEARCH_ENGINE_KEY, 'baidu');
+    localStorage.setItem(SEARCH_ENGINE_KEY, 'yahoo');
     const { button } = mountInSlot();
-
-    expect(button.dataset.engine).toBe('default');
+    expect(button.dataset.engine).toBe('google');
   });
 
   it('survives a throwing localStorage on read and write', () => {
@@ -328,9 +349,9 @@ describe('mountSearch engine persistence', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied'); });
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied'); });
 
-    const { button } = mountInSlot();
-    expect(button.dataset.engine).toBe('default');
-    expect(() => button.click()).not.toThrow();
-    expect(button.dataset.engine).toBe('xiaohongshu');
+    const { button, option } = mountInSlot();
+    expect(button.dataset.engine).toBe('google');
+    expect(() => option('baidu').click()).not.toThrow();
+    expect(button.dataset.engine).toBe('baidu');
   });
 });
