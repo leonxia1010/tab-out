@@ -18,7 +18,13 @@ import { resolve } from 'node:path';
 
 import { mountSearch, SEARCH_ENGINE_KEY } from '../../extension/dashboard/src/widgets/search.ts';
 
-const ORDER = ['google', 'baidu', 'xiaohongshu', 'bilibili', 'googlemaps'];
+const ORDER = [
+  'google', 'baidu', 'baiduimages',
+  'xiaohongshu', 'bilibili', 'x', 'youtube', 'weixin', 'linkedin',
+  'taobao', 'amazon',
+  'googlemaps',
+  'dribbble', 'refero',
+];
 
 function installChrome(updateImpl) {
   const update = vi.fn(updateImpl);
@@ -81,13 +87,19 @@ describe('mountSearch structure', () => {
     expect(menu.getAttribute('role')).toBe('menu');
     const items = [...menu.querySelectorAll('.search-engine-option')];
     expect(items.map((i) => i.dataset.engine)).toEqual(ORDER);
-    expect(items.map((i) => i.textContent)).toEqual(['Google', '百度', '小红书', 'B站', 'Google Maps']);
+    expect(items.map((i) => i.textContent)).toEqual([
+      'Google', '百度', '百度图片',
+      '小红书', 'B站', 'X', 'YouTube', '公众号文章', 'LinkedIn',
+      '淘宝', 'Amazon AU',
+      'Google Maps',
+      'Dribbble', 'Refero',
+    ]);
     items.forEach((i) => {
       expect(i.getAttribute('role')).toBe('menuitemradio');
       expect(i.getAttribute('type')).toBe('button');
       expect(i.querySelector(`img[data-icon="${i.dataset.engine}"]`)).not.toBeNull();
     });
-    expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false', 'false']);
+    expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(ORDER.map((_, i) => (i === 0 ? 'true' : 'false')));
   });
 
   it('every engine icon points at a bundled file under extension/icons/engines', () => {
@@ -98,7 +110,9 @@ describe('mountSearch structure', () => {
     expect(imgs).toHaveLength(ORDER.length);
     imgs.forEach((img) => {
       const src = img.getAttribute('src');
-      expect(src).toBe(`../icons/engines/${img.dataset.icon}.png`);
+      // baiduimages reuses baidu.png (same favicon on image.baidu.com).
+      const file = img.dataset.icon === 'baiduimages' ? 'baidu' : img.dataset.icon;
+      expect(src).toBe(`../icons/engines/${file}.png`);
       expect(existsSync(resolve(dashboardDir, src))).toBe(true);
       expect(img.getAttribute('alt')).toBe('');
     });
@@ -169,11 +183,11 @@ describe('mountSearch engine menu', () => {
     keydown(menu, 'ArrowDown');
     expect(document.activeElement).toBe(option('baidu'));
     keydown(menu, 'End');
-    expect(document.activeElement).toBe(option('googlemaps'));
+    expect(document.activeElement).toBe(option(ORDER.at(-1)));
     keydown(menu, 'ArrowDown');
     expect(document.activeElement).toBe(option('google'));
     keydown(menu, 'ArrowUp');
-    expect(document.activeElement).toBe(option('googlemaps'));
+    expect(document.activeElement).toBe(option(ORDER.at(-1)));
     keydown(menu, 'Home');
     expect(document.activeElement).toBe(option('google'));
   });
@@ -216,8 +230,21 @@ describe('mountSearch submit', () => {
     ['baidu', 'https://www.baidu.com/s?wd=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
     ['xiaohongshu', 'https://www.xiaohongshu.com/search_result?keyword=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
     ['bilibili', 'https://search.bilibili.com/all?keyword=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['x', 'https://x.com/search?q=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87&src=typed_query'],
+    ['baiduimages', 'https://image.baidu.com/search/index?tn=baiduimage&word=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['youtube', 'https://www.youtube.com/results?search_query=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['weixin', 'https://weixin.sogou.com/weixin?type=2&query=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['linkedin', 'https://www.linkedin.com/search/results/people/?keywords=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['taobao', 'https://s.taobao.com/search?q=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['amazon', 'https://www.amazon.com.au/s?k=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['dribbble', 'https://dribbble.com/search/%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
+    ['refero', 'https://refero.design/search?query=%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
     ['googlemaps', 'https://www.google.com/maps/search/%E9%9C%B2%E8%90%A5%E8%A3%85%E5%A4%87'],
   ];
+
+  it('has a URL case for every engine', () => {
+    expect(CASES.map(([id]) => id).sort()).toEqual([...ORDER].sort());
+  });
 
   it.each(CASES)('%s opens the encoded, trimmed query in the current tab', (id, url) => {
     const update = installChrome();
