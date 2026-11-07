@@ -1,14 +1,12 @@
 // Search widget — full-width input with an engine picker on the left.
-// Engines (in menu / Tab-cycle order):
-//
-//   google      → https://www.google.com/search?q=…
-//   baidu       → https://www.baidu.com/s?wd=…
-//   xiaohongshu → https://www.xiaohongshu.com/search_result?keyword=…
-//                 (same URL the official 小红书快捷搜索 extension opens
-//                 from its context menu)
-//   bilibili    → https://search.bilibili.com/all?keyword=…
-//   x           → https://x.com/search?q=…&src=typed_query
-//   googlemaps  → https://www.google.com/maps/search/…
+// Engines (in menu / Tab-cycle order), grouped: web, content/social,
+// shopping, maps, design. Each one's URL lives in ENGINES below.
+//   google, baidu, baiduimages,
+//   xiaohongshu (same search_result URL the official 小红书快捷搜索
+//   extension opens), bilibili, x, youtube, weixin (via Sogou), linkedin,
+//   taobao, amazon (.com.au),
+//   googlemaps,
+//   dribbble, refero
 //
 // Every engine is an explicit URL (no chrome.search.query): the picker
 // shows a brand icon, so the destination has to match the icon no
@@ -35,7 +33,21 @@ export interface SearchHandle {
   destroy(): void;
 }
 
-export type SearchEngineId = 'google' | 'baidu' | 'xiaohongshu' | 'bilibili' | 'x' | 'googlemaps';
+export type SearchEngineId =
+  | 'google'
+  | 'baidu'
+  | 'baiduimages'
+  | 'xiaohongshu'
+  | 'bilibili'
+  | 'x'
+  | 'youtube'
+  | 'weixin'
+  | 'linkedin'
+  | 'taobao'
+  | 'amazon'
+  | 'googlemaps'
+  | 'dribbble'
+  | 'refero';
 
 interface SearchEngine {
   id: SearchEngineId;
@@ -73,6 +85,14 @@ const ENGINES: readonly SearchEngine[] = [
     buildUrl: (q) => `https://www.baidu.com/s?wd=${encodeURIComponent(q)}`,
   },
   {
+    id: 'baiduimages',
+    label: '百度图片',
+    placeholder: 'Search Baidu Images...',
+    icon: `${ICON_DIR}/baidu.png`,
+    // Same favicon as Baidu: that's what image.baidu.com shows in the tab.
+    buildUrl: (q) => `https://image.baidu.com/search/index?tn=baiduimage&word=${encodeURIComponent(q)}`,
+  },
+  {
     id: 'xiaohongshu',
     label: '小红书',
     placeholder: 'Search RedNote...',
@@ -95,11 +115,62 @@ const ENGINES: readonly SearchEngine[] = [
     buildUrl: (q) => `https://x.com/search?q=${encodeURIComponent(q)}&src=typed_query`,
   },
   {
+    id: 'youtube',
+    label: 'YouTube',
+    placeholder: 'Search YouTube...',
+    icon: `${ICON_DIR}/youtube.png`,
+    buildUrl: (q) => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`,
+  },
+  {
+    id: 'weixin',
+    label: '公众号文章',
+    placeholder: 'Search WeChat articles...',
+    icon: `${ICON_DIR}/weixin.png`,
+    // WeChat Official Account articles via Sogou (type=2 = articles); the tab shows Sogou's favicon.
+    buildUrl: (q) => `https://weixin.sogou.com/weixin?type=2&query=${encodeURIComponent(q)}`,
+  },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    placeholder: 'Search LinkedIn people...',
+    icon: `${ICON_DIR}/linkedin.png`,
+    // People results: the LinkedIn search actually used most.
+    buildUrl: (q) => `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(q)}`,
+  },
+  {
+    id: 'taobao',
+    label: '淘宝',
+    placeholder: 'Search Taobao...',
+    icon: `${ICON_DIR}/taobao.png`,
+    buildUrl: (q) => `https://s.taobao.com/search?q=${encodeURIComponent(q)}`,
+  },
+  {
+    id: 'amazon',
+    label: 'Amazon AU',
+    placeholder: 'Search Amazon AU...',
+    icon: `${ICON_DIR}/amazon.png`,
+    buildUrl: (q) => `https://www.amazon.com.au/s?k=${encodeURIComponent(q)}`,
+  },
+  {
     id: 'googlemaps',
     label: 'Google Maps',
     placeholder: 'Search Google Maps...',
     icon: `${ICON_DIR}/googlemaps.png`,
     buildUrl: (q) => `https://www.google.com/maps/search/${encodeURIComponent(q)}`,
+  },
+  {
+    id: 'dribbble',
+    label: 'Dribbble',
+    placeholder: 'Search Dribbble...',
+    icon: `${ICON_DIR}/dribbble.png`,
+    buildUrl: (q) => `https://dribbble.com/search/${encodeURIComponent(q)}`,
+  },
+  {
+    id: 'refero',
+    label: 'Refero',
+    placeholder: 'Search Refero...',
+    icon: `${ICON_DIR}/refero.png`,
+    buildUrl: (q) => `https://refero.design/search?query=${encodeURIComponent(q)}`,
   },
 ];
 

@@ -8,7 +8,7 @@ All notable changes to this fork land here. Format based on
 
 ### Added
 
-- **Search engine picker: Google, 百度, 小红书 (RedNote), B站, X, Google Maps.** The
+- **Search engine picker with 14 engines**: Google, 百度, 百度图片, 小红书 (RedNote), B站, X, YouTube, 公众号文章 (WeChat articles via Sogou), LinkedIn (people), 淘宝, Amazon AU, Google Maps, Dribbble, Refero. Chosen from the sites actually searched in the last 90 days of browser history. The
   magnifying glass is replaced by the current engine's icon: each
   site's own favicon (downloaded 2026-11-06, bundled under
   `extension/icons/engines/`, trademarks of their owners). Click it to open a menu and pick an engine

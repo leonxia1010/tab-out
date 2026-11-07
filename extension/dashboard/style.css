@@ -1446,12 +1446,15 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   to { transform: rotate(360deg); }
 }
 
-/* Engine menu — same card tokens as .shortcut-menu. */
+/* Engine menu — same card tokens as .shortcut-menu. 14 engines is
+   ~450px tall, so cap it and scroll on short windows. */
 .search-engine-menu {
   position: fixed;
   margin: 0;
   padding: 4px;
   min-width: 168px;
+  max-height: 70vh;
+  overflow-y: auto;
   border: 1px solid var(--warm-gray);
   border-radius: 6px;
   background: var(--card-bg);
